@@ -1,0 +1,128 @@
+import Foundation
+import CoreLocation
+import UIKit
+import Combine
+
+// クラス全体をMainActorで実行するように指定します。
+@MainActor
+class PostManager: ObservableObject {
+    static let shared = PostManager()
+
+    @Published var posts: [Post] = []
+    @Published var isLoading = false
+    @Published var error: String?
+    
+    private let supabaseService = SupabaseService.shared
+
+    private init() {
+        // SupabaseService の posts を監視
+        supabaseService.$posts.assign(to: &$posts)
+        supabaseService.$isLoading.assign(to: &$isLoading)
+        supabaseService.$error.assign(to: &$error)
+    }
+
+    func fetchPosts() async {
+        await supabaseService.fetchPosts()
+        // SupabaseServiceの投稿をPostManagerに同期
+        await MainActor.run {
+            self.posts = supabaseService.posts
+            SecureLogger.shared.info("Synced \(self.posts.count) posts from SupabaseService to PostManager")
+        }
+    }
+
+    func createPost(
+        content: String,
+        imageData: Data?,
+        location: CLLocationCoordinate2D,
+        locationName: String?
+    ) async throws {
+        print("📝 PostManager - createPost called with content: '\(content)', hasImage: \(imageData != nil)")
+        // 認証状態を確認
+        print("🔐 PostManager - Auth check: isAuthenticated=\(AuthManager.shared.isAuthenticated)")
+        print("🔐 PostManager - Current user: \(AuthManager.shared.currentUser?.id ?? "nil")")
+        print("🔐 PostManager - User email: \(AuthManager.shared.currentUser?.email ?? "nil")")
+        
+        guard AuthManager.shared.isAuthenticated,
+              let userIdString = AuthManager.shared.currentUser?.id else {
+            print("❌ PostManager - Authentication failed - isAuth: \(AuthManager.shared.isAuthenticated), user: \(AuthManager.shared.currentUser?.id ?? "nil")")
+            throw AuthError.userNotAuthenticated
+        }
+        print("✅ PostManager - Authentication passed for user: \(userIdString)")
+
+        // コンテンツの検証とサニタイズ
+        // 写真がある場合は空のコンテンツを許可
+        let sanitizedContent: String
+        print("🔍 PostManager - Content validation: isEmpty=\(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty), hasImage=\(imageData != nil)")
+        if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageData != nil {
+            // 写真のみの投稿の場合
+            sanitizedContent = ""
+            print("📸 PostManager - Photo-only post detected")
+            SecureLogger.shared.info("Creating photo-only post")
+        } else {
+            // テキストがある場合は通常の検証
+            let contentValidation = InputValidator.validatePostContent(content)
+            guard contentValidation.isValid, let validatedContent = contentValidation.value else {
+                SecureLogger.shared.securityEvent("Invalid post content", details: ["content": content])
+                throw AuthError.invalidInput(contentValidation.errorMessage ?? "投稿内容が無効です")
+            }
+            sanitizedContent = validatedContent
+        }
+        
+        // 投稿内容が空でないか確認（テキストまたは写真が必要）
+        if sanitizedContent.isEmpty && imageData == nil {
+            throw AuthError.invalidInput("投稿にはテキストまたは写真が必要です")
+        }
+        
+        // 位置情報名のサニタイズ
+        let sanitizedLocationName = locationName.map { InputValidator.sanitizeText($0, maxLength: 100) }
+        
+        SecureLogger.shared.info("Creating post with sanitized content")
+        print("🚀 PostManager - Calling SupabaseService.createPostWithRPC")
+        
+        // Use SupabaseService to create post with proper validation
+        let success = await supabaseService.createPostWithRPC(
+            userId: userIdString,
+            content: sanitizedContent,
+            imageData: imageData,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            locationName: sanitizedLocationName
+        )
+        
+        print("📤 PostManager - SupabaseService returned success: \(success)")
+        if !success {
+            let errorMessage = supabaseService.error ?? "不明なエラー"
+            print("❌ PostManager - Post creation failed with error: \(errorMessage)")
+            throw AuthError.invalidInput("投稿の作成に失敗しました: \(errorMessage)")
+        }
+        
+        print("✅ PostManager - Post created successfully")
+        SecureLogger.shared.info("Post created successfully", file: #file, function: #function, line: #line)
+        
+        // 投稿成功後、少し遅延を入れてから新しい投稿を反映
+        print("🔄 PostManager - Scheduling posts reload...")
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒遅延
+            print("🔄 PostManager - Reloading posts now...")
+            await fetchPosts()
+        }
+    }
+
+    func deletePost(_ postId: UUID) async -> Bool {
+        return await supabaseService.deletePost(postId)
+    }
+    
+    func likePost(_ postId: UUID) async -> Bool {
+        guard let userIdString = AuthManager.shared.currentUser?.id else {
+            return false
+        }
+        return await supabaseService.toggleLike(postId: postId, userId: userIdString)
+    }
+
+    func unlikePost(_ postId: UUID) async -> Bool {
+        guard let userIdString = AuthManager.shared.currentUser?.id else {
+            return false
+        }
+        return await supabaseService.toggleLike(postId: postId, userId: userIdString)
+    }
+}
