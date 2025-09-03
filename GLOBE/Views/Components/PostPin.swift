@@ -1,8 +1,13 @@
+//======================================================================
+// MARK: - PostPin.swift
+// Purpose: Post display components for map pins with speech bubble design
+// Path: GLOBE/Views/Components/PostPin.swift
+//======================================================================
+
 import SwiftUI
 import Foundation
 
 struct PostPin: View {
-    // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
     let post: Post
     let onTap: () -> Void
@@ -12,170 +17,165 @@ struct PostPin: View {
     @State private var showingUserProfile = false
     @State private var showingDetailedPost = false
     
+    // Calculate dynamic height based on content
+    private var cardHeight: CGFloat {
+        // 匿名投稿は上部により余裕を持たせる
+        let headerHeight: CGFloat = post.isAnonymous ? 18 : 8  // 匿名時は上部スペース多め
+        let footerHeight: CGFloat = post.isAnonymous ? 6 : 8   // 匿名時は下部スペース
+        let lineHeight: CGFloat = 9
+        let padding: CGFloat = 8 // 上下パディング
+        
+        let contentHeight = CGFloat(actualTextLines) * lineHeight
+        
+        return headerHeight + contentHeight + footerHeight + padding
+    }
+    
+    private var cardWidth: CGFloat {
+        return 96
+    }
+    
+    private var actualTextLines: Int {
+        if post.text.isEmpty { return 0 }
+        let charactersPerLine = 13
+        let lineCount = Int(ceil(Double(post.text.count) / Double(charactersPerLine)))
+        return max(1, lineCount)
+    }
+    
     var body: some View {
-        VStack(spacing: 0) {
-            // 4:3 ratio card container
-            HStack(spacing: 0) {
-                // Left side: Image (square, 3:3)
-                Group {
-                    if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
-                        // ローカル画像データがある場合（投稿直後）
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 72, height: 72)
-                            .clipped()
-                    } else if let imageUrl = post.imageUrl {
-                        // リモート画像URLから読み込み
-                        AsyncImage(url: URL(string: imageUrl)) { image in
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(width: 72, height: 72)
-                                .clipped()
-                        } placeholder: {
-                            Rectangle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 72, height: 72)
-                                .overlay(
-                                    ProgressView()
-                                        .scaleEffect(0.5)
-                                )
-                        }
-                    } else {
-                        // Placeholder for no image
-                        Rectangle()
+        VStack(spacing: post.isAnonymous ? 4 : 0) {
+            // ヘッダー - 匿名投稿では非表示だがスペースは確保
+            if !post.isAnonymous {
+                HStack(spacing: 3) {
+                    Button(action: { showingUserProfile = true }) {
+                        Circle()
                             .fill(Color.gray.opacity(0.3))
-                            .frame(width: 72, height: 72)
+                            .frame(width: 8, height: 8)
                             .overlay(
-                                Image(systemName: "photo")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.gray)
+                                Text(post.authorName.prefix(1).uppercased())
+                                    .font(.system(size: 4, weight: .bold))
+                                    .foregroundColor(.white)
                             )
                     }
-                }
-                
-                // Right side: Content (1:3 width)
-                VStack(alignment: .leading, spacing: 2) {
-                    // Header with profile icon and username
-                    HStack(spacing: 3) {
-                        Button(action: {
-                            showingUserProfile = true
-                        }) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 12, height: 12)
-                                .overlay(
-                                    Text(post.authorName.prefix(1).uppercased())
-                                        .font(.system(size: 6, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("@\(post.authorName.lowercased().replacingOccurrences(of: " ", with: ""))")
-                                .font(.system(size: 7, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
-                                .lineLimit(1)
-                        }
-                        
-                        Spacer()
-                    }
+                    .buttonStyle(PlainButtonStyle())
                     
-                    // Post text
-                    if !post.text.isEmpty {
-                        Text(post.text.prefix(25) + (post.text.count > 25 ? "..." : ""))
-                            .font(.system(size: 7))
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.leading)
-                            .lineLimit(2)
-                    }
+                    Text("ID: \(post.authorId.prefix(6))")
+                        .font(.system(size: 6, weight: .medium))
+                        .foregroundColor(.white.opacity(0.7))
+                        .lineLimit(1)
                     
                     Spacer()
-                    
-                    // Location info
-                    HStack(spacing: 1) {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 6))
-                            .foregroundColor(.red.opacity(0.8))
-                        Text(post.locationName ?? "位置を取得中...")
-                            .font(.system(size: 6, weight: .medium))
-                            .foregroundColor(.white.opacity(0.9))
-                            .lineLimit(1)
-                    }
-                    
-                    // Action buttons
-                    HStack(spacing: 6) {
-                        // Like button
-                        Button(action: {
-                            if let userId = authManager.currentUser?.id {
-                                let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                                if newLikeState {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                }
-                            }
-                        }) {
-                            HStack(spacing: 1) {
-                                Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
-                                
-                                let likeCount = likeService.getLikeCount(for: post.id)
-                                if likeCount > 0 {
-                                    Text("\(likeCount)")
-                                        .font(.system(size: 7))
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        // Comment button
-                        Button(action: {
-                            showingDetailedPost = true
-                        }) {
-                            HStack(spacing: 1) {
-                                Image(systemName: "bubble.left")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.white.opacity(0.8))
-                                
-                                let count = commentService.getCommentCount(for: post.id)
-                                if count > 0 {
-                                    Text("\(count)")
-                                        .font(.system(size: 7))
-                                        .foregroundColor(.white.opacity(0.8))
-                                }
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Spacer()
-                    }
                 }
-                .padding(4)
-                .frame(width: 24, height: 72) // Right side width (1:3 ratio)
+                .frame(height: 8)
+                .padding(.horizontal, 4)
+            } else {
+                // 匿名投稿時は上部パディングを追加（より余裕を持たせる）
+                Spacer()
+                    .frame(height: 18)
             }
-            .frame(width: 96, height: 72) // 4:3 aspect ratio (96:72)
-            .background(customBlack)
-            .cornerRadius(8)
-            .overlay(
-                // Speech bubble tail pointing down
-                PostPinTriangle()
-                    .fill(customBlack)
-                    .frame(width: 16, height: 12)
-                    .rotationEffect(.degrees(180))
-                    .offset(y: 12),
-                alignment: .bottom
-            )
-            .shadow(color: customBlack.opacity(0.3), radius: 4, x: 0, y: 2)
+            
+            // コンテンツエリア - 文字または写真（最大領域を使用）
+            if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: cardWidth - 8, height: CGFloat(actualTextLines) * 9)
+                    .clipped()
+                    .padding(.horizontal, 4)
+            } else if let imageUrl = post.imageUrl {
+                AsyncImage(url: URL(string: imageUrl)) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: cardWidth - 8, height: CGFloat(actualTextLines) * 9)
+                        .clipped()
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: cardWidth - 8, height: CGFloat(actualTextLines) * 9)
+                        .overlay(ProgressView().scaleEffect(0.5))
+                }
+                .padding(.horizontal, 4)
+            } else if !post.text.isEmpty {
+                // 文字領域を最大化
+                Text(post.text)
+                    .font(.system(size: 7))
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: cardWidth - 8, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .padding(.top, post.isAnonymous ? 8 : 0) // 匿名投稿時は上部パディング追加
+            }
+            
+            // フッター - 匿名投稿では非表示だがスペースは確保
+            if !post.isAnonymous {
+                HStack(spacing: 4) {
+                    Button(action: {
+                        if let userId = authManager.currentUser?.id {
+                            let newLikeState = likeService.toggleLike(for: post, userId: userId)
+                            if newLikeState {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 1) {
+                            Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
+                                .font(.system(size: 6))
+                                .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
+                            
+                            let likeCount = likeService.getLikeCount(for: post.id)
+                            if likeCount > 0 {
+                                Text("\(likeCount)")
+                                    .font(.system(size: 5))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button(action: { showingDetailedPost = true }) {
+                        HStack(spacing: 1) {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 6))
+                                .foregroundColor(.white.opacity(0.8))
+                            
+                            let count = commentService.getCommentCount(for: post.id)
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 5))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Spacer()
+                }
+                .frame(height: 8)
+                .padding(.horizontal, 4)
+            } else {
+                // 匿名投稿時は下部パディングを追加
+                Spacer()
+                    .frame(height: 6)
+            }
         }
+        .frame(width: cardWidth, height: cardHeight)
+        .background(customBlack)
+        .cornerRadius(8)
+        .overlay(
+            PostPinTriangle()
+                .fill(customBlack)
+                .frame(width: 16, height: 12)
+                .rotationEffect(Angle.degrees(180))
+                .offset(y: 12),
+            alignment: .bottom
+        )
+        .shadow(color: customBlack.opacity(0.3), radius: 4, x: 0, y: 2)
         .onAppear {
-            // Load comments for this post
             commentService.loadComments(for: post.id)
-            // Initialize like data for this post
             likeService.initializePost(post)
         }
         .sheet(isPresented: $showingUserProfile) {
@@ -196,7 +196,6 @@ struct PostPin: View {
 
 // Scalable PostPin that adjusts size based on map zoom level
 struct ScalablePostPin: View {
-    // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
     let post: Post
     let mapSpan: Double
@@ -206,23 +205,15 @@ struct ScalablePostPin: View {
     @State private var showingUserProfile = false
     @State private var showingDetailedPost = false
     
-    // Calculate scale factor based on map span
     private var scaleFactor: CGFloat {
-        // Base scale when map span is around 0.01 (city level)
         let baseSpan: Double = 0.01
-        let maxScale: CGFloat = 1.5  // より大きく表示
-        let minScale: CGFloat = 0.6  // 最小サイズを大きく
-        
-        // Calculate scale inversely proportional to span
+        let maxScale: CGFloat = 1.5
+        let minScale: CGFloat = 0.6
         let scale = CGFloat(baseSpan / max(mapSpan, 0.001))
-        
-        // 人気投稿はより大きく表示
         let popularityBonus: CGFloat = post.likeCount >= 10 ? 1.2 : 1.0
-        
         return max(minScale, min(maxScale, scale * popularityBonus))
     }
     
-    // Base dimensions that will be scaled
     private let baseCardSize: CGFloat = 96
     private let baseTriangleWidth: CGFloat = 16
     private let baseTriangleHeight: CGFloat = 12
@@ -238,57 +229,48 @@ struct ScalablePostPin: View {
         )
     }
     
-    // Scale font sizes appropriately
     private var fontScale: CGFloat {
         max(0.5, min(1.0, scaleFactor))
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            // カードコンテナ
-            VStack(spacing: 4 * fontScale) {
-                // Header with profile icon and user ID - tappable
-                HStack(spacing: 6 * fontScale) {
-                    // Profile icon - tappable
-                    Button(action: {
-                        showingUserProfile = true
-                    }) {
-                        RoundedRectangle(cornerRadius: 4 * fontScale)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 20 * fontScale, height: 20 * fontScale)
-                            .overlay(
-                                Text(post.authorName.prefix(1).uppercased())
-                                    .font(.system(size: 10 * fontScale, weight: .bold))
-                                    .foregroundColor(.white)
-                            )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // Username and User ID - tappable
-                    Button(action: {
-                        showingUserProfile = true
-                    }) {
-                        VStack(alignment: .leading, spacing: 1 * fontScale) {
-                            Text("@\(post.authorName.lowercased().replacingOccurrences(of: " ", with: ""))")
-                                .font(.system(size: 9 * fontScale, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
-                                .lineLimit(1)
-                            Text("ID: \(post.authorId.prefix(8))")
-                                .font(.system(size: 7 * fontScale, weight: .regular))
-                                .foregroundColor(.white.opacity(0.6))
-                                .lineLimit(1)
+            VStack(spacing: post.isAnonymous ? (8 * fontScale) : (4 * fontScale)) {
+                if !post.isAnonymous {
+                    HStack(spacing: 6 * fontScale) {
+                        Button(action: {
+                            showingUserProfile = true
+                        }) {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 20 * fontScale, height: 20 * fontScale)
+                                .overlay(
+                                    Text(post.authorName.prefix(1).uppercased())
+                                        .font(.system(size: 10 * fontScale, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
                         }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            showingUserProfile = true
+                        }) {
+                            VStack(alignment: .leading, spacing: 1 * fontScale) {
+                                Text("ID: \(post.authorId.prefix(8))")
+                                    .font(.system(size: 9 * fontScale, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer()
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Spacer()
+                    .padding(.horizontal, 6 * fontScale)
+                    .padding(.top, 6 * fontScale)
                 }
-                .padding(.horizontal, 6 * fontScale)
-                .padding(.top, 6 * fontScale)
                 
-                // 写真がある場合は画像を表示
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
-                    // ローカル画像データがある場合（投稿直後）
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
@@ -296,7 +278,6 @@ struct ScalablePostPin: View {
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                         .padding(.horizontal, 6 * fontScale)
                 } else if let imageUrl = post.imageUrl {
-                    // リモート画像URLから読み込み
                     AsyncImage(url: URL(string: imageUrl)) { image in
                         image
                             .resizable()
@@ -316,106 +297,84 @@ struct ScalablePostPin: View {
                     .padding(.horizontal, 6 * fontScale)
                 }
                 
-                // 投稿テキスト - シンプル表示
                 if !post.text.isEmpty {
-                    Text(post.text.prefix(30) + (post.text.count > 30 ? "..." : ""))
+                    Text(post.text)
                         .font(.system(size: 9 * fontScale))
                         .fontWeight(.medium)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(2)
+                        .lineLimit(nil)
                         .frame(maxWidth: 84 * scaleFactor, alignment: .leading)
                         .padding(.horizontal, 6 * fontScale)
                 }
                 
-                // Location display - shows the address where the pin tip points
-                HStack(spacing: 2 * fontScale) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 8 * fontScale))
-                        .foregroundColor(.red.opacity(0.8))
-                    Text(post.locationName ?? "位置を取得中...")
-                        .font(.system(size: 8 * fontScale, weight: .medium))
-                        .foregroundColor(.white.opacity(0.9))
-                        .lineLimit(1)
-                    Spacer()
-                }
-                .padding(.horizontal, 6 * fontScale)
-                .padding(.vertical, 2 * fontScale)
-                .background(customBlack.opacity(0.8))
-                .cornerRadius(4 * fontScale)
-                
                 Spacer()
                 
-                // Like and Comment section at bottom right
-                HStack {
-                    Spacer()
-                    
-                    // Like button
-                    Button(action: {
-                        if let userId = authManager.currentUser?.id {
-                            let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                            // Haptic feedback
-                            if newLikeState {
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                impactFeedback.impactOccurred()
+                if !post.isAnonymous {
+                    HStack {
+                        Spacer()
+                        
+                        Button(action: {
+                            if let userId = authManager.currentUser?.id {
+                                let newLikeState = likeService.toggleLike(for: post, userId: userId)
+                                if newLikeState {
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                }
+                            }
+                        }) {
+                            HStack(spacing: 2 * fontScale) {
+                                Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
+                                    .font(.system(size: 10 * fontScale))
+                                    .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
+                                
+                                let likeCount = likeService.getLikeCount(for: post.id)
+                                if likeCount > 0 {
+                                    Text("\(likeCount)")
+                                        .font(.system(size: 8 * fontScale))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
                             }
                         }
-                    }) {
-                        HStack(spacing: 2 * fontScale) {
-                            Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                .font(.system(size: 10 * fontScale))
-                                .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
-                            
-                            let likeCount = likeService.getLikeCount(for: post.id)
-                            if likeCount > 0 {
-                                Text("\(likeCount)")
-                                    .font(.system(size: 9 * fontScale))
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            showingDetailedPost = true
+                        }) {
+                            HStack(spacing: 2 * fontScale) {
+                                Image(systemName: "bubble.left")
+                                    .font(.system(size: 10 * fontScale))
                                     .foregroundColor(.white.opacity(0.8))
+                                
+                                let count = commentService.getCommentCount(for: post.id)
+                                if count > 0 {
+                                    Text("\(count)")
+                                        .font(.system(size: 8 * fontScale))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
                             }
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    // Comment button
-                    Button(action: {
-                        showingDetailedPost = true
-                    }) {
-                        HStack(spacing: 2 * fontScale) {
-                            Image(systemName: "bubble.left")
-                                .font(.system(size: 10 * fontScale))
-                                .foregroundColor(.white.opacity(0.8))
-                            
-                            let count = commentService.getCommentCount(for: post.id)
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 9 * fontScale))
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                    .padding(.horizontal, 6 * fontScale)
+                    .padding(.bottom, 6 * fontScale)
                 }
-                .padding(.horizontal, 6 * fontScale)
-                .padding(.bottom, 6 * fontScale)
             }
-            .frame(width: cardSize, height: cardSize)
+            .frame(width: cardSize, height: cardSize * 0.75)
             .background(customBlack)
             .cornerRadius(8 * fontScale)
             .overlay(
-                // Speech bubble tail pointing down
                 PostPinTriangle()
                     .fill(customBlack)
                     .frame(width: triangleSize.width, height: triangleSize.height)
-                    .rotationEffect(.degrees(180))
+                    .rotationEffect(Angle.degrees(180))
                     .offset(y: triangleSize.height),
                 alignment: .bottom
             )
             .shadow(color: customBlack.opacity(0.3), radius: 4 * fontScale, x: 0, y: 2 * fontScale)
         }
         .onAppear {
-            // Load comments for this post
             commentService.loadComments(for: post.id)
-            // Initialize like data for this post
             likeService.initializePost(post)
         }
         .sheet(isPresented: $showingUserProfile) {
@@ -434,16 +393,16 @@ struct ScalablePostPin: View {
     }
 }
 
-
-
-// Triangle shape for post pin speech bubble tail
+// Triangle shape for post pin speech bubble
 struct PostPinTriangle: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
+        
         path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
         path.closeSubpath()
+        
         return path
     }
 }

@@ -28,7 +28,13 @@ struct PostPopupView: View {
     @State private var postLocation: CLLocationCoordinate2D?
     @State private var areaName: String = ""
     @State private var showPrivacySelection = false
-    @State private var isFollowersOnly = false
+    @State private var selectedPrivacyType: PostPrivacyType = .publicPost
+    
+    enum PostPrivacyType {
+        case followersOnly
+        case publicPost
+        case anonymous
+    }
     
     // Computed properties to reduce complexity
     private var isButtonDisabled: Bool {
@@ -178,22 +184,19 @@ struct PostPopupView: View {
             TextField("何を投稿しますか？", text: Binding(
                 get: { postText },
                 set: { newValue in
-                    if newValue.count <= maxTextLength {
-                        postText = newValue
-                    } else {
-                        postText = String(newValue.prefix(maxTextLength))
-                    }
+                    postText = newValue
                 }
             ), axis: .vertical)
             .font(.system(size: 16))
-            .foregroundColor(.white)
-            .lineLimit(selectedImageData != nil ? 3 : 5)
+            .foregroundColor(postText.count > maxTextLength ? .red : .white)
+            .lineLimit(10)
             .textFieldStyle(PlainTextFieldStyle())
+            .scrollContentBackground(.hidden)
             
             // 文字数カウンター
             Text("\(postText.count)/\(maxTextLength)")
                 .font(.system(size: 12))
-                .foregroundColor(postText.count >= maxTextLength ? .orange : .gray)
+                .foregroundColor(postText.count > maxTextLength ? .red : (postText.count >= maxTextLength ? .orange : .gray))
                 .padding(.trailing, 4)
         }
         .padding(.horizontal, 16)
@@ -216,9 +219,7 @@ struct PostPopupView: View {
                             .font(.system(size: 14, weight: .medium))
                     }
                     
-                    Text(postLocation != nil ? areaName : "タップで現在位置を取得")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white)
+
                 }
                 .padding(.horizontal, 4)
                 .padding(.vertical, 4)
@@ -284,71 +285,96 @@ struct PostPopupView: View {
     
     // MARK: - Privacy Buttons View
     private var privacyButtonsView: some View {
-        VStack(spacing: 20) {
-            // 全体公開ボタン
+        VStack(spacing: 16) {
+            // Followers Only
             Button(action: {
-                createPost(isPublic: true)
+                selectedPrivacyType = .followersOnly
+                createPost()
             }) {
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.2))
+                            .frame(width: 50, height: 50)
+                        
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.green)
+                    }
+                    
+                    Text("Followers Only")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 160, height: 80)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
+            
+            // Public
+            Button(action: {
+                selectedPrivacyType = .publicPost
+                createPost()
+            }) {
+                VStack(spacing: 6) {
                     ZStack {
                         Circle()
                             .fill(Color.blue.opacity(0.2))
-                            .frame(width: 60, height: 60)
+                            .frame(width: 50, height: 50)
                         
                         Image(systemName: "globe")
-                            .font(.system(size: 28))
+                            .font(.system(size: 22))
                             .foregroundColor(.blue)
                     }
                     
-                    Text("全体に公開")
-                        .font(.system(size: 14, weight: .semibold))
+                    Text("Public")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
-                    
-                    Text("誰でも見れます")
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
                 }
-                .frame(width: 180, height: 100)
+                .frame(width: 160, height: 80)
                 .background(
-                    RoundedRectangle(cornerRadius: 15)
+                    RoundedRectangle(cornerRadius: 12)
                         .fill(Color.white.opacity(0.05))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 15)
+                            RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                         )
                 )
             }
             
-            // フォロワーのみボタン
+            // Anonymous
             Button(action: {
-                createPost(isPublic: false)
+                selectedPrivacyType = .anonymous
+                createPost()
             }) {
-                VStack(spacing: 8) {
+                VStack(spacing: 6) {
                     ZStack {
                         Circle()
-                            .fill(Color.green.opacity(0.2))
-                            .frame(width: 60, height: 60)
+                            .fill(Color.purple.opacity(0.2))
+                            .frame(width: 50, height: 50)
                         
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.green)
+                        Image(systemName: "person.fill.questionmark")
+                            .font(.system(size: 22))
+                            .foregroundColor(.purple)
                     }
                     
-                    Text("フォロワーのみ")
-                        .font(.system(size: 14, weight: .semibold))
+                    Text("Anonymous")
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
-                    
-                    Text("フォロワーだけ")
-                        .font(.system(size: 11))
-                        .foregroundColor(.gray)
                 }
-                .frame(width: 180, height: 100)
+                .frame(width: 160, height: 80)
                 .background(
-                    RoundedRectangle(cornerRadius: 15)
+                    RoundedRectangle(cornerRadius: 12)
                         .fill(Color.white.opacity(0.05))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 15)
-                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
                         )
                 )
             }
@@ -377,7 +403,7 @@ struct PostPopupView: View {
         }
     }
     
-    private func createPost(isPublic: Bool) {
+    private func createPost() {
         guard let location = postLocation else { 
             print("❌ PostPopup - No location available")
             return 
@@ -388,7 +414,12 @@ struct PostPopupView: View {
             print("📸 PostPopup - Image data size: \(imageData.count) bytes")
         }
         print("📍 PostPopup - Location details: latitude=\(location.latitude), longitude=\(location.longitude)")
-        print("🔐 PostPopup - Privacy setting: \(isPublic ? "Public" : "Followers only")")
+        let privacyDescription = switch selectedPrivacyType {
+        case .followersOnly: "Followers Only"
+        case .publicPost: "Public"
+        case .anonymous: "Anonymous"
+        }
+        print("🔐 PostPopup - Privacy setting: \(privacyDescription)")
         
         Task { @MainActor in
             do {
@@ -396,26 +427,22 @@ struct PostPopupView: View {
                     content: postText,
                     imageData: selectedImageData,
                     location: location,
-                    locationName: areaName
+                    locationName: areaName,
+                    isAnonymous: selectedPrivacyType == .anonymous
                 )
                 
                 print("✅ PostPopup - Post created successfully")
                 
-                // 投稿成功時の処理
-                // キーボードを閉じる
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                 
                 self.isPresented = false
-                // フォームをリセット
                 self.postText = ""
                 self.selectedImageData = Optional<Data>.none
                 self.showPrivacySelection = false
             } catch {
-                // エラーハンドリング
                 print("❌ PostPopup - Error creating post: \(error)")
                 self.errorMessage = "投稿の作成に失敗しました: \(error.localizedDescription)"
                 self.showError = true
-                // エラー時は選択画面に戻る
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.showPrivacySelection = false
                 }
@@ -456,9 +483,7 @@ struct PostPopupView: View {
         
         if let currentLocation = locationManager.location {
             print("✅ PostPopup - Got current location: \(currentLocation.latitude), \(currentLocation.longitude)")
-            // 地図を現在位置に移動
             mapManager.focusOnLocation(currentLocation)
-            // 地図が移動した後、その地図の中心位置を投稿位置として使用
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.postLocation = self.mapManager.region.center
                 self.updateAreaLocation(for: self.mapManager.region.center)
@@ -468,9 +493,7 @@ struct PostPopupView: View {
             locationManager.requestLocationUpdate { location in
                 if let location = location {
                     print("✅ PostPopup - Got location update: \(location.latitude), \(location.longitude)")
-                    // 地図を現在位置に移動
                     self.mapManager.focusOnLocation(location)
-                    // 地図が移動した後、その地図の中心位置を投稿位置として使用
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                         self.postLocation = self.mapManager.region.center
                         self.updateAreaLocation(for: self.mapManager.region.center)
@@ -484,7 +507,6 @@ struct PostPopupView: View {
     }
     
     private func updatePostLocation() {
-        // デフォルトでは地図の中心位置を使用（投稿カードのV字が刺さる位置）
         print("🗺️ PostPopup - Using map center for post: \(mapManager.region.center.latitude), \(mapManager.region.center.longitude)")
         postLocation = mapManager.region.center
         updateAreaLocation(for: mapManager.region.center)

@@ -34,7 +34,8 @@ class PostManager: ObservableObject {
         content: String,
         imageData: Data?,
         location: CLLocationCoordinate2D,
-        locationName: String?
+        locationName: String?,
+        isAnonymous: Bool = false
     ) async throws {
         print("📝 PostManager - createPost called with content: '\(content)', hasImage: \(imageData != nil)")
         // 認証状態を確認
@@ -49,20 +50,27 @@ class PostManager: ObservableObject {
         }
         print("✅ PostManager - Authentication passed for user: \(userIdString)")
 
+        // 文字数制限チェックとトリミング
+        let maxLength = imageData != nil ? 30 : 60
+        let trimmedContent = content.count > maxLength ? String(content.prefix(maxLength)) : content
+        if content.count > maxLength {
+            print("⚠️ PostManager - Content trimmed from \(content.count) to \(maxLength) characters")
+        }
+        
         // コンテンツの検証とサニタイズ
         // 写真がある場合は空のコンテンツを許可
         let sanitizedContent: String
-        print("🔍 PostManager - Content validation: isEmpty=\(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty), hasImage=\(imageData != nil)")
-        if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageData != nil {
+        print("🔍 PostManager - Content validation: isEmpty=\(trimmedContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty), hasImage=\(imageData != nil)")
+        if trimmedContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && imageData != nil {
             // 写真のみの投稿の場合
             sanitizedContent = ""
             print("📸 PostManager - Photo-only post detected")
             SecureLogger.shared.info("Creating photo-only post")
         } else {
             // テキストがある場合は通常の検証
-            let contentValidation = InputValidator.validatePostContent(content)
+            let contentValidation = InputValidator.validatePostContent(trimmedContent)
             guard contentValidation.isValid, let validatedContent = contentValidation.value else {
-                SecureLogger.shared.securityEvent("Invalid post content", details: ["content": content])
+                SecureLogger.shared.securityEvent("Invalid post content", details: ["content": trimmedContent])
                 throw AuthError.invalidInput(contentValidation.errorMessage ?? "投稿内容が無効です")
             }
             sanitizedContent = validatedContent
@@ -86,7 +94,8 @@ class PostManager: ObservableObject {
             imageData: imageData,
             latitude: location.latitude,
             longitude: location.longitude,
-            locationName: sanitizedLocationName
+            locationName: sanitizedLocationName,
+            isAnonymous: isAnonymous
         )
         
         print("📤 PostManager - SupabaseService returned success: \(success)")

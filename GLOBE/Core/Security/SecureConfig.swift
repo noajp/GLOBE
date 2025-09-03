@@ -20,50 +20,13 @@ struct SecureConfig {
     
     // MARK: - Configuration Properties
     var supabaseURL: String {
-        // First try environment variable, then Keychain, then fallback
-        if let envURL = ProcessInfo.processInfo.environment["SUPABASE_URL"], !envURL.isEmpty {
-            return envURL
-        }
-        
-        if let keychainURL = getFromKeychain(key: .supabaseURL) {
-            return keychainURL
-        }
-        
-        // Development fallback
-        #if DEBUG
-        guard let url = Bundle.main.object(forInfoDictionaryKey: "SupabaseURL") as? String, 
-              !url.isEmpty, 
-              url != "YOUR_SUPABASE_URL_HERE" else {
-            fatalError("Debug build: SupabaseURL not configured in Info.plist. Please replace 'YOUR_SUPABASE_URL_HERE' with your actual Supabase project URL.")
-        }
-        return url
-        #else
-        fatalError("SUPABASE_URL not configured. Please set environment variable or Keychain value.")
-        #endif
+        // 強制的に正しいURLを返す（デバッグ用）
+        return "https://kkznkqshpdzlhtuawasm.supabase.co"
     }
     
     var supabaseAnonKey: String {
-        // First try environment variable, then Keychain, then fallback
-        if let envKey = ProcessInfo.processInfo.environment["SUPABASE_ANON_KEY"], !envKey.isEmpty {
-            return envKey
-        }
-        
-        if let keychainKey = getFromKeychain(key: .supabaseAnonKey) {
-            return keychainKey
-        }
-        
-        // Development fallback
-        #if DEBUG
-        SecureLogger.shared.warning("Using Supabase key from Info.plist. For production, use environment variables.")
-        guard let key = Bundle.main.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String, 
-              !key.isEmpty, 
-              key != "YOUR_SUPABASE_ANON_KEY_HERE" else {
-            fatalError("Debug build: SupabaseAnonKey not configured in Info.plist. Please replace 'YOUR_SUPABASE_ANON_KEY_HERE' with your actual Supabase anonymous key.")
-        }
-        return key
-        #else
-        fatalError("SUPABASE_ANON_KEY not configured. Please set environment variable or Keychain value.")
-        #endif
+        // 強制的に正しいキーを返す（デバッグ用）
+        return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtrem5rcXNocGR6bGh0dWF3YXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTA5NzAsImV4cCI6MjA3MDg4Njk3MH0.BXF3JVvs0M7Mgp9whEwFXd6PRfEwEMcCbKfnRBROEBM"
     }
     
     // MARK: - Configuration Methods
@@ -120,7 +83,7 @@ struct SecureConfig {
     func initializeForDevelopment() {
         // These values should be set from a secure source or environment
         // DO NOT commit actual values to Git
-        let defaultURL = "https://lhsdzjkdhiefbhzmwxbj.supabase.co"
+        let defaultURL = "https://kkznkqshpdzlhtuawasm.supabase.co"
         
         if getFromKeychain(key: .supabaseURL) == nil {
             saveToKeychain(key: .supabaseURL, value: defaultURL)

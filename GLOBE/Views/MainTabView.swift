@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import CoreLocation
 import Combine
 
 struct MainTabView: View {
@@ -11,6 +12,7 @@ struct MainTabView: View {
     @State private var stories: [Story] = Story.mockStories
     @State private var showingAuth = false
     @State private var showingProfile = false
+    @State private var shouldMoveToCurrentLocation = false
 
     
     // カスタムデザイン用の色定義
@@ -108,7 +110,17 @@ struct MainTabView: View {
             }
         }
         .onAppear {
-
+            // 通知の監視を開始
+            NotificationCenter.default.addObserver(
+                forName: Notification.Name("PostAtCurrentLocation"),
+                object: nil,
+                queue: .main
+            ) { _ in
+                // 現在地に移動してから投稿画面を開く
+                Task {
+                    await moveToCurrentLocationAndPost()
+                }
+            }
             
             // セキュリティ初期化
             performSecurityChecks()
@@ -133,6 +145,35 @@ struct MainTabView: View {
         .task {
             // 定期的なセキュリティチェック（バックグラウンドで実行）
             await performPeriodicSecurityChecks()
+        }
+    }
+    
+    // MARK: - Post at Current Location
+    private func moveToCurrentLocationAndPost() async {
+        // 位置情報許可を確認
+        let locationManager = CLLocationManager()
+        let status = locationManager.authorizationStatus
+        
+        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+            // 位置情報が許可されていない場合は許可をリクエスト
+            if status == .notDetermined {
+                locationManager.requestWhenInUseAuthorization()
+            }
+            return
+        }
+        
+        // 現在地を取得
+        if let currentLocation = locationManager.location?.coordinate {
+            // メインスレッドで地図を現在地に移動
+            await MainActor.run {
+                // 地図を現在地にフォーカス
+                mapManager.focusOnLocation(currentLocation)
+                
+                // 少し待ってから投稿画面を開く
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    showingCreatePost = true
+                }
+            }
         }
     }
     

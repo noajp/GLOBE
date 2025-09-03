@@ -16,6 +16,7 @@ struct Post: Identifiable, Equatable, Codable {
     var commentCount: Int = 0
     var isLikedByMe: Bool = false
     var isPublic: Bool = true
+    var isAnonymous: Bool = false
     
     var latitude: Double { location.latitude }
     var longitude: Double { location.longitude }
@@ -48,7 +49,7 @@ struct Post: Identifiable, Equatable, Codable {
         }
     }
     
-    init(id: UUID = UUID(), createdAt: Date = Date(), location: CLLocationCoordinate2D, locationName: String? = nil, imageData: Data? = nil, imageUrl: String? = nil, text: String, authorName: String, authorId: String, likeCount: Int = 0, commentCount: Int = 0, isPublic: Bool = true) {
+    init(id: UUID = UUID(), createdAt: Date = Date(), location: CLLocationCoordinate2D, locationName: String? = nil, imageData: Data? = nil, imageUrl: String? = nil, text: String, authorName: String, authorId: String, likeCount: Int = 0, commentCount: Int = 0, isPublic: Bool = true, isAnonymous: Bool = false) {
         self.id = id
         self.createdAt = createdAt
         self.location = location
@@ -61,11 +62,12 @@ struct Post: Identifiable, Equatable, Codable {
         self.likeCount = likeCount
         self.commentCount = commentCount
         self.isPublic = isPublic
+        self.isAnonymous = isAnonymous
     }
     
     // Codable準拠のため
     enum CodingKeys: String, CodingKey {
-        case id, createdAt = "created_at", locationName = "location_name", imageUrl = "image_url", text = "content", authorId = "user_id", likeCount = "like_count", commentCount = "comment_count", isPublic = "is_public", latitude, longitude
+        case id, createdAt = "created_at", locationName = "location_name", imageUrl = "image_url", text = "content", authorId = "user_id", likeCount = "like_count", commentCount = "comment_count", isPublic = "is_public", isAnonymous = "is_anonymous", latitude, longitude
     }
     
     init(from decoder: Decoder) throws {
@@ -79,6 +81,7 @@ struct Post: Identifiable, Equatable, Codable {
         likeCount = try container.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
         commentCount = try container.decodeIfPresent(Int.self, forKey: .commentCount) ?? 0
         isPublic = try container.decodeIfPresent(Bool.self, forKey: .isPublic) ?? true
+        isAnonymous = try container.decodeIfPresent(Bool.self, forKey: .isAnonymous) ?? false
         
         let latitude = try container.decode(Double.self, forKey: .latitude)
         let longitude = try container.decode(Double.self, forKey: .longitude)
@@ -100,6 +103,7 @@ struct Post: Identifiable, Equatable, Codable {
         try container.encode(likeCount, forKey: .likeCount)
         try container.encode(commentCount, forKey: .commentCount)
         try container.encode(isPublic, forKey: .isPublic)
+        try container.encode(isAnonymous, forKey: .isAnonymous)
         try container.encode(latitude, forKey: .latitude)
         try container.encode(longitude, forKey: .longitude)
     }
@@ -116,7 +120,8 @@ struct Post: Identifiable, Equatable, Codable {
                lhs.authorName == rhs.authorName &&
                lhs.authorId == rhs.authorId &&
                lhs.likeCount == rhs.likeCount &&
-               lhs.isLikedByMe == rhs.isLikedByMe
+               lhs.isLikedByMe == rhs.isLikedByMe &&
+               lhs.isAnonymous == rhs.isAnonymous
     }
 }
 

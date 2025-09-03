@@ -287,10 +287,10 @@ extension InputValidator {
             return true
         }
         
-        // 同じ文字の繰り返しをチェック
-        if hasExcessiveRepeatingCharacters(content) {
-            return true
-        }
+        // 同じ文字の繰り返しチェックを無効化（ユーザーリクエストにより）
+        // if hasExcessiveRepeatingCharacters(content) {
+        //     return true
+        // }
         
         return false
     }
@@ -404,7 +404,18 @@ extension InputValidator {
         }
         
         maxRepeats = max(maxRepeats, repeatCount)
-        return maxRepeats > 5 // 同じ文字が5回以上連続していたら疑わしい
+        
+        // 日本語の母音延長や感情表現は正当な表現なのでより寛容に
+        // ひらがな・カタカナの母音、促音、長音符は最大15回まで許可
+        if let currentChar = currentChar {
+            let japaneseEmotionalChars: Set<Character> = ["あ", "い", "う", "え", "お", "ー", "ア", "イ", "ウ", "エ", "オ", "っ", "ッ", "ょ", "ゅ", "ゃ", "ョ", "ュ", "ャ"]
+            if japaneseEmotionalChars.contains(currentChar) {
+                return maxRepeats > 15 // 日本語感情表現文字は15回まで許可
+            }
+        }
+        
+        // その他の文字は5回以上で疑わしいとする
+        return maxRepeats > 5
     }
     
     /// 位置情報の安全性チェック
