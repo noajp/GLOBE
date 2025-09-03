@@ -208,7 +208,8 @@ struct ScalablePostPin: View {
     private var scaleFactor: CGFloat {
         let baseSpan: Double = 0.01
         let maxScale: CGFloat = 1.5
-        let minScale: CGFloat = 0.6
+        // Prevent over-shrinking causing clipped/illegible content
+        let minScale: CGFloat = 0.8
         let scale = CGFloat(baseSpan / max(mapSpan, 0.001))
         let popularityBonus: CGFloat = post.likeCount >= 10 ? 1.2 : 1.0
         return max(minScale, min(maxScale, scale * popularityBonus))
@@ -230,14 +231,44 @@ struct ScalablePostPin: View {
     }
     
     private var fontScale: CGFloat {
-        max(0.5, min(1.0, scaleFactor))
+        // Keep fonts readable even when zoomed out
+        max(0.8, min(1.0, scaleFactor))
+    }
+
+    private var showMeta: Bool { !post.isAnonymous && scaleFactor >= 0.9 }
+
+    // Estimate text lines for dynamic layout (rough but fast)
+    private var estimatedTextLines: Int {
+        guard !post.text.isEmpty else { return 0 }
+        // Approximate characters per line for current width/font
+        let charsPerLine = 12
+        return max(1, Int(ceil(Double(post.text.count) / Double(charsPerLine))))
+    }
+
+    private var isSingleLine: Bool { estimatedTextLines == 1 }
+
+    // Dynamic height: shrink when anonymous text-only and single line
+    private var dynamicHeight: CGFloat {
+        let base = cardSize * 0.75
+        let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
+        if hasImage { return max(base, 72) }
+
+        // Absolute minimums to avoid clipping when zoomed out
+        let absMin = showMeta ? 68.0 : 56.0
+
+        if isSingleLine {
+            return max(absMin, base * 0.6)
+        } else if estimatedTextLines == 2 {
+            return max(absMin + 4, base * 0.7)
+        }
+        return max(absMin + 8, base)
     }
     
     var body: some View {
         VStack(spacing: 0) {
-            VStack(spacing: post.isAnonymous ? (8 * fontScale) : (4 * fontScale)) {
-                if !post.isAnonymous {
-                    HStack(spacing: 6 * fontScale) {
+            VStack(spacing: post.isAnonymous ? (6 * fontScale) : (3 * fontScale)) {
+                if showMeta {
+                    HStack(spacing: 4 * fontScale) {
                         Button(action: {
                             showingUserProfile = true
                         }) {
@@ -266,8 +297,8 @@ struct ScalablePostPin: View {
                         
                         Spacer()
                     }
-                    .padding(.horizontal, 6 * fontScale)
-                    .padding(.top, 6 * fontScale)
+                    .padding(.horizontal, 4 * fontScale)
+                    .padding(.top, 4 * fontScale)
                 }
                 
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
@@ -276,7 +307,7 @@ struct ScalablePostPin: View {
                         .scaledToFill()
                         .frame(width: 84 * scaleFactor, height: 50 * scaleFactor)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                        .padding(.horizontal, 6 * fontScale)
+                    .padding(.horizontal, 4 * fontScale)
                 } else if let imageUrl = post.imageUrl {
                     AsyncImage(url: URL(string: imageUrl)) { image in
                         image
@@ -294,7 +325,7 @@ struct ScalablePostPin: View {
                                     .scaleEffect(0.5 * fontScale)
                             )
                     }
-                    .padding(.horizontal, 6 * fontScale)
+                    .padding(.horizontal, 4 * fontScale)
                 }
                 
                 if !post.text.isEmpty {
@@ -303,14 +334,18 @@ struct ScalablePostPin: View {
                         .fontWeight(.medium)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
-                        .lineLimit(nil)
+                        .lineLimit(scaleFactor < 0.9 ? 2 : nil)
+                        .truncationMode(.tail)
                         .frame(maxWidth: 84 * scaleFactor, alignment: .leading)
-                        .padding(.horizontal, 6 * fontScale)
+                        .padding(.horizontal, 4 * fontScale)
+                        // Keep a small top inset so text isn't glued to the edge
+                        .padding(.top, post.isAnonymous || !showMeta ? 8 * fontScale : 2 * fontScale)
+                        // Reduce bottom padding when single line to make the card slimmer
+                        .padding(.bottom, (isSingleLine ? 4 : 6) * fontScale)
                 }
+                // Remove Spacer to avoid extra vertical whitespace
                 
-                Spacer()
-                
-                if !post.isAnonymous {
+                if showMeta {
                     HStack {
                         Spacer()
                         
@@ -356,11 +391,11 @@ struct ScalablePostPin: View {
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
-                    .padding(.horizontal, 6 * fontScale)
-                    .padding(.bottom, 6 * fontScale)
+                    .padding(.horizontal, 4 * fontScale)
+                    .padding(.bottom, 4 * fontScale)
                 }
             }
-            .frame(width: cardSize, height: cardSize * 0.75)
+            .frame(width: cardSize, height: dynamicHeight)
             .background(customBlack)
             .cornerRadius(8 * fontScale)
             .overlay(
