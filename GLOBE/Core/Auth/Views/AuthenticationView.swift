@@ -53,6 +53,7 @@ struct AuthenticationView: View {
                 VStack(spacing: 16) {
                     // サインアップボタン（メイン）
                     Button(action: {
+                        showingSignIn = false
                         showingSignUp = true
                     }) {
                         Text("Create Account")
@@ -67,6 +68,7 @@ struct AuthenticationView: View {
                     
                     // ログインボタン（セカンダリ）
                     Button(action: {
+                        showingSignUp = false
                         showingSignIn = true
                     }) {
                         Text("Sign In")
@@ -97,12 +99,8 @@ struct AuthenticationView: View {
                 .padding(.bottom, 40)
             }
         }
-            .fullScreenCover(isPresented: $showingSignUp) {
-                SignUpView()
-            }
-            .fullScreenCover(isPresented: $showingSignIn) {
-                SignInView()
-            }
+            .sheet(isPresented: $showingSignUp) { SignUpView() }
+            .sheet(isPresented: $showingSignIn) { SignInView() }
             .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
                 if isAuthenticated {
                     dismiss()

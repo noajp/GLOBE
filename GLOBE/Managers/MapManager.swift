@@ -15,11 +15,13 @@ class MapManager: ObservableObject {
     init() {
         startCleanupTimer()
         setupPostSubscription()
-        
-        // 初期データの読み込み
-        Task {
-            await postManager.fetchPosts()
-        }
+    }
+
+    private var didFetchInitial = false
+    func fetchInitialPostsIfNeeded() async {
+        guard !didFetchInitial else { return }
+        didFetchInitial = true
+        await postManager.fetchPosts()
     }
     
     private func setupPostSubscription() {

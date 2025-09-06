@@ -6,6 +6,7 @@
 import SwiftUI
 import Combine
 import Supabase
+import CoreLocation
 
 @MainActor
 final class MyPageViewModel: ObservableObject, @unchecked Sendable {
@@ -16,6 +17,7 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
     @Published var postsCount: Int = 0
     @Published var followersCount: Int = 0
     @Published var followingCount: Int = 0
+    @Published var stories: [Story] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     
@@ -48,6 +50,7 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
             // まずプロフィールと認証情報を同期
             await syncProfileWithAuthData()
             await loadUserDataIfNeeded()
+            await loadFollowedStories()
         }
         
         // Listen for post updates
@@ -109,7 +112,31 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
                 .order("created_at", ascending: false)
                 .execute()
             
-            userPosts = try JSONDecoder().decode([Post].self, from: postData.data)
+            // Decode with ISO8601 dates and map to Post
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let dbPosts = try? decoder.decode([DatabasePost].self, from: postData.data) {
+                self.userPosts = dbPosts.map { dbPost in
+                    Post(
+                        id: dbPost.id,
+                        createdAt: dbPost.created_at,
+                        location: CLLocationCoordinate2D(latitude: dbPost.latitude, longitude: dbPost.longitude),
+                        locationName: dbPost.location_name,
+                        imageData: nil,
+                        imageUrl: dbPost.image_url,
+                        text: dbPost.content,
+                        authorName: (dbPost.is_anonymous ?? false) ? "匿名ユーザー" : (dbPost.profiles?.display_name ?? dbPost.profiles?.username ?? "匿名ユーザー"),
+                        authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
+                        likeCount: 0,
+                        commentCount: 0,
+                        isPublic: true,
+                        isAnonymous: dbPost.is_anonymous ?? false
+                    )
+                }
+            } else {
+                // Fallback: decode directly to Post with ISO8601 dates
+                self.userPosts = try decoder.decode([Post].self, from: postData.data)
+            }
             postsCount = userPosts.count
             
             // Load follower/following counts
@@ -138,6 +165,81 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
             print("❌ MyPageViewModel: Error loading user data: \(error)")
             errorMessage = error.localizedDescription
             isLoading = false
+        }
+    }
+
+    /// フォロー中ユーザーの最新ストーリーを取得（24時間以内の画像付き投稿）
+    func loadFollowedStories(limit: Int = 20) async {
+        guard let userId = await currentUserId else { return }
+        do {
+            // 1) フォロー中のユーザーID一覧
+            let followsRes = try await supabase
+                .from("follows")
+                .select("following_id")
+                .eq("follower_id", value: userId)
+                .eq("status", value: "accepted")
+                .execute()
+
+            struct FollowRow: Decodable { let following_id: String }
+            let followingRows = try JSONDecoder().decode([FollowRow].self, from: followsRes.data)
+            let followingIds = followingRows.map { $0.following_id }
+            guard !followingIds.isEmpty else {
+                await MainActor.run { self.stories = [] }
+                return
+            }
+
+            // 2) 24時間以内の画像付き投稿を取得（プロフィール名・アバター付き）
+            // 注意: in() フィルタはSDKにより表記が異なるため、orクエリで代替
+            let sinceISO = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-24*60*60))
+            let orFilter = followingIds.map { "user_id.eq.\($0)" }.joined(separator: ",")
+            let postsRes = try await supabase
+                .from("posts")
+                .select("id,user_id,content,image_url,created_at,profiles(display_name,username,avatar_url)")
+                .or(orFilter)
+                .not("image_url", operator: .is, value: "null")
+                .gte("created_at", value: sinceISO)
+                .order("created_at", ascending: false)
+                .limit(limit)
+                .execute()
+
+            struct Row: Decodable {
+                let user_id: String
+                let content: String?
+                let image_url: String?
+                let created_at: Date
+                let profiles: DatabaseProfile?
+            }
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let rows = try decoder.decode([Row].self, from: postsRes.data)
+
+            var built: [Story] = []
+            for row in rows {
+                let name = row.profiles?.display_name ?? row.profiles?.username ?? "ユーザー"
+                // 可能ならアバターと画像をフェッチ（失敗は無視して軽量に）
+                var avatarData: Data? = nil
+                if let avatar = row.profiles?.avatar_url, let url = URL(string: avatar) {
+                    if let data = try? await URLSession.shared.data(from: url).0 { avatarData = data }
+                }
+                var imageData = Data()
+                if let iu = row.image_url, let url = URL(string: iu) {
+                    if let data = try? await URLSession.shared.data(from: url).0 { imageData = data }
+                }
+                let story = Story(
+                    userId: row.user_id,
+                    userName: name,
+                    userAvatarData: avatarData,
+                    imageData: imageData,
+                    text: row.content,
+                    createdAt: row.created_at
+                )
+                built.append(story)
+            }
+
+            await MainActor.run { self.stories = built }
+        } catch {
+            DebugLogger.shared.error("Failed to load followed stories: \(error.localizedDescription)", category: "MyPageViewModel")
         }
     }
     

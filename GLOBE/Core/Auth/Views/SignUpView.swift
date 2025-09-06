@@ -222,13 +222,16 @@ struct SignUpView: View {
     }
     
     private func signUp() async {
+        ConsoleLogger.shared.forceLog("SignUpView: Starting sign up for \(email)")
         do {
             try await authManager.signUp(
                 email: email,
                 password: password,
                 username: username
             )
+            ConsoleLogger.shared.forceLog("SignUpView: Sign up SUCCESS")
         } catch {
+            ConsoleLogger.shared.logError("SignUpView sign up failed", error: error)
             errorMessage = error.localizedDescription
             showError = true
         }

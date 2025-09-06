@@ -25,10 +25,12 @@ struct PostPopupView: View {
     @State private var errorMessage = ""
     @State private var showingCamera = false
     @State private var showingCameraPermissionAlert = false
+    @State private var capturedUIImage: UIImage?
     @State private var postLocation: CLLocationCoordinate2D?
     @State private var areaName: String = ""
     @State private var showPrivacySelection = false
     @State private var selectedPrivacyType: PostPrivacyType = .publicPost
+    @State private var isSubmitting = false
     
     enum PostPrivacyType {
         case followersOnly
@@ -60,21 +62,43 @@ struct PostPopupView: View {
             .frame(width: 240, height: 350)
             .background(customBlack)
             .cornerRadius(12)
-            .onTapGesture {} // Prevent closing when tapping on card
-            .overlay(speechBubbleTail, alignment: .bottom)
+            // Note: Do not add a parent onTapGesture here; it can interfere with inner Buttons
+            .overlay(
+                speechBubbleTail
+                    .allowsHitTesting(false),
+                alignment: .bottom
+            )
             .shadow(radius: 10)
         }
         .animation(.easeInOut(duration: 0.3), value: showPrivacySelection)
-        .sheet(isPresented: $showingCamera) {
-            CameraView(selectedImageData: $selectedImageData)
-                .ignoresSafeArea()
-                .onDisappear {
-                    print("📷 PostPopup - Camera dismissed")
-                    print("📝 PostPopup - After camera: text='\(postText)', hasImage=\(selectedImageData != nil)")
-                    if let imageData = selectedImageData {
-                        print("📸 PostPopup - Image data after camera: \(imageData.count) bytes")
+        .fullScreenCover(isPresented: $showingCamera) {
+            ZStack {
+                // Fast custom camera preview
+                CameraPreviewView(capturedImage: $capturedUIImage)
+                    .ignoresSafeArea()
+
+                // Top bar with close button
+                VStack {
+                    HStack {
+                        Button(action: { showingCamera = false }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .padding()
+                        Spacer()
                     }
+                    Spacer()
                 }
+            }
+            .onChange(of: capturedUIImage) { _, newImage in
+                if let img = newImage, let data = img.jpegData(compressionQuality: 0.85) {
+                    print("📷 PostPopup - Captured image via custom camera: \(data.count) bytes")
+                    selectedImageData = data
+                    capturedUIImage = nil
+                    showingCamera = false
+                }
+            }
         }
         .alert("カメラへのアクセスが必要です", isPresented: $showingCameraPermissionAlert) {
             Button("設定を開く") {
@@ -93,11 +117,21 @@ struct PostPopupView: View {
         }
         .onAppear {
             updatePostLocation()
+            // Pre-warm camera permission to reduce launch latency
+            let status = AVCaptureDevice.authorizationStatus(for: .video)
+            if status == .notDetermined {
+                AVCaptureDevice.requestAccess(for: .video) { _ in }
+            }
         }
         .onChange(of: selectedImageData) { oldValue, newValue in
             print("📸 PostPopup - selectedImageData changed: \(newValue?.count ?? 0) bytes (was: \(oldValue?.count ?? 0) bytes)")
             print("📝 PostPopup - After change - text: '\(postText)', hasImage: \(newValue != nil)")
             print("🔘 PostPopup - Button should be disabled: \(postText.isEmpty && newValue == nil)")
+            // Ensure the popup remains visible after capture
+            if newValue != nil {
+                // Just in case, guarantee camera sheet is closed
+                showingCamera = false
+            }
         }
     }
     
@@ -130,15 +164,16 @@ struct PostPopupView: View {
             Button(action: handleNextButtonPress) {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(isButtonDisabled ? .gray : .white)
+                    .foregroundColor((isButtonDisabled || isSubmitting) ? .gray : .white)
             }
-            .disabled(isButtonDisabled)
+            .disabled(isButtonDisabled || isSubmitting)
             .onAppear {
                 print("🔘 PostPopup - Button state on appear: disabled=\(isButtonDisabled)")
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .zIndex(1) // ensure header stays above other layers for hit testing
     }
     
     // MARK: - Photo Preview View
@@ -162,11 +197,9 @@ struct PostPopupView: View {
                     Button(action: {
                         self.selectedImageData = Optional<Data>.none
                     }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 20))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
-                            .background(Color.red.opacity(0.7))
-                            .clipShape(Circle())
                     }
                     .padding(8)
                 }
@@ -288,6 +321,7 @@ struct PostPopupView: View {
         VStack(spacing: 16) {
             // Followers Only
             Button(action: {
+                guard !isSubmitting else { return }
                 selectedPrivacyType = .followersOnly
                 createPost()
             }) {
@@ -319,6 +353,7 @@ struct PostPopupView: View {
             
             // Public
             Button(action: {
+                guard !isSubmitting else { return }
                 selectedPrivacyType = .publicPost
                 createPost()
             }) {
@@ -350,6 +385,7 @@ struct PostPopupView: View {
             
             // Anonymous
             Button(action: {
+                guard !isSubmitting else { return }
                 selectedPrivacyType = .anonymous
                 createPost()
             }) {
@@ -404,8 +440,11 @@ struct PostPopupView: View {
     }
     
     private func createPost() {
+        guard !isSubmitting else { return }
+        isSubmitting = true
         guard let location = postLocation else { 
             print("❌ PostPopup - No location available")
+            isSubmitting = false
             return 
         }
         
@@ -439,6 +478,7 @@ struct PostPopupView: View {
                 self.postText = ""
                 self.selectedImageData = Optional<Data>.none
                 self.showPrivacySelection = false
+                self.isSubmitting = false
             } catch {
                 print("❌ PostPopup - Error creating post: \(error)")
                 self.errorMessage = "投稿の作成に失敗しました: \(error.localizedDescription)"
@@ -446,6 +486,7 @@ struct PostPopupView: View {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.showPrivacySelection = false
                 }
+                self.isSubmitting = false
             }
         }
     }

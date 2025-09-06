@@ -48,52 +48,86 @@ private init() {
     func fetchPosts() async {
         await MainActor.run { isLoading = true }
         defer { Task { @MainActor in isLoading = false } }
-        
+
         secureLogger.info("Fetching posts from database")
-        
-        do {
-            // Supabaseクエリを実行
-            let response = try await supabaseClient
-                .from("posts")
-                .select("*, profiles(*)")
-                .order("created_at", ascending: false)
-                .limit(50)
-                .execute()
-            
-            // レスポンスをパース
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            
-            let dbPosts = try decoder.decode([DatabasePost].self, from: response.data)
-            
-            // DatabasePostをPostモデルに変換
-            await MainActor.run {
-                self.posts = dbPosts.map { dbPost in
-                    Post(
-                        id: dbPost.id,
-                        location: CLLocationCoordinate2D(
-                            latitude: dbPost.latitude,
-                            longitude: dbPost.longitude
-                        ),
-                        locationName: dbPost.location_name,
-                        imageData: nil,
-                        imageUrl: dbPost.image_url,
-                        text: dbPost.content,
-                        authorName: (dbPost.is_anonymous ?? false) ? "匿名ユーザー" : (dbPost.profiles?.display_name ?? dbPost.profiles?.username ?? "匿名ユーザー"),
-                        authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
-                        isAnonymous: dbPost.is_anonymous ?? false
-                    )
+
+        let maxAttempts = 3
+        var lastError: NSError?
+
+        for attempt in 1...maxAttempts {
+            do {
+                // Degrade payload on retries to improve reliability on poor networks
+                let liteMode = attempt > 1
+                let selectColumns = liteMode
+                    ? "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at"
+                    : "*, profiles(*)"
+                let limit = liteMode ? 20 : 50
+
+                let response = try await supabaseClient
+                    .from("posts")
+                    .select(selectColumns)
+                    .order("created_at", ascending: false)
+                    .limit(limit)
+                    .execute()
+
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let dbPosts = try decoder.decode([DatabasePost].self, from: response.data)
+
+                await MainActor.run {
+                    self.posts = dbPosts.map { dbPost in
+                        let name: String
+                        if dbPost.is_anonymous ?? false {
+                            name = "匿名ユーザー"
+                        } else if let prof = dbPost.profiles, !liteMode {
+                            name = prof.display_name ?? prof.username ?? "ユーザー"
+                        } else {
+                            name = "ユーザー"
+                        }
+                        return Post(
+                            id: dbPost.id,
+                            location: CLLocationCoordinate2D(
+                                latitude: dbPost.latitude,
+                                longitude: dbPost.longitude
+                            ),
+                            locationName: dbPost.location_name,
+                            imageData: nil,
+                            imageUrl: dbPost.image_url,
+                            text: dbPost.content,
+                            authorName: name,
+                            authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
+                            isAnonymous: dbPost.is_anonymous ?? false
+                        )
+                    }
+                }
+
+                secureLogger.info("Successfully fetched \(posts.count) posts (attempt #\(attempt), lite=\(attempt > 1))")
+                return
+            } catch {
+                let nsErr = error as NSError
+                lastError = nsErr
+                let isTimeout = nsErr.domain == NSURLErrorDomain && nsErr.code == NSURLErrorTimedOut
+                let isNetwork = nsErr.domain == NSURLErrorDomain
+                secureLogger.warning("fetchPosts attempt #\(attempt) failed: \(nsErr.domain) \(nsErr.code) - \(nsErr.localizedDescription)")
+
+                if attempt < maxAttempts && (isTimeout || isNetwork) {
+                    let delay = UInt64(500_000_000) * UInt64(attempt) // 0.5s, 1.0s
+                    try? await Task.sleep(nanoseconds: delay)
+                    continue
+                } else {
+                    break
                 }
             }
-            
-            secureLogger.info("Successfully fetched \(posts.count) posts from database")
-            
-        } catch {
-            secureLogger.error("Failed to fetch posts: \(error.localizedDescription)")
-            await MainActor.run {
+        }
+
+        // Final failure: keep existing posts to avoid blank UI
+        await MainActor.run {
+            if let e = lastError {
+                self.error = "投稿の取得に失敗しました（\(e.code == NSURLErrorTimedOut ? "タイムアウト" : e.localizedDescription)）"
+            } else {
                 self.error = "投稿の取得に失敗しました"
-                self.posts = []
             }
+            // Do not clear self.posts here; keep the last known posts for UX stability
         }
     }
     
@@ -318,4 +352,3 @@ struct DatabaseLike: Codable {
     let user_id: UUID
     let created_at: Date?
 }
-
