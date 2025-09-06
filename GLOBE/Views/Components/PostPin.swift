@@ -29,7 +29,7 @@ struct PostPin: View {
         let padding: CGFloat = 10 // 上下パディング
 
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
-        let imageHeight: CGFloat = hasImage ? 48 : 0
+        let imageHeight: CGFloat = hasImage ? (cardWidth - 8) : 0 // square image: width == height
         let textHeight: CGFloat = post.text.isEmpty ? 0 : CGFloat(actualTextLines) * lineHeight
         let contentHeight = imageHeight + textHeight
 
@@ -39,7 +39,8 @@ struct PostPin: View {
     }
     
     private var cardWidth: CGFloat {
-        return 96
+        // Widen the fixed card width slightly
+        return 112
     }
     
     private var actualTextLines: Int {
@@ -51,8 +52,8 @@ struct PostPin: View {
     
     var body: some View {
         VStack(spacing: post.isAnonymous ? 4 : 0) {
-            // ヘッダー - 匿名投稿では非表示だがスペースは確保
-            if !post.isAnonymous {
+            // ヘッダー - 画像がない時のみ上に表示（画像がある時は下に表示）
+            if !post.isAnonymous && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
                         print("👤 PostPin - Header icon tapped for user: \(post.authorId)")
@@ -102,10 +103,50 @@ struct PostPin: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: cardWidth - 8, height: 48)
+                    .frame(width: cardWidth - 8, height: cardWidth - 8)
                     .clipped()
                     .padding(.horizontal, 4)
                     .onTapGesture { showingImageViewer = true }
+
+                // ヘッダー（写真の下に表示）
+                if !post.isAnonymous {
+                    HStack(spacing: 3) {
+                        Button(action: {
+                            print("👤 PostPin - Header icon tapped for user: \(post.authorId)")
+                            showingUserProfile = true
+                        }) {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                                .overlay(
+                                    Text(post.authorName.prefix(1).uppercased())
+                                        .font(.system(size: 4, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            print("🆔 PostPin - ID tapped for user: \(post.authorId)")
+                            showingUserProfile = true
+                        }) {
+                            Text("\(post.authorId.prefix(6))")
+                                .font(.system(size: 6, weight: .medium))
+                                .foregroundColor(.white.opacity(0.7))
+                                .lineLimit(1)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer()
+                    }
+                    .frame(height: 8)
+                    .padding(.leading, 4)
+                    .padding(.trailing, 10)
+                    .padding(.top, 4)
+                    .contentShape(Rectangle())
+                    .zIndex(1)
+                }
 
                 if !post.text.isEmpty {
                     Text(post.text)
@@ -116,7 +157,8 @@ struct PostPin: View {
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: cardWidth - 8, alignment: .leading)
-                        .padding(.horizontal, 4)
+                        .padding(.leading, 4)
+                        .padding(.trailing, 4)
                         .padding(.top, 4) // 画像と文章の間に間隔
                 }
             } else if let imageUrl = post.imageUrl {
@@ -124,16 +166,56 @@ struct PostPin: View {
                     image
                         .resizable()
                         .scaledToFill()
-                        .frame(width: cardWidth - 8, height: 48)
+                        .frame(width: cardWidth - 8, height: cardWidth - 8)
                         .clipped()
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: cardWidth - 8, height: 48)
+                        .frame(width: cardWidth - 8, height: cardWidth - 8)
                         .overlay(ProgressView().scaleEffect(0.5))
                 }
                 .padding(.horizontal, 4)
                 .onTapGesture { showingImageViewer = true }
+
+                // ヘッダー（写真の下に表示）
+                if !post.isAnonymous {
+                    HStack(spacing: 3) {
+                        Button(action: {
+                            print("👤 PostPin - Header icon tapped for user: \(post.authorId)")
+                            showingUserProfile = true
+                        }) {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 8, height: 8)
+                                .overlay(
+                                    Text(post.authorName.prefix(1).uppercased())
+                                        .font(.system(size: 4, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            print("🆔 PostPin - ID tapped for user: \(post.authorId)")
+                            showingUserProfile = true
+                        }) {
+                            Text("\(post.authorId.prefix(6))")
+                                .font(.system(size: 6, weight: .medium))
+                                .foregroundColor(.white.opacity(0.7))
+                                .lineLimit(1)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer()
+                    }
+                    .frame(height: 8)
+                    .padding(.leading, 4)
+                    .padding(.trailing, 10)
+                    .padding(.top, 4)
+                    .contentShape(Rectangle())
+                    .zIndex(1)
+                }
 
                 if !post.text.isEmpty {
                     Text(post.text)
@@ -144,7 +226,8 @@ struct PostPin: View {
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: cardWidth - 8, alignment: .leading)
-                        .padding(.horizontal, 4)
+                        .padding(.leading, 4)
+                        .padding(.trailing, 4)
                         .padding(.top, 4)
                 }
             } else if !post.text.isEmpty {
@@ -163,7 +246,7 @@ struct PostPin: View {
             
             // フッター - 匿名投稿では非表示だがスペースは確保
             if !post.isAnonymous {
-                HStack(spacing: 8) {
+                HStack(spacing: 2) {
                     Spacer()
                     Button(action: {
                         print("❤️ PostPin - Like tapped for post: \(post.id)")
@@ -188,7 +271,7 @@ struct PostPin: View {
                                 .font(.system(size: 5))
                                 .foregroundColor(.white.opacity(0.8))
                                 .opacity(likeCount > 0 ? 1 : 0)
-                                .frame(width: 16, alignment: .leading)
+                                .frame(width: 12, alignment: .leading)
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -208,8 +291,8 @@ struct PostPin: View {
                                 .font(.system(size: 5))
                                 .foregroundColor(.white.opacity(0.8))
                                 .opacity(count > 0 ? 1 : 0)
-                                .frame(width: 16, alignment: .leading)
-                        }
+                                .frame(width: 12, alignment: .leading)
+                }
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -293,7 +376,7 @@ struct ScalablePostPin: View {
         return max(minScale, min(maxScale, scale * popularityBonus))
     }
     
-    private let baseCardSize: CGFloat = 96
+    private let baseCardSize: CGFloat = 112
     private let baseTriangleWidth: CGFloat = 16
     private let baseTriangleHeight: CGFloat = 12
     
@@ -336,7 +419,7 @@ struct ScalablePostPin: View {
     private var dynamicHeight: CGFloat {
         let base = cardWidth * 0.75
         if hasImage {
-            let imageH: CGFloat = 50 * scaleFactor
+            let imageH: CGFloat = 84 * scaleFactor
             var h = showMeta
                 ? max(imageH + 44 * fontScale, 80)
                 : max(imageH + 6 * fontScale, 50)
@@ -377,7 +460,7 @@ struct ScalablePostPin: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: stackSpacing) {
-                if showMeta {
+                if showMeta && !hasImage {
                     HStack(spacing: 3 * fontScale) {
                         Button(action: {
                             print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
@@ -446,6 +529,44 @@ struct ScalablePostPin: View {
                     .onTapGesture { showingImageViewer = true }
                 }
                 
+                // 画像がある場合はヘッダーを写真の下に表示
+                if showMeta && hasImage {
+                    HStack(spacing: 3 * fontScale) {
+                        Button(action: {
+                            print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
+                            showingUserProfile = true
+                        }) {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: 20 * fontScale, height: 20 * fontScale)
+                                .overlay(
+                                    Text(post.authorName.prefix(1).uppercased())
+                                        .font(.system(size: 10 * fontScale, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Button(action: {
+                            print("🆔 ScalablePostPin - ID tapped user: \(post.authorId)")
+                            showingUserProfile = true
+                        }) {
+                            VStack(alignment: .leading, spacing: 1 * fontScale) {
+                                Text("\(post.authorId.prefix(8))")
+                                    .font(.system(size: 9 * fontScale, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer()
+                    }
+                    .padding(.leading, (isSingleLine ? 6 : 4) * fontScale)
+                    .padding(.trailing, (isSingleLine ? 12 : 10) * fontScale)
+                    .padding(.top, 4 * fontScale)
+                }
+
                 if !post.text.isEmpty {
                     Text(post.text)
                         .font(.system(size: 9 * fontScale))
@@ -454,8 +575,9 @@ struct ScalablePostPin: View {
                         .multilineTextAlignment(.leading)
                         .lineLimit(scaleFactor < 0.9 ? 2 : nil)
                         .truncationMode(.tail)
-                        .frame(maxWidth: 84 * scaleFactor, alignment: .leading)
-                        .padding(.horizontal, isCompactTextOnly ? 0 : (3 * fontScale))
+                        .frame(maxWidth: cardWidth - 8, alignment: .leading)
+                        .padding(.leading, 4 * fontScale)
+                        .padding(.trailing, 4 * fontScale)
                         // 画像がある場合は画像との間を少し空ける
                         .padding(.top, hasImage ? (4 * fontScale) : (isCompactTextOnly ? 0 : (showMeta ? (post.isAnonymous ? 6 * fontScale : 2 * fontScale) : 2 * fontScale)))
                         .padding(.bottom, isCompactTextOnly ? 0 : (showMeta ? ((isSingleLine ? 2 : 4) * fontScale) : ((isSingleLine ? 1 : 2) * fontScale)))
@@ -463,28 +585,8 @@ struct ScalablePostPin: View {
                 // Remove Spacer to avoid extra vertical whitespace
                 
                 if showMeta {
-                    HStack(spacing: 4 * fontScale) {
-                        // Comment first so Like sits at the far right
-                        Button(action: {
-                            print("💬 ScalablePostPin - Comment tapped post: \(post.id)")
-                            showingDetailedPost = true
-                        }) {
-                            HStack(spacing: 2 * fontScale) {
-                                Image(systemName: "bubble.left")
-                                    .font(.system(size: 10 * fontScale))
-                                    .foregroundColor(.white.opacity(0.8))
-                                
-                                let count = commentService.getCommentCount(for: post.id)
-                                // Reserve number slot so layout doesn't jump
-                                Text("\(max(count, 0))")
-                                    .font(.system(size: 8 * fontScale))
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .opacity(count > 0 ? 1 : 0)
-                                    .frame(width: 14 * fontScale, alignment: .leading)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
+                    HStack(spacing: 2 * fontScale) {
+                        // Like (left) then Comment (right)
                         Button(action: {
                             print("❤️ ScalablePostPin - Like tapped post: \(post.id)")
                             if let userId = authManager.currentUser?.id {
@@ -497,18 +599,36 @@ struct ScalablePostPin: View {
                                 print("⚠️ ScalablePostPin - Like ignored (no current user)")
                             }
                         }) {
-                            HStack(spacing: 2 * fontScale) {
+                            HStack(spacing: 1 * fontScale) {
                                 Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
                                     .font(.system(size: 10 * fontScale))
                                     .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
                                 
                                 let likeCount = likeService.getLikeCount(for: post.id)
-                                // Reserve number slot so the heart doesn't shift
                                 Text("\(max(likeCount, 0))")
                                     .font(.system(size: 8 * fontScale))
                                     .foregroundColor(.white.opacity(0.8))
                                     .opacity(likeCount > 0 ? 1 : 0)
-                                    .frame(width: 14 * fontScale, alignment: .leading)
+                                    .frame(width: 12 * fontScale, alignment: .leading)
+                            }
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Button(action: {
+                            print("💬 ScalablePostPin - Comment tapped post: \(post.id)")
+                            showingDetailedPost = true
+                        }) {
+                            HStack(spacing: 1 * fontScale) {
+                                Image(systemName: "bubble.left")
+                                    .font(.system(size: 10 * fontScale))
+                                    .foregroundColor(.white.opacity(0.8))
+                                
+                                let count = commentService.getCommentCount(for: post.id)
+                                Text("\(max(count, 0))")
+                                    .font(.system(size: 8 * fontScale))
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .opacity(count > 0 ? 1 : 0)
+                                    .frame(width: 12 * fontScale, alignment: .leading)
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
