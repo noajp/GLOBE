@@ -104,9 +104,18 @@ struct MainTabView: View {
         }
 
         .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
-
             if !isAuthenticated {
-                showingAuth = true
+                // Dismiss any existing sheets before presenting auth to avoid
+                // "Currently, only presenting a single sheet is supported" warnings
+                showingCreatePost = false
+                showingProfile = false
+                // Present auth slightly delayed to let dismissals complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    showingAuth = true
+                }
+            } else {
+                // Ensure auth sheet is closed once signed in
+                showingAuth = false
             }
         }
         .onAppear {
@@ -139,7 +148,15 @@ struct MainTabView: View {
 
                         showingAuth = true
                     }
+                    // 最初の投稿取得はUI表示後に遅延して実行（起動体感を軽く）
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    await mapManager.fetchInitialPostsIfNeeded()
                 }
+            }
+        }
+        .onChange(of: authManager.isAuthenticated) { _, authed in
+            if authed {
+                Task { await mapManager.fetchInitialPostsIfNeeded() }
             }
         }
         .task {
@@ -349,6 +366,80 @@ struct MapContentView: View {
             }
         }
     }
+
+    // MARK: - Collision Avoidance (improved)
+    // Group very close posts (by rounded coordinates) and fan them out with offsets
+    private func offsetForPost(_ post: Post) -> CGSize {
+        // Derive a scale factor similar to ScalablePostPin to estimate card size
+        let baseSpan: Double = 0.01
+        let scale = CGFloat(baseSpan / max(currentMapSpan, 0.001))
+        let sf = max(0.8, min(1.5, scale))
+        // Estimated card size (rough): width 96*sf, height ~60*sf
+        let estWidth: CGFloat = 96 * sf
+        let estHeight: CGFloat = max(52, 60 * sf)
+
+        // Offsets grow with zoom-in; minimal when zoomed out
+        let zoomFactor = max(0, min(1, (sf - 0.9) / 0.6)) // 0 at sf<=0.9, 1 at sf>=1.5
+        let dxStep = max(12, estWidth * 0.55) * zoomFactor
+        let dyStep = max(12, estHeight * 0.75) * zoomFactor
+        if dxStep < 1 && dyStep < 1 { return .zero }
+
+        // Determine rounding precision based on zoom to group only truly close posts
+        let digits: Int
+        if currentMapSpan < 0.02 { // city streets
+            digits = 4 // ~11m
+        } else if currentMapSpan < 0.1 {
+            digits = 3 // ~110m
+        } else if currentMapSpan < 0.5 {
+            digits = 2 // ~1.1km
+        } else {
+            digits = 1
+        }
+
+        func roundCoord(_ value: Double, digits: Int) -> Double {
+            let m = pow(10.0, Double(digits))
+            return (value * m).rounded() / m
+        }
+        let key = String(
+            format: "%.\(digits)f:%.\(digits)f",
+            roundCoord(post.longitude, digits: digits),
+            roundCoord(post.latitude, digits: digits)
+        )
+
+        // Build groups of nearby posts (rounded key)
+        var groups: [String: [Post]] = [:]
+        for p in filteredPosts {
+            let k = String(
+                format: "%.\(digits)f:%.\(digits)f",
+                roundCoord(p.longitude, digits: digits),
+                roundCoord(p.latitude, digits: digits)
+            )
+            groups[k, default: []].append(p)
+        }
+        guard var group = groups[key], group.count > 1 else { return .zero }
+
+        // Sort group for deterministic layout (popular/newer prioritized)
+        group.sort { lhs, rhs in
+            if lhs.likeCount != rhs.likeCount { return lhs.likeCount > rhs.likeCount }
+            return lhs.createdAt > rhs.createdAt
+        }
+        guard let index = group.firstIndex(where: { $0.id == post.id }) else { return .zero }
+
+        // Pattern: rings upward, center then (0,-1), (-1,-1), (1,-1), (0,-2), ...
+        if index == 0 { return .zero }
+        let n = index // 1..N-1
+        let ring = (n + 2) / 3 // 1,1,1,2,2,2,3,3,3...
+        let posInRing = (n - 1) % 3 // 0,1,2 repeating
+        let (px, py): (CGFloat, CGFloat)
+        switch posInRing {
+        case 0: (px, py) = (0, -CGFloat(ring))
+        case 1: (px, py) = (-1, -CGFloat(ring))
+        default: (px, py) = (1, -CGFloat(ring))
+        }
+        let dx = px * dxStep
+        let dy = py * dyStep
+        return CGSize(width: dx, height: dy)
+    }
     
     var body: some View {
         ZStack {
@@ -383,6 +474,12 @@ struct MapContentView: View {
                             post: post,
                             mapSpan: currentMapSpan
                         )
+                        // Apply collision-avoidance offset for nearby posts in the same grid cell
+                        .offset(offsetForPost(post))
+                        // Ensure annotation content receives touches above the map
+                        .contentShape(Rectangle())
+                        .allowsHitTesting(true)
+                        .zIndex(1)
                     }
                 }
             }

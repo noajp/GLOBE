@@ -71,19 +71,23 @@ class AuthManager: ObservableObject {
     // MARK: - Sign Up
     
     func signUp(email: String, password: String, username: String) async throws {
+        ConsoleLogger.shared.forceLog("AuthManager.signUp: begin for \(email)")
         // 入力検証
         let emailValidation = InputValidator.validateEmail(email)
         guard emailValidation.isValid, let validEmail = emailValidation.value else {
+            ConsoleLogger.shared.forceLog("AuthManager.signUp: invalid email")
             throw AuthError.invalidInput("有効なメールアドレスを入力してください")
         }
         
         let passwordValidation = InputValidator.validatePassword(password)
         guard passwordValidation.isValid else {
+            ConsoleLogger.shared.forceLog("AuthManager.signUp: weak password")
             throw AuthError.weakPassword(["パスワードは8文字以上で、英字と数字を含む必要があります"])
         }
         
         let usernameValidation = InputValidator.validateUsername(username)
         guard usernameValidation.isValid, let validUsername = usernameValidation.value else {
+            ConsoleLogger.shared.forceLog("AuthManager.signUp: invalid username")
             throw AuthError.invalidInput("ユーザー名は3-20文字で、英字、数字、アンダースコアのみ使用できます")
         }
         
@@ -91,6 +95,7 @@ class AuthManager: ObservableObject {
         defer { isLoading = false }
         
         logger.info("Sign up attempt for: \(validEmail)")
+        SecureLogger.shared.authEvent("sign_up_attempt", userID: nil)
         
         do {
             let response = try await supabase.auth.signUp(
@@ -103,6 +108,8 @@ class AuthManager: ObservableObject {
             
             let user = response.user
             logger.info("Sign up successful for user: \(user.id.uuidString)")
+            ConsoleLogger.shared.forceLog("AuthManager.signUp: success user=\(user.id.uuidString)")
+            SecureLogger.shared.authEvent("sign_up_success", userID: user.id.uuidString)
             
             // メール認証をスキップして直接認証済み状態にする
             currentUser = AppUser(
@@ -119,6 +126,9 @@ class AuthManager: ObservableObject {
             
         } catch {
             logger.error("Sign up failed: \(error.localizedDescription)")
+            let ns = error as NSError
+            ConsoleLogger.shared.logError("AuthManager.signUp failed", error: error)
+            SecureLogger.shared.authEvent("sign_up_failed_\(ns.domain)_\(ns.code)")
             throw AuthError.unknown(error.localizedDescription)
         }
     }
@@ -126,13 +136,16 @@ class AuthManager: ObservableObject {
     // MARK: - Sign In
     
     func signIn(email: String, password: String) async throws {
+        ConsoleLogger.shared.forceLog("AuthManager.signIn: begin for \(email)")
         // 入力検証
         let emailValidation = InputValidator.validateEmail(email)
         guard emailValidation.isValid, let validEmail = emailValidation.value else {
+            ConsoleLogger.shared.forceLog("AuthManager.signIn: invalid email")
             throw AuthError.invalidInput("有効なメールアドレスを入力してください")
         }
         
         guard !password.isEmpty else {
+            ConsoleLogger.shared.forceLog("AuthManager.signIn: empty password")
             throw AuthError.invalidInput("パスワードを入力してください")
         }
         
@@ -143,15 +156,21 @@ class AuthManager: ObservableObject {
         defer { isLoading = false }
         
         logger.info("Sign in attempt for: \(validEmail)")
+        SecureLogger.shared.authEvent("sign_in_attempt", userID: nil)
         
         do {
+            // Normalize email casing; passwords are case-sensitive and must not be trimmed/altered
+            let normalizedEmail = validEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            // Use SDK's signIn(email:password:) for this version
             let response = try await supabase.auth.signIn(
-                email: validEmail,
+                email: normalizedEmail,
                 password: password
             )
             
             let user = response.user
             logger.info("Sign in successful for user: \(user.id.uuidString)")
+            ConsoleLogger.shared.forceLog("AuthManager.signIn: success user=\(user.id.uuidString)")
+            SecureLogger.shared.authEvent("sign_in_success", userID: user.id.uuidString)
             
             currentUser = AppUser(
                 id: user.id.uuidString,
@@ -169,6 +188,7 @@ class AuthManager: ObservableObject {
             
             // Supabase特有のエラーハンドリング
             if let nsError = error as NSError? {
+                ConsoleLogger.shared.forceLog("AuthManager.signIn: failed domain=\(nsError.domain) code=\(nsError.code) desc=\(nsError.localizedDescription)")
                 let errorMessage: String
                 switch nsError.code {
                 case 400:
@@ -188,10 +208,12 @@ class AuthManager: ObservableObject {
                 }
                 
                 recordFailedLoginAttempt(for: validEmail)
+                SecureLogger.shared.authEvent("sign_in_failed_\(nsError.code)", userID: nil)
                 throw AuthError.unknown(errorMessage)
             }
             
             recordFailedLoginAttempt(for: validEmail)
+            SecureLogger.shared.authEvent("sign_in_failed_unknown", userID: nil)
             throw AuthError.unknown("サインインに失敗しました: \(error.localizedDescription)")
         }
     }

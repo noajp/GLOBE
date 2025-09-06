@@ -161,8 +161,9 @@ struct CreatePostView: View {
                 .background(Color(UIColor.systemGray6).opacity(0.3))
             }
         }
-        .sheet(isPresented: $showingCamera) {
+        .fullScreenCover(isPresented: $showingCamera) {
             CameraView(selectedImageData: $selectedImageData)
+                .ignoresSafeArea()
         }
     }
     

@@ -5,13 +5,27 @@ import UIKit
 struct CameraPreviewView: View {
     @Binding var capturedImage: UIImage?
     @State private var isCapturing = false
+    @State private var cameraPosition: AVCaptureDevice.Position = .back
     
     var body: some View {
         ZStack {
-            CameraPreview(capturedImage: $capturedImage)
+            CameraPreview(capturedImage: $capturedImage, position: cameraPosition)
                 .ignoresSafeArea()
             
             VStack {
+                HStack {
+                    Spacer()
+                    // Flip camera (front/back)
+                    Button(action: { toggleCamera() }) {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.black.opacity(0.35))
+                            .clipShape(Capsule())
+                    }
+                    .padding([.top, .trailing], 16)
+                }
                 Spacer()
                 
                 // Capture button
@@ -33,10 +47,16 @@ struct CameraPreviewView: View {
             }
         }
     }
+    
+    private func toggleCamera() {
+        cameraPosition = (cameraPosition == .back) ? .front : .back
+        NotificationCenter.default.post(name: NSNotification.Name("SwitchCamera"), object: cameraPosition)
+    }
 }
 
 struct CameraPreview: UIViewRepresentable {
     @Binding var capturedImage: UIImage?
+    var position: AVCaptureDevice.Position = .back
     
     class Coordinator: NSObject, AVCapturePhotoCaptureDelegate {
         var parent: CameraPreview
@@ -52,6 +72,12 @@ struct CameraPreview: UIViewRepresentable {
                 self,
                 selector: #selector(capturePhoto),
                 name: NSNotification.Name("CapturePhoto"),
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleSwitchCamera(_:)),
+                name: NSNotification.Name("SwitchCamera"),
                 object: nil
             )
         }
@@ -93,7 +119,12 @@ struct CameraPreview: UIViewRepresentable {
             }
         }
         
-        func setupCamera(for view: UIView) {
+        @objc func handleSwitchCamera(_ note: Notification) {
+            guard let newPos = note.object as? AVCaptureDevice.Position else { return }
+            switchCamera(to: newPos)
+        }
+
+        func setupCamera(for view: UIView, position: AVCaptureDevice.Position = .back) {
             // Check camera permission first
             let authStatus = AVCaptureDevice.authorizationStatus(for: .video)
             guard authStatus == .authorized else {
@@ -114,7 +145,7 @@ struct CameraPreview: UIViewRepresentable {
             let captureSession = AVCaptureSession()
             captureSession.sessionPreset = .photo
             
-            guard let videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            guard let videoCaptureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) else {
                 print("No back camera found, trying default video device")
                 guard let fallbackDevice = AVCaptureDevice.default(for: .video) else {
                     print("No camera device found at all")
@@ -206,6 +237,31 @@ struct CameraPreview: UIViewRepresentable {
                 self.previewLayer?.frame = view.bounds
             }
         }
+        
+        func switchCamera(to position: AVCaptureDevice.Position) {
+            guard let session = captureSession else { return }
+            session.beginConfiguration()
+            // Remove existing video inputs
+            if let inputs = session.inputs as? [AVCaptureDeviceInput] {
+                for input in inputs {
+                    if input.device.hasMediaType(.video) {
+                        session.removeInput(input)
+                    }
+                }
+            }
+            // Add new device input
+            if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) {
+                do {
+                    let newInput = try AVCaptureDeviceInput(device: device)
+                    if session.canAddInput(newInput) {
+                        session.addInput(newInput)
+                    }
+                } catch {
+                    print("Failed to switch camera: \(error)")
+                }
+            }
+            session.commitConfiguration()
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -217,7 +273,7 @@ struct CameraPreview: UIViewRepresentable {
         view.backgroundColor = .black
         
         // Setup camera with proper error handling
-        context.coordinator.setupCamera(for: view)
+        context.coordinator.setupCamera(for: view, position: position)
         
         return view
     }

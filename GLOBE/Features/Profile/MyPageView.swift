@@ -43,7 +43,7 @@ struct MyPageView: View {
             .background(MinimalDesign.Colors.background)
         }
         .background(MinimalDesign.Colors.background)
-        .navigationDestination(isPresented: $showSettings) {
+        .sheet(isPresented: $showSettings) {
             SettingsView()
         }
         .sheet(isPresented: $showEditProfile) {
@@ -60,6 +60,8 @@ struct MyPageView: View {
         LazyVStack(spacing: 0) {
             // Profile Section
             profileSection
+            // Stories (followed users)
+            storiesSection
             
             // Posts Grid
             postsGrid
@@ -178,6 +180,28 @@ struct MyPageView: View {
             }
         }
     }
+
+    // MARK: - Stories Section
+    private var storiesSection: some View {
+        Group {
+            if !viewModel.stories.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Stories")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(MinimalDesign.Colors.primary)
+                        Spacer()
+                    }
+                    StoriesView(stories: viewModel.stories) {
+                        // 通知でメイン画面に投稿ポップアップを出す
+                        NotificationCenter.default.post(name: Notification.Name("PostAtCurrentLocation"), object: nil)
+                        dismiss()
+                    }
+                }
+                .padding(.vertical, MinimalDesign.Spacing.sm)
+            }
+        }
+    }
     
     private var profilePlaceholder: some View {
         ZStack {
@@ -191,7 +215,7 @@ struct MyPageView: View {
     // MARK: - Posts Grid
     private var postsGrid: some View {
         Group {
-            if viewModel.userPosts.isEmpty {
+            if viewModel.userPosts.filter({ $0.imageUrl != nil || $0.imageData != nil }).isEmpty {
                 emptyState
             } else {
                 LazyVGrid(columns: [
@@ -199,7 +223,7 @@ struct MyPageView: View {
                     GridItem(.flexible(), spacing: 2),
                     GridItem(.flexible(), spacing: 2)
                 ], spacing: 2) {
-                    ForEach(viewModel.userPosts) { post in
+                    ForEach(viewModel.userPosts.filter { $0.imageUrl != nil || $0.imageData != nil }) { post in
                         PostGridItem(post: post, selectedPost: $selectedPost)
                     }
                 }
@@ -243,12 +267,17 @@ struct PostGridItem: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: geometry.size.width, height: geometry.size.width)
-                            .clipped()
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: geometry.size.width, height: geometry.size.width)
-                    }
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    } placeholder: { Color.clear }
+                } else if let data = post.imageData, let uiImage = UIImage(data: data) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.width)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                } else {
+                    // No photo: do not render a placeholder item
+                    EmptyView()
                 }
             }
             .buttonStyle(PlainButtonStyle())
