@@ -21,9 +21,11 @@ struct PostCard: View {
     var body: some View {
         GeometryReader { geometry in
             let cardWidth = geometry.size.width
-            let cardHeight = cardWidth * 4/3  // 3:4 ratio (width:height = 3:4, so height = width * 4/3)
+            // Increase height further to ensure action buttons never clip
+            let heightRatio: CGFloat = 1.45 // was: 1.4 (4/3 ≈ 1.333)
+            let cardHeight = cardWidth * heightRatio
             
-            // Both photo and text layouts use 3:4 vertical ratio
+            // Card content with a small bottom inset so controls avoid the rounded mask
             VStack(spacing: 0) {
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                     // Photo layout: Full-width square image at top, content below
@@ -165,7 +167,7 @@ struct PostCard: View {
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 12)
+                        .padding(.bottom, 24)
                     }
                     .frame(maxHeight: .infinity) // Fill remaining space in 3:4 card
                     
@@ -304,9 +306,12 @@ struct PostCard: View {
                     .frame(height: cardHeight)
                 }
             }
+            // Add inner bottom padding to keep like/comment above the rounded corner clip
+            .padding(.bottom, 12)
             .frame(width: cardWidth, height: cardHeight)
         }
-        .aspectRatio(3/4, contentMode: .fit)
+        // Match the new height ratio so the card lays out correctly
+        .aspectRatio(1/1.45, contentMode: .fit)
         .background(customBlack)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.3), radius: 5, x: 0, y: 2)
