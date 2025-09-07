@@ -1,5 +1,5 @@
-# CLAUDE.md - STILL Project Development Hub
-
+# AGENTS.md
+応答は日本語で行うように
 ## 🎯 Core Philosophy: The Co-Pilot Workflow
 
 This project is built on a partnership between a human developer and an AI assistant. My role is to set the destination (the "what") and the high-level route (the architecture). Your role, as the AI, is to handle the driving (the "how" of coding), follow the rules of the road (best practices), and find the most efficient path (optimization).

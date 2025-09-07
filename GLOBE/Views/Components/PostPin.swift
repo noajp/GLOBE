@@ -22,19 +22,19 @@ struct PostPin: View {
     
     // Calculate dynamic height based on content
     private var cardHeight: CGFloat {
-        // 上下に余裕を持たせる
-        let headerHeight: CGFloat = post.isAnonymous ? 22 : 12
-        let footerHeight: CGFloat = post.isAnonymous ? 12 : 10
+        // 上下の余白を抑えて写真に合わせる
+        let headerHeight: CGFloat = post.isAnonymous ? 18 : 10
+        let footerHeight: CGFloat = 6
         let lineHeight: CGFloat = 9
-        let padding: CGFloat = 10 // 上下パディング
+        let padding: CGFloat = 6 // 上下パディング
 
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let imageHeight: CGFloat = hasImage ? (cardWidth - 8) : 0 // square image: width == height
         let textHeight: CGFloat = post.text.isEmpty ? 0 : CGFloat(actualTextLines) * lineHeight
         let contentHeight = imageHeight + textHeight
 
-        // メタが見えている場合は、上6pt＋下8ptぶんのゆとりを枠にも反映
-        let extraMetaPadding: CGFloat = post.isAnonymous ? 0 : (6 + 8)
+        // 追加の上下ゆとりは最小限に（上6pt+下2pt相当）
+        let extraMetaPadding: CGFloat = post.isAnonymous ? 0 : (6 + 2)
         return headerHeight + contentHeight + footerHeight + padding + extraMetaPadding
     }
     
@@ -157,7 +157,8 @@ struct PostPin: View {
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: cardWidth - 8, alignment: .leading)
-                        .padding(.leading, 4)
+                        // Start text one character to the right
+                        .padding(.leading, 11)
                         .padding(.trailing, 4)
                         .padding(.top, 4) // 画像と文章の間に間隔
                 }
@@ -240,7 +241,9 @@ struct PostPin: View {
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(width: cardWidth - 8, alignment: .leading)
-                    .padding(.horizontal, 4)
+                    // Start text one character to the right
+                    .padding(.leading, 11)
+                    .padding(.trailing, 4)
                     .padding(.top, post.isAnonymous ? 8 : 0) // 匿名投稿時は上部パディング追加
             }
             
@@ -298,9 +301,9 @@ struct PostPin: View {
                 }
                 .frame(height: 8)
                 .padding(.leading, 4)
-                .padding(.trailing, 0)
-                // Nudge actions slightly downward: add small top inset and reduce bottom a bit
-                .padding(.top, 2)
+                .padding(.trailing, 4)
+                // Bring actions closer to bottom while avoiding border overlap
+                .padding(.top, 1)
                 .padding(.bottom, 6)
                 .contentShape(Rectangle())
                 .zIndex(1)
@@ -397,7 +400,8 @@ struct ScalablePostPin: View {
         max(0.8, min(1.0, scaleFactor))
     }
 
-    // Fixed minimum insets regardless of zoom (prevents clinging to edges)
+    // Fixed minimum insets regardless of zoom
+    // Bring actions少し下辺に近づける（安全な最小余白は確保）
     private var topInset: CGFloat { max(6, 6 * fontScale) }
     private var bottomInset: CGFloat { max(8, 8 * fontScale) }
 
@@ -419,7 +423,8 @@ struct ScalablePostPin: View {
     private var dynamicHeight: CGFloat {
         let base = cardWidth * 0.75
         if hasImage {
-            let imageH: CGFloat = 84 * scaleFactor
+            // Square photo height equals inner card width (minus horizontal padding)
+            let imageH: CGFloat = (cardWidth - 8)
             var h = showMeta
                 ? max(imageH + 44 * fontScale, 80)
                 : max(imageH + 6 * fontScale, 50)
@@ -504,21 +509,21 @@ struct ScalablePostPin: View {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 84 * scaleFactor, height: 50 * scaleFactor)
+                        .frame(width: cardWidth - 8, height: cardWidth - 8)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                    .padding(.horizontal, 4 * fontScale)
-                    .onTapGesture { showingImageViewer = true }
+                        .padding(.horizontal, 4 * fontScale)
+                        .onTapGesture { showingImageViewer = true }
                 } else if let imageUrl = post.imageUrl {
                     AsyncImage(url: URL(string: imageUrl)) { image in
                         image
                             .resizable()
                             .scaledToFill()
-                            .frame(width: 84 * scaleFactor, height: 50 * scaleFactor)
+                            .frame(width: cardWidth - 8, height: cardWidth - 8)
                             .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                     } placeholder: {
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .frame(width: 84 * scaleFactor, height: 50 * scaleFactor)
+                            .frame(width: cardWidth - 8, height: cardWidth - 8)
                             .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                             .overlay(
                                 ProgressView()
@@ -576,7 +581,8 @@ struct ScalablePostPin: View {
                         .lineLimit(scaleFactor < 0.9 ? 2 : nil)
                         .truncationMode(.tail)
                         .frame(maxWidth: cardWidth - 8, alignment: .leading)
-                        .padding(.leading, 4 * fontScale)
+                        // Start text one character to the right
+                        .padding(.leading, (4 + 9) * fontScale)
                         .padding(.trailing, 4 * fontScale)
                         // 画像がある場合は画像との間を少し空ける
                         .padding(.top, hasImage ? (4 * fontScale) : (isCompactTextOnly ? 0 : (showMeta ? (post.isAnonymous ? 6 * fontScale : 2 * fontScale) : 2 * fontScale)))
@@ -635,10 +641,10 @@ struct ScalablePostPin: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.leading, 0)
-                    .padding(.trailing, 0)
-                    // Nudge actions slightly downward: add small top inset and reduce bottom a bit
-                    .padding(.top, 2 * fontScale)
-                    .padding(.bottom, max(0, bottomInset - 2 * fontScale))
+                    .padding(.trailing, 4 * fontScale)
+                    // Bring actions closer to the bottom but keep a small safety gap
+                    .padding(.top, 1 * fontScale)
+                    .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
                     .contentShape(Rectangle())
                 }
             }
