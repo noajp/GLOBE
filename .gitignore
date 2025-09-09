@@ -98,6 +98,7 @@ iOSInjectionProject/
 .claude/
 
 # Sensitive files
-*.plist
+Secrets.plist
 Config.plist
 GoogleService-Info.plist
+*.secret

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>GLOBE uses the camera to take photos for your posts.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app uses your location to show your current position on the map.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app uses your location to show your current position on the map.</string>
+	<key>SupabaseURL</key>
+	<string>YOUR_SUPABASE_URL_HERE</string>
+	<key>SupabaseAnonKey</key>
+	<string>YOUR_SUPABASE_ANON_KEY_HERE</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to select a profile picture.</string>
+</dict>
+</plist>
