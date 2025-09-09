@@ -4,8 +4,8 @@ enum Config {
     private static let secrets: [String: String] = {
         guard let path = Bundle.main.path(forResource: "Secrets", ofType: "plist"),
               let dict = NSDictionary(contentsOfFile: path) as? [String: Any] else {
-            print("❌ Secrets.plist not found")
-            fatalError("Secrets.plist not found. Please create it with SUPABASE_URL and SUPABASE_ANON_KEY")
+            print("⚠️ Secrets.plist not found - using SecureConfig fallback")
+            return [:]
         }
         print("✅ Secrets.plist loaded successfully")
         
@@ -18,19 +18,41 @@ enum Config {
         return stringDict
     }()
     
+    private static func isPlaceholder(_ value: String) -> Bool {
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("YOUR_SUPABASE_") || value.isEmpty
+    }
+    
     static let supabaseURL: String = {
-        guard let url = secrets["SUPABASE_URL"] else {
-            fatalError("SUPABASE_URL not found in Secrets.plist")
+        if let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
+            print("🔵 Supabase URL from Secrets.plist: \(url)")
+            return url
         }
-        print("🔵 Supabase URL: \(url)")
-        return url
+        
+        // Fallback to SecureConfig
+        let secureURL = SecureConfig.shared.supabaseURL
+        if !secureURL.isEmpty {
+            print("🔵 Supabase URL from SecureConfig: \(secureURL)")
+            return secureURL
+        }
+        
+        print("❌ No valid Supabase URL found")
+        fatalError("No valid SUPABASE_URL found. Please configure Secrets.plist or Info.plist")
     }()
     
     static let supabaseAnonKey: String = {
-        guard let key = secrets["SUPABASE_ANON_KEY"] else {
-            fatalError("SUPABASE_ANON_KEY not found in Secrets.plist")
+        if let key = secrets["SUPABASE_ANON_KEY"], !isPlaceholder(key) {
+            print("🔵 Supabase Key from Secrets.plist: \(String(key.prefix(20)))...")
+            return key
         }
-        print("🔵 Supabase Key: \(String(key.prefix(20)))...")
-        return key
+        
+        // Fallback to SecureConfig
+        let secureKey = SecureConfig.shared.supabaseAnonKey
+        if !secureKey.isEmpty {
+            print("🔵 Supabase Key from SecureConfig: \(String(secureKey.prefix(20)))...")
+            return secureKey
+        }
+        
+        print("❌ No valid Supabase Anon Key found")
+        fatalError("No valid SUPABASE_ANON_KEY found. Please configure Secrets.plist or Info.plist")
     }()
 }

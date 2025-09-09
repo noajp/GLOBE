@@ -11,6 +11,7 @@ struct SecureConfig {
     static let shared = SecureConfig()
     
     private init() {}
+    private static var didAttemptSecretsImport = false
     
     // MARK: - Keychain Keys
     private enum KeychainKey: String {
@@ -26,7 +27,14 @@ struct SecureConfig {
         }
         
         // Fallback to Info.plist
-        if let url = Bundle.main.infoDictionary?["SupabaseURL"] as? String {
+        if let url = Bundle.main.infoDictionary?["SupabaseURL"] as? String, !isPlaceholder(url) {
+            return url
+        }
+
+        // Dev-only: Try Secrets.plist (not for production). If found, cache into Keychain
+        if let secrets = loadSecretsPlist(), let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
+            // Cache to Keychain for subsequent launches
+            saveToKeychain(key: .supabaseURL, value: url)
             return url
         }
         
@@ -42,7 +50,13 @@ struct SecureConfig {
         }
         
         // Fallback to Info.plist
-        if let key = Bundle.main.infoDictionary?["SupabaseAnonKey"] as? String {
+        if let key = Bundle.main.infoDictionary?["SupabaseAnonKey"] as? String, !isPlaceholder(key) {
+            return key
+        }
+
+        // Dev-only: Try Secrets.plist and cache
+        if let secrets = loadSecretsPlist(), let key = secrets["SUPABASE_ANON_KEY"], !isPlaceholder(key) {
+            saveToKeychain(key: .supabaseAnonKey, value: key)
             return key
         }
         
@@ -98,6 +112,25 @@ struct SecureConfig {
         }
         
         return nil
+    }
+
+    // MARK: - Secrets.plist (DEV ONLY)
+    private func loadSecretsPlist() -> [String: String]? {
+        // Run at most once to avoid repeated disk access
+        if SecureConfig.didAttemptSecretsImport { return nil }
+        SecureConfig.didAttemptSecretsImport = true
+        guard let url = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+              let data = try? Data(contentsOf: url),
+              let dict = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+        else { return nil }
+        var result: [String: String] = [:]
+        if let u = dict["SUPABASE_URL"] as? String { result["SUPABASE_URL"] = u }
+        if let k = dict["SUPABASE_ANON_KEY"] as? String { result["SUPABASE_ANON_KEY"] = k }
+        return result
+    }
+
+    private func isPlaceholder(_ value: String) -> Bool {
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("YOUR_SUPABASE_") || value.isEmpty
     }
     
     // MARK: - Development Helper
