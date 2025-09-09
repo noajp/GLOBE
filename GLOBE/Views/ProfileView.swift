@@ -78,9 +78,7 @@ struct ProfileView: View {
         .onAppear {
             loadUserPosts()
         }
-        .sheet(isPresented: $showingEditProfile) {
-            EditProfileView()
-        }
+        .background(EmptyView())
     }
     
     private var profileHeader: some View {
@@ -95,18 +93,16 @@ struct ProfileView: View {
     }
     
     private var profileImageButton: some View {
-        Button(action: {
-            // TODO: プロフィール画像変更機能
-        }) {
-            Circle()
-                .fill(Color.blue)
-                .frame(width: 120, height: 120)
-                .overlay(profileImageContent)
-                .overlay(
-                    Circle()
-                        .stroke(Color.white, lineWidth: 3)
-                )
-        }
+        // Tapping the icon should NOT change the avatar on this screen.
+        // Only the Edit screen allows changing the profile photo.
+        Circle()
+            .fill(Color.blue)
+            .frame(width: 120, height: 120)
+            .overlay(profileImageContent)
+            .overlay(
+                Circle()
+                    .stroke(Color.white, lineWidth: 3)
+            )
     }
     
     private var profileImageContent: some View {
@@ -166,9 +162,7 @@ struct ProfileView: View {
     }
     
     private var editProfileButton: some View {
-        Button(action: {
-            showingEditProfile = true
-        }) {
+        NavigationLink(destination: EditProfileView()) {
             Text("プロフィールを編集")
                 .font(.subheadline)
                 .fontWeight(.medium)

@@ -1,6 +1,6 @@
 import SwiftUI
+import UIKit
 import MapKit
-import CoreLocation
 import CoreLocation
 import Combine
 
@@ -8,6 +8,8 @@ struct MainTabView: View {
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var postManager = PostManager.shared
     @StateObject private var mapManager = MapManager()
+    @StateObject private var locationManager = MapLocationService()
+    @StateObject private var appSettings = AppSettings.shared
     @State private var showingCreatePost = false
     @State private var stories: [Story] = Story.mockStories
     @State private var showingAuth = false
@@ -54,6 +56,7 @@ struct MainTabView: View {
                 
                 // Main content area - always show map
                 MapContentView(mapManager: mapManager, showCenterPin: showingCreatePost)
+                    .environmentObject(appSettings)
                     .ignoresSafeArea(edges: .bottom)
             }
             .background(Color.clear)
@@ -334,15 +337,16 @@ struct MapContentView: View {
     @ObservedObject var mapManager: MapManager
     @State private var selectedPost: Post?
     @State private var showingPostDetail = false
-    @State private var mapPosition: MapCameraPosition
+    @State private var region: MKCoordinateRegion
     @State private var currentMapSpan: Double = 1.0 // マップのスパンを追跡
-    @StateObject private var locationManager = MapLocationManager()
+    @StateObject private var locationManager = MapLocationService()
+    @EnvironmentObject private var appSettings: AppSettings
     let showCenterPin: Bool
     
     init(mapManager: MapManager, showCenterPin: Bool = false) {
         self.mapManager = mapManager
         self.showCenterPin = showCenterPin
-        self._mapPosition = State(initialValue: .region(mapManager.region))
+        self._region = State(initialValue: mapManager.region)
     }
     
     // ズームレベルに応じて表示する投稿をフィルタリング
@@ -443,44 +447,24 @@ struct MapContentView: View {
     
     var body: some View {
         ZStack {
-            Map(position: $mapPosition) {
-                // User's current location - blue dot
-                if let userLocation = locationManager.location {
-                    Annotation("", coordinate: userLocation, anchor: .center) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.3))
-                                .frame(width: 40, height: 40)
-                            
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 16, height: 16)
-                            
-                            Circle()
-                                .stroke(Color.white, lineWidth: 2)
-                                .frame(width: 16, height: 16)
-                        }
-                    }
-                }
-                
-                // Posts
-                ForEach(filteredPosts) { post in
-                    Annotation(
-                        "",
-                        coordinate: CLLocationCoordinate2D(latitude: post.latitude, longitude: post.longitude),
-                        anchor: .bottom
-                    ) {
-                        ScalablePostPin(
-                            post: post,
-                            mapSpan: currentMapSpan
-                        )
-                        // Apply collision-avoidance offset for nearby posts in the same grid cell
-                        .offset(offsetForPost(post))
-                        // Ensure annotation content receives touches above the map
-                        .contentShape(Rectangle())
-                        .allowsHitTesting(true)
-                        .zIndex(1)
-                    }
+            Map(
+                coordinateRegion: $region,
+                interactionModes: .all,
+                showsUserLocation: appSettings.showMyLocationOnMap,
+                annotationItems: filteredPosts
+            ) { post in
+                MapAnnotation(
+                    coordinate: CLLocationCoordinate2D(latitude: post.latitude, longitude: post.longitude),
+                    anchorPoint: CGPoint(x: 0.5, y: 1.0)
+                ) {
+                    ScalablePostPin(
+                        post: post,
+                        mapSpan: currentMapSpan
+                    )
+                    .offset(offsetForPost(post))
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(true)
+                    .zIndex(1)
                 }
             }
             .mapStyle(.hybrid(elevation: .realistic))
@@ -488,11 +472,67 @@ struct MapContentView: View {
                 MapCompass()
                 MapScaleView()
             }
-            .onMapCameraChange { context in
-                // Update mapManager region when map position changes
-                mapManager.region = context.region
-                // Track map span for scaling calculations
-                currentMapSpan = max(context.region.span.latitudeDelta, context.region.span.longitudeDelta)
+            // MKCoordinateRegion is not Equatable; sync parts individually
+            .onChange(of: region.center.latitude) { _, _ in
+                mapManager.region = region
+                currentMapSpan = max(region.span.latitudeDelta, region.span.longitudeDelta)
+            }
+            .onChange(of: region.center.longitude) { _, _ in
+                mapManager.region = region
+                currentMapSpan = max(region.span.latitudeDelta, region.span.longitudeDelta)
+            }
+            .onChange(of: region.span.latitudeDelta) { _, _ in
+                mapManager.region = region
+                currentMapSpan = max(region.span.latitudeDelta, region.span.longitudeDelta)
+            }
+            .onChange(of: region.span.longitudeDelta) { _, _ in
+                mapManager.region = region
+                currentMapSpan = max(region.span.latitudeDelta, region.span.longitudeDelta)
+            }
+            .onReceive(locationManager.$region) { newRegion in
+                guard appSettings.showMyLocationOnMap else { return }
+                // Update region to match location service region with animation
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    region = newRegion
+                }
+            }
+            .onAppear {
+                // Simple location request when location tracking is enabled
+                if appSettings.showMyLocationOnMap {
+                    locationManager.requestLocation()
+                }
+            }
+            .onReceive(appSettings.$showMyLocationOnMap) { newValue in
+                if newValue {
+                    // Request location using the standard pattern
+                    locationManager.requestLocation()
+                } else {
+                    locationManager.stopLocationServices()
+                }
+            }
+            
+            // Add location button overlay
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    
+                    // Center on user location button
+                    if appSettings.showMyLocationOnMap && locationManager.isLocationAvailable {
+                        Button(action: {
+                            locationManager.centerOnUserLocation()
+                        }) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .padding(12)
+                                .background(Circle().fill(Color.blue))
+                                .shadow(radius: 4)
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 100) // Above tab bar
+                    }
+                }
             }
         }
         .sheet(isPresented: $showingPostDetail) {
@@ -501,56 +541,12 @@ struct MapContentView: View {
             }
         }
     }
+
 }
 
 
 
 
-// MARK: - MapLocationManager for Map
-class MapLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
-    private let locationManager = CLLocationManager()
-    @Published var location: CLLocationCoordinate2D?
-    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
-    
-    override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        locationManager.distanceFilter = 10 // Update every 10 meters
-        
-        // Check current authorization status
-        authorizationStatus = locationManager.authorizationStatus
-        
-        // Start updating location if authorized
-        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            locationManager.startUpdatingLocation()
-        }
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let newLocation = locations.last else { return }
-        DispatchQueue.main.async {
-            self.location = newLocation.coordinate
-        }
-    }
-    
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        DispatchQueue.main.async {
-            self.authorizationStatus = manager.authorizationStatus
-            
-            if self.authorizationStatus == .authorizedWhenInUse || self.authorizationStatus == .authorizedAlways {
-                manager.startUpdatingLocation()
-            } else {
-                manager.stopUpdatingLocation()
-                self.location = nil
-            }
-        }
-    }
-    
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-
-    }
-}
 
 #Preview {
     MainTabView()

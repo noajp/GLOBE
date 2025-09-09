@@ -4,7 +4,7 @@
 // Path: GLOBE/Features/Profile/MyPageView.swift
 //======================================================================
 import SwiftUI
-import PhotosUI
+// PhotosUI not needed here (avatar changes only in EditProfileView)
 
 struct MyPageView: View {
     // MARK: - Properties
@@ -13,7 +13,7 @@ struct MyPageView: View {
     @State private var showSettings = false
     @State private var showEditProfile = false
     @State private var showUserSearch = false
-    @State private var selectedPhotoItem: PhotosPickerItem?
+    // Avatar changes are handled only in EditProfileView (no picker here)
     @State private var selectedPost: Post?
     @Environment(\.dismiss) private var dismiss
     
@@ -152,12 +152,9 @@ struct MyPageView: View {
     private var profileImage: some View {
         let userProfile = viewModel.userProfile
         let avatarUrl = userProfile?.avatarUrl
-        
-        return PhotosPicker(selection: $selectedPhotoItem,
-                     matching: .images,
-                     photoLibrary: .shared()) {
-            if let avatarUrl = avatarUrl,
-               let url = URL(string: avatarUrl) {
+
+        return Group {
+            if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -165,20 +162,12 @@ struct MyPageView: View {
                 } placeholder: {
                     profilePlaceholder
                 }
-                .frame(width: 70, height: 70)
-                .clipShape(Circle())
             } else {
                 profilePlaceholder
-                    .frame(width: 70, height: 70)
-                    .clipShape(Circle())
             }
         }
-        .buttonStyle(PlainButtonStyle())
-        .onChange(of: selectedPhotoItem) { _, newItem in
-            Task { @MainActor in
-                // Handle photo update
-            }
-        }
+        .frame(width: 70, height: 70)
+        .clipShape(Circle())
     }
 
     // MARK: - Stories Section

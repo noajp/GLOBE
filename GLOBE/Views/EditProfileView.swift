@@ -5,6 +5,7 @@
 //======================================================================
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
@@ -17,8 +18,9 @@ struct EditProfileView: View {
     @State private var isLoading = false
     @State private var errorMessage = ""
     @State private var showError = false
-    @State private var showSuccess = false
+    // Success popup is not shown per request; dismiss after save instead
     @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var localAvatarImage: UIImage?
     
     // Input limits
     private let maxDisplayNameLength = 30
@@ -35,29 +37,34 @@ struct EditProfileView: View {
                         PhotosPicker(selection: $selectedPhotoItem,
                                    matching: .images,
                                    photoLibrary: .shared()) {
-                            if let avatarUrl = avatarUrl,
-                               let url = URL(string: avatarUrl) {
-                                AsyncImage(url: url) { image in
-                                    image
+                            Group {
+                                if let image = localAvatarImage {
+                                    Image(uiImage: image)
                                         .resizable()
                                         .aspectRatio(contentMode: .fill)
-                                } placeholder: {
+                                } else if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    } placeholder: {
+                                        profilePlaceholder
+                                    }
+                                } else {
                                     profilePlaceholder
                                 }
-                                .frame(width: 100, height: 100)
-                                .clipShape(Circle())
-                            } else {
-                                profilePlaceholder
-                                    .frame(width: 100, height: 100)
                             }
+                            .frame(width: 100, height: 100)
+                            .clipShape(Circle())
                         }
                         .buttonStyle(PlainButtonStyle())
                         
-                        Button("Change Photo") {
-                            // PhotosPicker will handle this
+                        PhotosPicker(selection: $selectedPhotoItem, matching: .images, photoLibrary: .shared()) {
+                            Text("Change Photo")
+                                .font(MinimalDesign.Typography.body)
+                                .foregroundColor(MinimalDesign.Colors.accent)
                         }
-                        .font(MinimalDesign.Typography.body)
-                        .foregroundColor(MinimalDesign.Colors.accent)
+                        .buttonStyle(PlainButtonStyle())
                     }
                     
                     // User ID Display (Read-only)
@@ -158,18 +165,28 @@ struct EditProfileView: View {
             .onAppear {
                 loadCurrentProfile()
             }
+            .onChange(of: selectedPhotoItem) { _, newItem in
+                guard let item = newItem else { return }
+                Task { @MainActor in
+                    do {
+                        if let data = try await item.loadTransferable(type: Data.self) {
+                            if let ui = UIImage(data: data) {
+                                localAvatarImage = ui
+                            }
+                            await viewModel.updateAvatar(imageData: data)
+                        }
+                    } catch {
+                        errorMessage = "Failed to load selected image"
+                        showError = true
+                    }
+                }
+            }
             .alert("Error", isPresented: $showError) {
                 Button("OK") {}
             } message: {
                 Text(errorMessage)
             }
-            .alert("Success", isPresented: $showSuccess) {
-                Button("OK") {
-                    dismiss()
-                }
-            } message: {
-                Text("Profile updated successfully")
-            }
+            // Success popup removed: we dismiss on successful save
             .overlay {
                 if isLoading {
                     Color.black.opacity(0.5)
@@ -226,7 +243,8 @@ struct EditProfileView: View {
             errorMessage = error
             showError = true
         } else {
-            showSuccess = true
+            // Do not show success popup; close the screen silently
+            dismiss()
         }
     }
     

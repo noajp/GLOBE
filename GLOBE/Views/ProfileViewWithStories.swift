@@ -15,32 +15,33 @@ struct ProfileViewWithStories: View {
     @State private var showSettings = false
     
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                // Custom style header
-                profileHeader
-                
-                // Modern profile section
-                ProfileSection(
-                    authManager: authManager,
-                    postManager: postManager
-                )
-                
-                // Content area - Posts only
-                postsSection
-                
-                // Bottom padding
-                Color.clear
-                    .frame(height: 110)
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // Custom style header
+                    profileHeader
+                    
+                    // Modern profile section
+                    ProfileSection(
+                        authManager: authManager,
+                        postManager: postManager,
+                        onEdit: { showingEditProfile = true }
+                    )
+                    
+                    // Content area - Posts only
+                    postsSection
+                    
+                    // Bottom padding
+                    Color.clear
+                        .frame(height: 110)
+                }
             }
-        }
-        .background(MinimalDesign.Colors.background)
-        .navigationBarHidden(true)
-        .onAppear {
-            loadUserPosts()
-        }
-        .sheet(isPresented: $showingEditProfile) {
-            EditProfileView()
+            .background(MinimalDesign.Colors.background)
+            .navigationBarHidden(true)
+            .onAppear { loadUserPosts() }
+            .navigationDestination(isPresented: $showingEditProfile) {
+                EditProfileView()
+            }
         }
         .sheet(isPresented: $showingCreatePost) {
             CreatePostView(isPresented: $showingCreatePost, mapManager: MapManager())

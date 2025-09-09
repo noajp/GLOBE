@@ -10,6 +10,7 @@ struct ProfileSection: View {
     // MARK: - Properties
     let authManager: AuthManager
     let postManager: PostManager
+    var onEdit: () -> Void = {}
     
     var body: some View {
         VStack(spacing: MinimalDesign.Spacing.lg) {
@@ -60,9 +61,7 @@ struct ProfileSection: View {
             
             // Action Buttons
             HStack(spacing: MinimalDesign.Spacing.sm) {
-                Button("Edit Profile") {
-                    // Edit profile action
-                }
+                Button("Edit Profile") { onEdit() }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, MinimalDesign.Spacing.sm)
                 .background(MinimalDesign.Colors.secondary)

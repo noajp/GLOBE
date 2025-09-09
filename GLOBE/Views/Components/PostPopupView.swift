@@ -4,6 +4,7 @@
 // Path: GLOBE/Views/Components/PostPopupView.swift
 //======================================================================
 import SwiftUI
+import UIKit
 import CoreLocation
 import MapKit
 import AVFoundation
@@ -25,12 +26,15 @@ struct PostPopupView: View {
     @State private var errorMessage = ""
     @State private var showingCamera = false
     @State private var showingCameraPermissionAlert = false
+    @State private var showingLocationPermissionAlert = false
     @State private var capturedUIImage: UIImage?
     @State private var postLocation: CLLocationCoordinate2D?
     @State private var areaName: String = ""
     @State private var showPrivacySelection = false
     @State private var selectedPrivacyType: PostPrivacyType = .publicPost
     @State private var isSubmitting = false
+    // App settings
+    @StateObject private var appSettings = AppSettings.shared
     
     enum PostPrivacyType {
         case followersOnly
@@ -115,7 +119,19 @@ struct PostPopupView: View {
         } message: {
             Text(errorMessage)
         }
+        .alert("Location access required", isPresented: $showingLocationPermissionAlert) {
+            Button("Open Settings") {
+                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsUrl)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please allow location access in Settings to move to your current location.")
+        }
         .onAppear {
+            // Do not jump to the user's location automatically.
+            // Initialize with current map center; user can press the direction icon to move to self location.
             updatePostLocation()
             // Pre-warm camera permission to reduce launch latency
             let status = AVCaptureDevice.authorizationStatus(for: .video)
@@ -235,6 +251,7 @@ struct PostPopupView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
+
     
     // MARK: - Bottom Section View
     private var bottomSectionView: some View {
@@ -453,6 +470,8 @@ struct PostPopupView: View {
             print("📸 PostPopup - Image data size: \(imageData.count) bytes")
         }
         print("📍 PostPopup - Location details: latitude=\(location.latitude), longitude=\(location.longitude)")
+        // Sync with global app settings just before posting
+        if appSettings.defaultAnonymousPosting { selectedPrivacyType = .anonymous }
         let privacyDescription = switch selectedPrivacyType {
         case .followersOnly: "Followers Only"
         case .publicPost: "Public"
@@ -466,7 +485,7 @@ struct PostPopupView: View {
                     content: postText,
                     imageData: selectedImageData,
                     location: location,
-                    locationName: areaName,
+                    locationName: appSettings.showLocationNameOnPost ? areaName : nil,
                     isAnonymous: selectedPrivacyType == .anonymous
                 )
                 
@@ -520,6 +539,11 @@ struct PostPopupView: View {
     
     private func getCurrentLocationAndMoveMap() {
         print("📍 PostPopup - Location button tapped, getting current location")
+        // If denied, surface an alert guiding the user to Settings
+        if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
+            showingLocationPermissionAlert = true
+            return
+        }
         locationManager.requestLocationPermission()
         
         if let currentLocation = locationManager.location {
@@ -593,6 +617,32 @@ struct PostPopupView: View {
                 DispatchQueue.main.async {
                     self.areaName = "位置情報を取得できませんでした"
                 }
+            }
+        }
+    }
+
+    // MARK: - Auto acquire current location on demand
+    private func autoAcquireCurrentLocation() {
+        // Request permission if needed, then try to read cached location first
+        locationManager.requestLocationPermission()
+
+        if let loc = locationManager.location {
+            // Use immediate value if available
+            self.postLocation = loc
+            self.mapManager.focusOnLocation(loc)
+            self.updateAreaLocation(for: loc)
+            return
+        }
+
+        // Otherwise request a one-shot update
+        locationManager.requestLocationUpdate { coordinate in
+            if let c = coordinate {
+                self.postLocation = c
+                self.mapManager.focusOnLocation(c)
+                self.updateAreaLocation(for: c)
+            } else {
+                // Fallback to current map center
+                self.updatePostLocation()
             }
         }
     }
