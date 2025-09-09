@@ -20,13 +20,35 @@ struct SecureConfig {
     
     // MARK: - Configuration Properties
     var supabaseURL: String {
-        // 強制的に正しいURLを返す（デバッグ用）
-        return "https://kkznkqshpdzlhtuawasm.supabase.co"
+        // Try to get from Keychain first
+        if let keychainURL = getFromKeychain(key: .supabaseURL) {
+            return keychainURL
+        }
+        
+        // Fallback to Info.plist
+        if let url = Bundle.main.infoDictionary?["SupabaseURL"] as? String {
+            return url
+        }
+        
+        // Emergency fallback - should not happen in production
+        SecureLogger.shared.error("No Supabase URL found in Keychain or Info.plist")
+        return ""
     }
     
     var supabaseAnonKey: String {
-        // 強制的に正しいキーを返す（デバッグ用）
-        return "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtrem5rcXNocGR6bGh0dWF3YXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTA5NzAsImV4cCI6MjA3MDg4Njk3MH0.BXF3JVvs0M7Mgp9whEwFXd6PRfEwEMcCbKfnRBROEBM"
+        // Try to get from Keychain first
+        if let keychainKey = getFromKeychain(key: .supabaseAnonKey) {
+            return keychainKey
+        }
+        
+        // Fallback to Info.plist
+        if let key = Bundle.main.infoDictionary?["SupabaseAnonKey"] as? String {
+            return key
+        }
+        
+        // Emergency fallback - should not happen in production
+        SecureLogger.shared.error("No Supabase Anon Key found in Keychain or Info.plist")
+        return ""
     }
     
     // MARK: - Configuration Methods
@@ -83,14 +105,13 @@ struct SecureConfig {
     func initializeForDevelopment() {
         // These values should be set from a secure source or environment
         // DO NOT commit actual values to Git
-        let defaultURL = "https://kkznkqshpdzlhtuawasm.supabase.co"
         
         if getFromKeychain(key: .supabaseURL) == nil {
-            saveToKeychain(key: .supabaseURL, value: defaultURL)
+            SecureLogger.shared.warning("Please set SUPABASE_URL in Info.plist or call setSupabaseConfig()")
         }
         
         if getFromKeychain(key: .supabaseAnonKey) == nil {
-            SecureLogger.shared.warning("Please set SUPABASE_ANON_KEY in environment or call setSupabaseConfig()")
+            SecureLogger.shared.warning("Please set SUPABASE_ANON_KEY in Info.plist or call setSupabaseConfig()")
         }
     }
     #endif

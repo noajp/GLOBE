@@ -314,6 +314,7 @@ struct PostPin: View {
             }
         }
         .frame(width: cardWidth, height: cardHeight)
+        .padding(.bottom, 14)
         // Unified bubble fill (rounded rect + V-tail)
         .background(
             SpeechBubbleShape(cornerRadius: 8, tailWidth: 16, tailHeight: 12)
@@ -327,10 +328,10 @@ struct PostPin: View {
                 .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
                 .allowsHitTesting(false)
         )
-        // Profile icon at V-tip for public, non-anonymous posts (small-pin variant)
+        // Profile icon at V-tip for non-anonymous posts (small-pin variant)
         .overlay(alignment: .bottom) {
-            if post.isPublic && !post.isAnonymous {
-                let diameter: CGFloat = 18
+            if !post.isAnonymous {
+                let diameter: CGFloat = 20
                 Group {
                     if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
                         AsyncImage(url: url) { image in
@@ -338,22 +339,30 @@ struct PostPin: View {
                                 .resizable()
                                 .scaledToFill()
                         } placeholder: {
-                            Circle().fill(Color.gray.opacity(0.3))
+                            Circle().fill(Color.blue.opacity(0.7))
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: diameter * 0.4))
+                                )
                         }
                         .frame(width: diameter, height: diameter)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white, lineWidth: max(0.8, borderWidth)))
+                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
                     } else {
-                        ZStack {
-                            Circle().fill(Color.gray.opacity(0.3))
-                            Image(systemName: "person.fill")
-                                .foregroundColor(.white)
-                        }
-                        .frame(width: diameter, height: diameter)
-                        .overlay(Circle().stroke(Color.white, lineWidth: max(0.8, borderWidth)))
+                        Circle().fill(Color.blue.opacity(0.7))
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: diameter * 0.4))
+                            )
+                            .frame(width: diameter, height: diameter)
+                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
                     }
                 }
-                .offset(y: 12 + (diameter / 2) - 1) // tailHeight(=12) + radius
+                // Position at the V-tip: move down by triangle height + half avatar
+                .offset(y: 12 + diameter/2) // Fixed triangle height for standard PostPin
+                .zIndex(10)
                 .allowsHitTesting(false)
             }
         }
@@ -708,10 +717,10 @@ struct ScalablePostPin: View {
                 .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
                 .allowsHitTesting(false)
             )
-            // Profile icon at the exact V-tip (apex) for public, non-anonymous posts
+            // Profile icon at the exact V-tip (apex) for non-anonymous posts
             .overlay(alignment: .bottom) {
-                if post.isPublic && !post.isAnonymous {
-                    let diameter = 22 * fontScale
+                if !post.isAnonymous {
+                    let diameter = 28 * fontScale
                     Group {
                         if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
                             AsyncImage(url: url) { image in
@@ -720,25 +729,26 @@ struct ScalablePostPin: View {
                                     .scaledToFill()
                             } placeholder: {
                                 Circle().fill(Color.gray.opacity(0.3))
+                                    .overlay(Image(systemName: "person.fill").foregroundColor(.white))
                             }
                             .frame(width: diameter, height: diameter)
                             .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white, lineWidth: max(1.0, borderWidth)))
+                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
                         } else {
-                            ZStack {
-                                Circle().fill(Color.gray.opacity(0.3))
-                                Image(systemName: "person.fill")
-                                    .foregroundColor(.white)
-                            }
-                            .frame(width: diameter, height: diameter)
-                            .overlay(Circle().stroke(Color.white, lineWidth: max(1.0, borderWidth)))
+                            Circle().fill(Color.gray.opacity(0.3))
+                                .overlay(Image(systemName: "person.fill").foregroundColor(.white))
+                                .frame(width: diameter, height: diameter)
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
                         }
                     }
-                    // Place the center at the tail apex
-                    .offset(y: triangleSize.height + (diameter / 2) - 1)
+                    // Position at the V-tip: move down by triangle height + half avatar
+                    .offset(y: triangleSize.height + diameter/2)
+                    .zIndex(10)
                     .allowsHitTesting(false)
                 }
             }
+            // Extra bottom inset so the outside avatar is not clipped by parent bounds
+            .padding(.bottom, triangleSize.height + (14 * fontScale))
             .shadow(color: customBlack.opacity(0.3), radius: 4 * fontScale, x: 0, y: 2 * fontScale)
         }
         .onAppear {
