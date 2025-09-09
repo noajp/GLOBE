@@ -77,12 +77,16 @@ private init() {
                 await MainActor.run {
                     self.posts = dbPosts.map { dbPost in
                         let name: String
+                        let avatar: String?
                         if dbPost.is_anonymous ?? false {
                             name = "匿名ユーザー"
+                            avatar = nil
                         } else if let prof = dbPost.profiles, !liteMode {
                             name = prof.display_name ?? prof.username ?? "ユーザー"
+                            avatar = prof.avatar_url
                         } else {
                             name = "ユーザー"
+                            avatar = nil
                         }
                         return Post(
                             id: dbPost.id,
@@ -96,7 +100,8 @@ private init() {
                             text: dbPost.content,
                             authorName: name,
                             authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
-                            isAnonymous: dbPost.is_anonymous ?? false
+                            isAnonymous: dbPost.is_anonymous ?? false,
+                            authorAvatarUrl: avatar
                         )
                     }
                 }

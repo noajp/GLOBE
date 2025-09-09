@@ -12,6 +12,7 @@ struct Post: Identifiable, Equatable, Codable {
     let text: String
     let authorName: String
     let authorId: String
+    let authorAvatarUrl: String?
     var likeCount: Int = 0
     var commentCount: Int = 0
     var isLikedByMe: Bool = false
@@ -49,7 +50,7 @@ struct Post: Identifiable, Equatable, Codable {
         }
     }
     
-    init(id: UUID = UUID(), createdAt: Date = Date(), location: CLLocationCoordinate2D, locationName: String? = nil, imageData: Data? = nil, imageUrl: String? = nil, text: String, authorName: String, authorId: String, likeCount: Int = 0, commentCount: Int = 0, isPublic: Bool = true, isAnonymous: Bool = false) {
+    init(id: UUID = UUID(), createdAt: Date = Date(), location: CLLocationCoordinate2D, locationName: String? = nil, imageData: Data? = nil, imageUrl: String? = nil, text: String, authorName: String, authorId: String, likeCount: Int = 0, commentCount: Int = 0, isPublic: Bool = true, isAnonymous: Bool = false, authorAvatarUrl: String? = nil) {
         self.id = id
         self.createdAt = createdAt
         self.location = location
@@ -59,6 +60,7 @@ struct Post: Identifiable, Equatable, Codable {
         self.text = text
         self.authorName = authorName
         self.authorId = authorId
+        self.authorAvatarUrl = authorAvatarUrl
         self.likeCount = likeCount
         self.commentCount = commentCount
         self.isPublic = isPublic
@@ -90,6 +92,7 @@ struct Post: Identifiable, Equatable, Codable {
         // imageDataとauthorNameはローカルでのみ使用
         imageData = nil
         authorName = "Unknown" // プロフィールから取得する必要がある
+        authorAvatarUrl = nil
     }
     
     func encode(to encoder: Encoder) throws {
@@ -119,6 +122,7 @@ struct Post: Identifiable, Equatable, Codable {
                lhs.text == rhs.text &&
                lhs.authorName == rhs.authorName &&
                lhs.authorId == rhs.authorId &&
+               lhs.authorAvatarUrl == rhs.authorAvatarUrl &&
                lhs.likeCount == rhs.likeCount &&
                lhs.isLikedByMe == rhs.isLikedByMe &&
                lhs.isAnonymous == rhs.isAnonymous

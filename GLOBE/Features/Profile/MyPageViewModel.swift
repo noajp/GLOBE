@@ -130,7 +130,8 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
                         likeCount: 0,
                         commentCount: 0,
                         isPublic: true,
-                        isAnonymous: dbPost.is_anonymous ?? false
+                        isAnonymous: dbPost.is_anonymous ?? false,
+                        authorAvatarUrl: dbPost.profiles?.avatar_url
                     )
                 }
             } else {
@@ -434,6 +435,65 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
         } catch {
             print("❌ Error deleting post: \(error)")
             errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Avatar Update
+    func updateAvatar(imageData: Data) async {
+        guard let userId = await currentUserId else { return }
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            // Compress to JPEG if needed (<= ~600KB target)
+            let jpegData: Data
+            if let ui = UIImage(data: imageData), let d = ui.jpegData(compressionQuality: 0.85) {
+                jpegData = d
+            } else {
+                jpegData = imageData
+            }
+
+            let fileName = "\(userId)/avatar_\(UUID().uuidString).jpg"
+            print("🖼️ Uploading avatar for user: \(userId) to avatars/\(fileName)")
+
+            // Upload to 'avatars' bucket (SDK default options)
+            try await supabase.storage
+                .from("avatars")
+                .upload(fileName, data: jpegData)
+
+            let publicURL = try supabase.storage
+                .from("avatars")
+                .getPublicURL(path: fileName)
+                .absoluteString
+
+            // Update profiles.avatar_url
+            try await supabase
+                .from("profiles")
+                .update(["avatar_url": AnyJSON.string(publicURL)])
+                .eq("id", value: userId)
+                .execute()
+
+            // Reflect in local state
+            if var profile = userProfile {
+                profile = UserProfile(
+                    id: profile.id,
+                    username: profile.username,
+                    displayName: profile.displayName,
+                    bio: profile.bio,
+                    avatarUrl: publicURL,
+                    postCount: profile.postCount,
+                    followerCount: profile.followerCount,
+                    followingCount: profile.followingCount
+                )
+                userProfile = profile
+            } else {
+                await loadUserData()
+            }
+
+            logger.info("Avatar updated successfully", category: "MyPageViewModel")
+        } catch {
+            logger.error("Failed to update avatar", category: "MyPageViewModel", details: ["error": error.localizedDescription])
+            errorMessage = "アバターの更新に失敗しました: \(error.localizedDescription)"
         }
     }
 }

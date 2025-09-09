@@ -52,8 +52,8 @@ struct PostPin: View {
     
     var body: some View {
         VStack(spacing: post.isAnonymous ? 4 : 0) {
-            // ヘッダー - 画像がない時のみ上に表示（画像がある時は下に表示）
-            if !post.isAnonymous && post.imageData == nil && post.imageUrl == nil {
+            // ヘッダー（非公開投稿のみ表示）- 画像がない時のみ上に表示（画像がある時は下に表示）
+            if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
                         print("👤 PostPin - Header icon tapped for user: \(post.authorId)")
@@ -109,7 +109,7 @@ struct PostPin: View {
                     .onTapGesture { showingImageViewer = true }
 
                 // ヘッダー（写真の下に表示）
-                if !post.isAnonymous {
+                if !post.isAnonymous && !post.isPublic {
                     HStack(spacing: 3) {
                         Button(action: {
                             print("👤 PostPin - Header icon tapped for user: \(post.authorId)")
@@ -179,7 +179,7 @@ struct PostPin: View {
                 .onTapGesture { showingImageViewer = true }
 
                 // ヘッダー（写真の下に表示）
-                if !post.isAnonymous {
+                if !post.isAnonymous && !post.isPublic {
                     HStack(spacing: 3) {
                         Button(action: {
                             print("👤 PostPin - Header icon tapped for user: \(post.authorId)")
@@ -248,7 +248,7 @@ struct PostPin: View {
             }
             
             // フッター - 匿名投稿では非表示だがスペースは確保
-            if !post.isAnonymous {
+            if !post.isAnonymous && !post.isPublic {
                 HStack(spacing: 2) {
                     Spacer()
                     Button(action: {
@@ -327,6 +327,36 @@ struct PostPin: View {
                 .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
                 .allowsHitTesting(false)
         )
+        // Profile icon at V-tip for public, non-anonymous posts (small-pin variant)
+        .overlay(alignment: .bottom) {
+            if post.isPublic && !post.isAnonymous {
+                let diameter: CGFloat = 18
+                Group {
+                    if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } placeholder: {
+                            Circle().fill(Color.gray.opacity(0.3))
+                        }
+                        .frame(width: diameter, height: diameter)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.white, lineWidth: max(0.8, borderWidth)))
+                    } else {
+                        ZStack {
+                            Circle().fill(Color.gray.opacity(0.3))
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.white)
+                        }
+                        .frame(width: diameter, height: diameter)
+                        .overlay(Circle().stroke(Color.white, lineWidth: max(0.8, borderWidth)))
+                    }
+                }
+                .offset(y: 12 + (diameter / 2) - 1) // tailHeight(=12) + radius
+                .allowsHitTesting(false)
+            }
+        }
         .shadow(color: customBlack.opacity(0.3), radius: 4, x: 0, y: 2)
         .onAppear {
             commentService.loadComments(for: post.id)
@@ -405,7 +435,9 @@ struct ScalablePostPin: View {
     private var topInset: CGFloat { max(6, 6 * fontScale) }
     private var bottomInset: CGFloat { max(8, 8 * fontScale) }
 
+    // Show header (author icon + id) only for non-public posts; public posts use a base map icon instead
     private var showMeta: Bool { !post.isAnonymous && scaleFactor >= 0.9 }
+    private var showHeaderMeta: Bool { !post.isAnonymous && !post.isPublic && scaleFactor >= 0.9 }
     private var hasImage: Bool { (post.imageData != nil) || (post.imageUrl != nil) }
     private var isCompactTextOnly: Bool { !showMeta && !hasImage && !post.text.isEmpty }
 
@@ -465,7 +497,7 @@ struct ScalablePostPin: View {
     var body: some View {
         VStack(spacing: 0) {
             VStack(spacing: stackSpacing) {
-                if showMeta && !hasImage {
+                if showHeaderMeta && !hasImage {
                     HStack(spacing: 3 * fontScale) {
                         Button(action: {
                             print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
@@ -590,7 +622,7 @@ struct ScalablePostPin: View {
                 }
                 // Remove Spacer to avoid extra vertical whitespace
                 
-                if showMeta {
+                if showHeaderMeta {
                     HStack(spacing: 2 * fontScale) {
                         // Like (left) then Comment (right)
                         Button(action: {
@@ -676,6 +708,37 @@ struct ScalablePostPin: View {
                 .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
                 .allowsHitTesting(false)
             )
+            // Profile icon at the exact V-tip (apex) for public, non-anonymous posts
+            .overlay(alignment: .bottom) {
+                if post.isPublic && !post.isAnonymous {
+                    let diameter = 22 * fontScale
+                    Group {
+                        if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
+                            AsyncImage(url: url) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            } placeholder: {
+                                Circle().fill(Color.gray.opacity(0.3))
+                            }
+                            .frame(width: diameter, height: diameter)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white, lineWidth: max(1.0, borderWidth)))
+                        } else {
+                            ZStack {
+                                Circle().fill(Color.gray.opacity(0.3))
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.white)
+                            }
+                            .frame(width: diameter, height: diameter)
+                            .overlay(Circle().stroke(Color.white, lineWidth: max(1.0, borderWidth)))
+                        }
+                    }
+                    // Place the center at the tail apex
+                    .offset(y: triangleSize.height + (diameter / 2) - 1)
+                    .allowsHitTesting(false)
+                }
+            }
             .shadow(color: customBlack.opacity(0.3), radius: 4 * fontScale, x: 0, y: 2 * fontScale)
         }
         .onAppear {
