@@ -20,6 +20,11 @@ struct GlobeApp: App {
         }
         consoleLogger.forceLog("=== GLOBE APP INITIALIZATION COMPLETED ===")
         #endif
+        
+        // Preload profile images in background
+        Task {
+            await ProfileImageCacheManager.shared.preloadCurrentUserProfileImage()
+        }
     }
     
     private func clearKeychainAndReloadConfig() {

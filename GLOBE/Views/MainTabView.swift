@@ -92,6 +92,7 @@ struct MainTabView: View {
             Group {
                 if showingCreatePost {
                     PostPopupView(isPresented: $showingCreatePost, mapManager: mapManager)
+                        .offset(y: 50) // 位置マーカーが画面下部に来るので、投稿カードを画面下部寄りに配置
                         .transition(.opacity)
                         .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
                         .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
@@ -467,12 +468,14 @@ struct MapContentView: View {
                     Annotation(
                         "",
                         coordinate: CLLocationCoordinate2D(latitude: post.latitude, longitude: post.longitude),
-                        anchor: .center
+                        anchor: .bottom
                     ) {
                         ScalablePostPin(
                             post: post,
                             mapSpan: currentMapSpan
                         )
+                        // 三角形の先端が位置座標に来るように上にオフセット
+                        .offset(y: -12)
                         .offset(offsetForPost(post))
                         .contentShape(Rectangle())
                         .allowsHitTesting(true)
@@ -498,6 +501,14 @@ struct MapContentView: View {
                     mapPosition = .camera(camera)
                 }
             }
+            .onReceive(mapManager.$shouldUpdateMapPosition.compactMap { $0 }) { newPosition in
+                print("🗺🔥 MainTabView: Received map position update from MapManager")
+                mapPosition = newPosition
+                // Clear the trigger to avoid repeated updates
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.mapManager.shouldUpdateMapPosition = nil
+                }
+            }
             .onAppear {
                 print("🗺 MapContentView appeared - showMyLocationOnMap: \(appSettings.showMyLocationOnMap)")
                 if appSettings.showMyLocationOnMap { 
@@ -513,33 +524,7 @@ struct MapContentView: View {
                 }
             }
             
-            // Add location button overlay
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    
-                    // Center on user location button
-                    if appSettings.showMyLocationOnMap && locationManager.location != nil {
-                        Button(action: {
-                            if let coord = locationManager.location?.coordinate {
-                                withAnimation(.easeInOut(duration: 0.3)) {
-                                    mapPosition = .region(MKCoordinateRegion(center: coord, span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)))
-                                }
-                            }
-                        }) {
-                            Image(systemName: "location.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                                .padding(12)
-                                .background(Circle().fill(Color.blue))
-                                .shadow(radius: 4)
-                        }
-                        .padding(.trailing, 16)
-                        .padding(.bottom, 100) // Above tab bar
-                    }
-                }
-            }
+            // Location button removed - now integrated with post creation
         }
         .sheet(isPresented: $showingPostDetail) {
             if let selectedPost = selectedPost {

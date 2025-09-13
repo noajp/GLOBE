@@ -39,15 +39,17 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 10 // Update every 10 meters
         
-        // Check location services availability
-        let servicesEnabled = CLLocationManager.locationServicesEnabled()
-        print("📱 MapLocationService: Location Services Enabled: \(servicesEnabled)")
-        
         // Check initial authorization status
         authorizationStatus = manager.authorizationStatus
         
         // Set availability flag based on current status
         isLocationAvailable = (authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways)
+        
+        // Check location services availability on background thread to avoid UI warnings
+        DispatchQueue.global(qos: .utility).async {
+            let servicesEnabled = CLLocationManager.locationServicesEnabled()
+            print("📱 MapLocationService: Location Services Enabled: \(servicesEnabled)")
+        }
         
         print("🔍 MapLocationService: Initial setup - Authorization: \(authorizationStatusText) (\(authorizationStatus.rawValue))")
         print("📍 MapLocationService: Accuracy Authorized: \(manager.accuracyAuthorization == .fullAccuracy)")
@@ -62,19 +64,27 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
         print("📍 MapLocationService: Requesting location - Current status: \(authorizationStatusText)")
         
         // First check if location services are enabled at system level
-        guard CLLocationManager.locationServicesEnabled() else {
-            print("❌ Location Services are disabled at system level")
-            return
+        // Move to background thread to avoid UI warning
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            guard CLLocationManager.locationServicesEnabled() else {
+                print("❌ Location Services are disabled at system level")
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self.handleLocationRequest()
+            }
         }
-        
+    }
+    
+    private func handleLocationRequest() {
         switch authorizationStatus {
         case .notDetermined:
             print("🔑 Requesting authorization from user")
-            // Request permission on main thread
-            DispatchQueue.main.async { [weak self] in
-                self?.manager.requestWhenInUseAuthorization()
-                print("✅ Permission request sent")
-            }
+            manager.requestWhenInUseAuthorization()
+            print("✅ Permission request sent")
             
         case .authorizedWhenInUse, .authorizedAlways:
             print("✅ Already authorized, starting location services")

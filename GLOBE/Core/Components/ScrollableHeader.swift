@@ -47,8 +47,8 @@ struct UnifiedHeader: View {
                         dismiss()
                     }
                 }) {
-                    Text("<")
-                        .font(.system(size: 24, weight: .medium))
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .medium))
                         .foregroundColor(MinimalDesign.Colors.primary)
                 }
             }
