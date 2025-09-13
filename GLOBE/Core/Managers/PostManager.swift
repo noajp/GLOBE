@@ -108,12 +108,13 @@ class PostManager: ObservableObject {
         print("✅ PostManager - Post created successfully")
         SecureLogger.shared.info("Post created successfully", file: #file, function: #function, line: #line)
         
-        // 投稿成功後、少し遅延を入れてから新しい投稿を反映
-        print("🔄 PostManager - Scheduling posts reload...")
-        Task {
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒遅延
-            print("🔄 PostManager - Reloading posts now...")
-            await fetchPosts()
+        // 投稿成功後、ローカルの投稿リストを直接更新（fetchPostsで上書きされないように）
+        print("🔄 PostManager - Updating local posts list...")
+        
+        // SupabaseServiceの最新のpostsを取得（新規投稿が含まれている）
+        await MainActor.run {
+            self.posts = supabaseService.posts
+            print("📍 PostManager - Updated posts count: \(self.posts.count)")
         }
     }
 

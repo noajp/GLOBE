@@ -354,16 +354,25 @@ struct MapContentView: View {
         let span = currentMapSpan
         
         return mapManager.posts.filter { post in
+            // 新規投稿（24時間以内）は常に表示
+            let isNewPost = Date().timeIntervalSince(post.createdAt) < 24 * 60 * 60
+            if isNewPost && span <= 10 {  // 新規投稿も大陸レベルでは非表示
+                return true
+            }
+            
             // スパンが大きい（ズームアウト）ほど、いいね数の多い投稿のみ表示
             if span > 50 {
-                // 地球全体～大陸レベル: いいね数15以上のみ
-                return post.likeCount >= 15
+                // 地球全体～大陸レベル: いいね数30以上のみ
+                return post.likeCount >= 30
             } else if span > 10 {
-                // 国レベル: いいね数8以上
-                return post.likeCount >= 8
+                // 国レベル: いいね数15以上
+                return post.likeCount >= 15
+            } else if span > 5 {
+                // 地域レベル: いいね数10以上
+                return post.likeCount >= 10
             } else if span > 1 {
-                // 州・県レベル: いいね数3以上
-                return post.likeCount >= 3
+                // 州・県レベル: いいね数5以上
+                return post.likeCount >= 5
             } else {
                 // 市・詳細レベル: 全て表示
                 return true
@@ -469,7 +478,7 @@ struct MapContentView: View {
                     Annotation(
                         "",
                         coordinate: CLLocationCoordinate2D(latitude: post.latitude, longitude: post.longitude),
-                        anchor: .bottom
+                        anchor: .center
                     ) {
                         ScalablePostPin(
                             post: post,

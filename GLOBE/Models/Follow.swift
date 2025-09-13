@@ -1,6 +1,10 @@
 import Foundation
 import Combine
 
+// TODO: 将来実装予定のフォロー機能
+// 現在はコメントアウト中
+/*
+
 // フォロー関係のモデル
 struct Follow: Identifiable, Codable {
     let id: String
@@ -90,3 +94,5 @@ class FollowService: ObservableObject {
         // 現在はモックデータを使用
     }
 }
+
+*/

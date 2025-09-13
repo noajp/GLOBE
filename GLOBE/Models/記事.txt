@@ -1,0 +1,303 @@
+🤔やってみたいこと
+SwiftUI MapKitを使って現在位置を取得
+現在位置を青く点滅させる
+よく見かける地図アプリぽくしたい
+過去の動画を参考にしたが、どうやらうまいくいかないようだ?
+
+🚀やってみたこと
+位置情報サービスを使用するためには、Info.plistファイルに特定のキーと説明文を追加する必要があります。
+
+具体的には以下のステップを行います:
+
+🔧Xcode で対象のプロジェクトを開きます
+プロジェクトナビゲーターで、プロジェクトの「Info.plist」ファイルを探し、選択します
+「Information Property List」セクションで、右上の「+」ボタンをクリックし、新しいキーを追加します
+表示されるウィンドウで「Privacy - Location When In Use Usage Description」キーを選択します
+キーの横にある値の欄に、ユーザに向けた位置情報使用の理由を説明する文字列を入力します (例: "このアプリは、あなたの現在地を地図上に表示するために位置情報を使用します")
+この設定を追加すると、最初にアプリを実行したときに、位置情報サービスの使用許可を求めるアラートがポップアップ表示されます。ユーザーが許可を選択すれば、位置情報へのアクセスが可能になります。
+
+補足ですが、常に位置情報にアクセスしたい場合は、「Privacy - Location Always and When In Use Usage Description」キーも追加する必要があります。
+
+Info.plistへのこの設定は、位置情報サービスを適切に使用するためのApple の要件となっています。設定を怠ると、デバイスがあなたのアプリに位置情報へのアクセスを許可しません。
+
+
+
+MapビューにshowsUserLocation: trueを追加。これにより自分の位置が青い円でマップ上に表示されます。
+regionプロパティの初期値を東京駅の座標に設定しています。位置情報が取得できれば自動的に現在地の座標に更新されます。
+locationManager(_:didUpdateLocations:)内で、取得した位置情報から新しいregionを生成し、プロパティに代入するようにしています。
+この変更で、ユーザーの位置が青い円で表示されるはずです。また、地図の中心も自動的にその位置に移動します。ピンのアノテーションと併せて、現在地がマップ上で確認できるようになります。
+
+全体のソースコード:
+
+import SwiftUI
+import MapKit
+import CoreLocation
+import Combine
+
+// ContentViewはSwiftUIのViewを表すStructです。
+struct ContentView: View {
+    // LocationManagerクラスのインスタンスを@StateObjectプロパティとして持っています。
+    @StateObject private var locationManager = LocationManager()
+
+    var body: some View {
+        // Mapビューを表示します。
+        // coordinateRegionプロパティにlocationManager.regionをバインディングしています。
+        // showsUserLocationをtrueにすると、ユーザーの現在位置が青い円で表示されます。
+        // annotationItemsにlocationManager.annotationsを指定し、MapMarkerを使ってアノテーションを表示します。
+        Map(coordinateRegion: $locationManager.region, showsUserLocation: true, annotationItems: locationManager.annotations) { annotation in
+            MapMarker(coordinate: annotation.coordinate)
+        }
+        .edgesIgnoringSafeArea(.all) // Mapビューをエッジまで広げて表示します。
+        .onAppear {
+            // ContentViewが表示されたときに、locationManager.requestLocation()を呼び出します。
+            locationManager.requestLocation()
+        }
+    }
+}
+
+// LocationManagerクラスはCLLocationManagerDelegateに準拠し、位置情報の取得と管理を行います。
+class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    // CLLocationManagerのインスタンスを持っています。
+    private let manager = CLLocationManager()
+
+    // 位置情報のアノテーションを保持する配列です。
+    @Published private(set) var annotations: [LocationAnnotation] = []
+
+    // 地図の表示領域を表すMKCoordinateRegionのPublishedプロパティです。
+    @Published var region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917), span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1))
+
+    override init() {
+        super.init()
+        // CLLocationManagerのdelegateをselfに設定します。
+        manager.delegate = self
+        // 高精度の位置情報を要求します。
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+
+    // 位置情報の取得を開始します。
+    func requestLocation() {
+        // ユーザーに位置情報の使用許可を求めます。
+        manager.requestWhenInUseAuthorization()
+    }
+
+    // 位置情報が更新されたときに呼ばれるdelegateメソッドです。
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        // 最新の位置情報を取得します。
+        guard let location = locations.last else { return }
+
+        // 位置情報からLocationAnnotationのインスタンスを作成します。
+        let annotation = LocationAnnotation(coordinate: location.coordinate)
+        // annotationsプロパティに新しいアノテーションを設定します。
+        annotations = [annotation]
+
+        // 新しい位置情報から地図の中心座標を計算します。
+        let center = CLLocationCoordinate2D(latitude: location.coordinate.latitude, longitude: location.coordinate.longitude)
+        let span = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01) // 適切なスパン(ズームレベル)を設定します。
+        region = MKCoordinateRegion(center: center, span: span) // 新しいregionを設定します。
+
+        // メインスレッドでobjectWillChange.send()を呼び出します。
+        // これにより、PublishedプロパティのObserverに変更が通知されます。
+        DispatchQueue.main.async {
+            self.objectWillChange.send()
+        }
+    }
+}
+
+// LocationAnnotationはIdnetifiableプロトコルに準拠する構造体で、地図上のアノテーションを表します。
+struct LocationAnnotation: Identifiable {
+    let id = UUID() // アノテーションのユニークなIDです。
+    let coordinate: CLLocationCoordinate2D // アノテーションの座標です。
+}
+
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+    }
+}
+
+AppleDeveloperのアカウントを持っている人は、実機でビルドできると思うので、お持ちのiPhoneで試してみたください。こんな感じで使えます。
+
+
+
+🙂最後に
+今回は、SwiftUIでMapKitを使って東京都をデフォルトで表示する位置に設定して、表示されているところは渋谷近辺なんですけど、私がいるのが三鷹市だったので、その辺まで画面を移動すると、青く点滅している丸がありましたので、今回作りたい機能を実現することができました!
+
+
+
+
+iOSで地図を扱うにはMapKitがお馴染みです。MapKitなら地図上の現在位置情報を簡単に扱えますが、任意に切り出した地図画像上での位置情報は扱えません。
+
+そのため、Core Locationを使って地図画像上に現在位置を表示できるようにします。
+
+ 
+
+今回実現したいことをまとめると
+
+iOSアプリで地理院地図などから切り出した地図画像上に、現在位置を表示させる。
+そのために、
+
+画像内の任意の位置情報にいるときに画像内のxy平面座標計算をする。
+地図画像内のxy平面座標中心に円で表示させる。(今回の記事では扱いません。)
+ 
+
+これら2つを実現させます。
+
+前提
+切り出した地図画像内の任意の位置情報のxy平面座標を計算するには、前提条件として地図画像内で2点の基準点の位置情報(緯度・経度)が必要です。（2点の基準点のxy平面座標も事前に分かっているものとします）。
+
+ 
+
+地図画像内で2点の基準点の位置情報(緯度・経度)が分かれば、地図画像内の3点目の位置情報(緯度・経度)から画像上のxy平面座標を算出することが可能になります。
+
+ 
+
+では早速進めていきましょう。
+
+位置情報の許可系の設定
+まず、実際の位置情報を活用するために、許可設定の実装が必要です。
+
+info.plistにロケーションサービス使用許可のため、
+
+NSLocationWhenInUseUsageDescriptionもしくは、NSLocationAlwaysAndWhenInUseUsageDescriptionを追加します。
+
+NSLocationWhenInUseUsageDescriptionはアプリがフォアグラウンドで実行されていて、位置情報にアクセスする場合に指定します。
+NSLocationAlwaysAndWhenInUseUsageDescriptionはアプリがバックグラウンドで実行されていて、位置情報にアクセスする場合に指定します。
+ 
+
+次にiOSデバイスでの位置情報取得には、Core Locationフレームワークを使用するため、CoreLocationをimportします。
+
+import CoreLocation
+ 
+
+次にソースコードに位置情報の許可リクエスト処理を記述します。
+
+let locationManager = CLLocationManager()
+// 以下呼び出しでユーザーに位置情報の許可をリクエスト
+locationManager.requestWhenInUseAuthorization()
+ 
+
+位置情報の許可をリクエストをすると以下のようなダイアログが表示されます。
+
+（許可を選びます。）
+
+
+
+ 
+
+位置情報の利用許可ステータスによって分岐処理する場合の記述例も紹介します。
+
+if locationManager.authorizedWhenInUse == .authorizedWhenInUse {
+    // 使用中のみ利用許可されているときに実施する処理
+}
+位置情報の利用許可のステータスは以下です
+
+値
+
+定義
+
+許可状態の説明
+0
+
+notDetermined
+
+未選択
+
+1
+
+restricted
+
+ペアレンタルコントロールなどの影響で制限中
+
+2
+
+denied
+
+利用拒否
+
+3
+
+authorizedAlways
+
+常に利用許可
+
+4
+
+authorizedWhenInUse
+
+使用中のみ利用許可
+
+現在地の表示
+位置情報取得の準備
+位置情報取得の各種セットアップを行います。
+
+func setup() {
+    // 現在位置取得処理のデリゲート処理設定
+    locationManager.delegate = self
+    // 測位の精度を指定（最高精度）
+    locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+    // 最小更新距離（メートル単位）
+    locationManager.distanceFilter = 1.0
+    // バッテリー消費量を抑えるための設定(default:true)
+    locationManager.pausesLocationUpdatesAutomatically = false
+}
+desiredAccuracy
+desiredAccuracyの設置値については以下を設定していきます。
+
+今回は最高精度で設定します。
+
+desiredAccuracy
+
+精度
+
+kCLLocationAccuracyBestForNavigation
+
+デフォルト
+
+kCLLocationAccuracyBest
+
+最高精度
+
+kCLLocationAccuracyNearestTenMeters
+
+10m以内
+
+kCLLocationAccuracyHundredMeters
+
+100m以内
+
+kCLLocationAccuracyKilometer
+
+1km以内
+
+kCLLocationAccuracyThreeKilometers
+
+3km以内
+
+位置情報取得開始・停止
+以下を実行して位置情報の取得を開始します。
+
+func startLocation() {
+    // 現在位置を取得開始
+    locationManager.startUpdatingLocation()
+}
+停止する場合は以下を実行します。
+
+func stopLocation() {
+    // 現在位置を取得停止
+    locationManager.stopUpdatingLocation()
+}
+位置情報が更新されたときに呼ばれるデリゲートメソッド
+デリゲートメソッドを実装することで、現在地の位置情報が変化した時に位置情報を取得可能です。
+
+func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    if let location = locations.last {                    
+        print("緯度：", location.coordinate.latitude)
+        print("経度：", location.coordinate.longitude)
+        print("水平方向の位置精度(m単位)：", location.horizontalAccuracy)
+    }
+}
+CLLocationManagerインスタンスからも直接現在地の情報を取得できます。
+
+locationManager.location?.coordinate.latitude   // 緯度
+locationManager.location?.coordinate.longitude  // 経度
+locationManager.location?.horizontalAccuracy    // 水平方向の位置精度(m単位)

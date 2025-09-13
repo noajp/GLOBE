@@ -12,7 +12,7 @@ struct MyPageView: View {
     @StateObject private var authManager = AuthManager.shared
     @State private var showSettings = false
     @State private var showEditProfile = false
-    @State private var showUserSearch = false
+    
     // Avatar changes are handled only in EditProfileView (no picker here)
     @State private var selectedPost: Post?
     @Environment(\.dismiss) private var dismiss
@@ -27,9 +27,7 @@ struct MyPageView: View {
                 rightButton: HeaderButton(icon: "custom.three.lines") {
                     showSettings = true
                 },
-                extraRightButton: HeaderButton(icon: "magnifyingglass") {
-                    showUserSearch = true
-                },
+                
                 onBack: {
                     dismiss()
                 }
@@ -49,9 +47,7 @@ struct MyPageView: View {
         .sheet(isPresented: $showEditProfile) {
             EditProfileView()
         }
-        .sheet(isPresented: $showUserSearch) {
-            UserSearchView()
-        }
+        
     }
     
     
@@ -125,13 +121,7 @@ struct MyPageView: View {
             }
             .padding(.horizontal, MinimalDesign.Spacing.sm)
             
-            // Stats Section
-            HStack(spacing: 32) {
-                StatItem(value: viewModel.postsCount, label: "Posts")
-                StatItem(value: viewModel.followersCount, label: "Followers")
-                StatItem(value: viewModel.followingCount, label: "Following")
-            }
-            .padding(.horizontal, MinimalDesign.Spacing.sm)
+            
             
             // Bio Section
             if let bio = viewModel.userProfile?.bio, !bio.isEmpty {

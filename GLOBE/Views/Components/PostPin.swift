@@ -22,15 +22,23 @@ struct PostPin: View {
     
     // Calculate dynamic height based on content
     private var cardHeight: CGFloat {
-        // 上下の余白を抑えて写真に合わせる
+        let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
+        let hasText = !post.text.isEmpty
+        
+        // 写真のみの投稿の場合は余白を最小限に
+        if hasImage && !hasText {
+            // 画像の高さ + 最小限の余白のみ
+            return cardWidth  // 正方形の画像なので幅と同じ
+        }
+        
+        // 通常の計算
         let headerHeight: CGFloat = post.isAnonymous ? 18 : 10
         let footerHeight: CGFloat = 6
         let lineHeight: CGFloat = 9
         let padding: CGFloat = 6 // 上下パディング
-
-        let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
+        
         let imageHeight: CGFloat = hasImage ? (cardWidth - 8) : 0 // square image: width == height
-        let textHeight: CGFloat = post.text.isEmpty ? 0 : CGFloat(actualTextLines) * lineHeight
+        let textHeight: CGFloat = hasText ? CGFloat(actualTextLines) * lineHeight : 0
         let contentHeight = imageHeight + textHeight
 
         // 追加の上下ゆとりは最小限に（上6pt+下2pt相当）
@@ -51,7 +59,11 @@ struct PostPin: View {
     }
     
     var body: some View {
-        VStack(spacing: post.isAnonymous ? 4 : 0) {
+        let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
+        let hasText = !post.text.isEmpty
+        let isPhotoOnly = hasImage && !hasText
+        
+        VStack(spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
             // ヘッダー（非公開投稿のみ表示）- 画像がない時のみ上に表示（画像がある時は下に表示）
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
@@ -92,7 +104,8 @@ struct PostPin: View {
                 .padding(.top, 6)
                 .contentShape(Rectangle())
                 .zIndex(1)
-            } else {
+            } else if !isPhotoOnly {
+                // 写真のみの場合は上部パディングを削除
                 // 匿名投稿時は上部パディングを追加（より余裕を持たせる）
                 Spacer()
                     .frame(height: 18)
@@ -103,9 +116,9 @@ struct PostPin: View {
                 Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: cardWidth - 8, height: cardWidth - 8)
+                    .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
                     .clipped()
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, isPhotoOnly ? 0 : 4)
                     .onTapGesture { showingImageViewer = true }
 
                 // ヘッダー（写真の下に表示）
@@ -167,15 +180,15 @@ struct PostPin: View {
                     image
                         .resizable()
                         .scaledToFill()
-                        .frame(width: cardWidth - 8, height: cardWidth - 8)
+                        .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
                         .clipped()
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: cardWidth - 8, height: cardWidth - 8)
+                        .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
                         .overlay(ProgressView().scaleEffect(0.5))
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, isPhotoOnly ? 0 : 4)
                 .onTapGesture { showingImageViewer = true }
 
                 // ヘッダー（写真の下に表示）
@@ -331,7 +344,7 @@ struct PostPin: View {
         // Profile icon at V-tip for non-anonymous posts (small-pin variant)
         .overlay(alignment: .bottom) {
             if !post.isAnonymous {
-                let diameter: CGFloat = 20
+                let diameter: CGFloat = 32
                 Group {
                     if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
                         AsyncImage(url: url) { image in
@@ -360,8 +373,8 @@ struct PostPin: View {
                             .overlay(Circle().stroke(Color.white, lineWidth: 2))
                     }
                 }
-                // Position at the V-tip: move down by triangle height + half avatar
-                .offset(y: 12 + diameter/2) // Fixed triangle height for standard PostPin
+                // V字の先端にアイコンの上端が来るように配置
+                .offset(y: 12 + diameter/2) // 三角形の高さ12px + アイコン半径
                 .zIndex(10)
                 .allowsHitTesting(false)
             }
@@ -371,12 +384,13 @@ struct PostPin: View {
             commentService.loadComments(for: post.id)
             likeService.initializePost(post)
         }
-        .sheet(isPresented: $showingUserProfile) {
+        .fullScreenCover(isPresented: $showingUserProfile) {
             UserProfileView(
                 userName: post.authorName,
                 userId: post.authorId,
                 isPresented: $showingUserProfile
             )
+            .transition(.move(edge: .trailing))
         }
         .sheet(isPresented: $showingDetailedPost) {
             DetailedPostView(
@@ -411,11 +425,22 @@ struct ScalablePostPin: View {
     private var scaleFactor: CGFloat {
         let baseSpan: Double = 0.01
         let maxScale: CGFloat = 1.5
-        // Prevent over-shrinking causing clipped/illegible content
+        // 横幅は変えないため、最小値を維持
         let minScale: CGFloat = 0.8
         let scale = CGFloat(baseSpan / max(mapSpan, 0.001))
         let popularityBonus: CGFloat = post.likeCount >= 10 ? 1.2 : 1.0
         return max(minScale, min(maxScale, scale * popularityBonus))
+    }
+    
+    // ズームレベルに応じて非表示にする閾値
+    private var shouldHide: Bool {
+        // 写真付きの投稿（写真のみ、写真+文字）は拡大時（mapSpan < 0.05）のみ表示
+        if hasImage && mapSpan >= 0.05 {
+            return true
+        }
+        
+        // mapSpan が 5 以上（大陸レベル）で非表示
+        return mapSpan > 5.0
     }
     
     private let baseCardSize: CGFloat = 112
@@ -444,11 +469,11 @@ struct ScalablePostPin: View {
     private var topInset: CGFloat { max(6, 6 * fontScale) }
     private var bottomInset: CGFloat { max(8, 8 * fontScale) }
 
-    // Show header (author icon + id) only for non-public posts; public posts use a base map icon instead
-    private var showMeta: Bool { !post.isAnonymous && scaleFactor >= 0.9 }
-    private var showHeaderMeta: Bool { !post.isAnonymous && !post.isPublic && scaleFactor >= 0.9 }
+    // メタデータ（アイコンとID）を投稿カード内に表示しない
+    private var showMeta: Bool { false }
+    private var showHeaderMeta: Bool { false }
     private var hasImage: Bool { (post.imageData != nil) || (post.imageUrl != nil) }
-    private var isCompactTextOnly: Bool { !showMeta && !hasImage && !post.text.isEmpty }
+    private var isCompactTextOnly: Bool { !hasImage && !post.text.isEmpty && !showMeta }
 
     // Estimate text lines for dynamic layout (rough but fast)
     private var estimatedTextLines: Int {
@@ -464,21 +489,40 @@ struct ScalablePostPin: View {
     private var dynamicHeight: CGFloat {
         let base = cardWidth * 0.75
         if hasImage {
+            let isPhotoOnly = hasImage && post.text.isEmpty
             // Square photo height equals inner card width (minus horizontal padding)
             let imageH: CGFloat = (cardWidth - 8)
-            var h = showMeta
-                ? max(imageH + 44 * fontScale, 80)
-                : max(imageH + 6 * fontScale, 50)
-            // 枠自体に上6pt＋下8ptぶんの最小ゆとりを反映
-            h += topInset + bottomInset
+            var h: CGFloat
+            if isPhotoOnly {
+                // 写真のみの場合は最小限の余白のみ
+                h = imageH + 4 * fontScale  // 画像 + 最小余白
+            } else {
+                h = showMeta
+                    ? max(imageH + 44 * fontScale, 80)
+                    : max(imageH + 6 * fontScale, 50)
+                // 枠自体に上6pt＋下8ptぶんの最小ゆとりを反映
+                h += topInset + bottomInset
+            }
             return h
         }
-
-        // Tighten height aggressively when zoomed out and text-only
+        
+        // 公開投稿（匿名）で文字だけの場合
         if isCompactTextOnly {
-            let perLine: CGFloat = 12 * fontScale
-            let minHeight: CGFloat = 18 * fontScale
-            return max(minHeight, perLine * CGFloat(max(1, estimatedTextLines)))
+            let fontSize: CGFloat = 9 * fontScale  // 実際のフォントサイズに基づく
+            let lineHeight: CGFloat = fontSize * 1.3  // 行間を考慮した行の高さ
+            let textHeight = lineHeight * CGFloat(estimatedTextLines)
+            
+            // 最小限の上下余白（行数によって調整）
+            let verticalPadding: CGFloat
+            if estimatedTextLines == 1 {
+                verticalPadding = 8 * fontScale  // 1行の場合は最小限
+            } else if estimatedTextLines == 2 {
+                verticalPadding = 6 * fontScale  // 2行の場合は少し少なく
+            } else {
+                verticalPadding = 4 * fontScale  // 3行以上は最小限
+            }
+            
+            return textHeight + verticalPadding
         }
 
         // Lower absolute minimums more when meta is hidden (zoomed out)
@@ -493,8 +537,8 @@ struct ScalablePostPin: View {
         } else {
             h = max(absMin + 4, base * (showMeta ? 0.70 : 0.65))
         }
-        // 枠自体に上6pt＋下8ptぶんの最小ゆとりを反映
-        return h + topInset + bottomInset
+        // メタ情報がある場合のみ余白を追加
+        return showMeta ? h + topInset + bottomInset : h
     }
 
     private var stackSpacing: CGFloat {
@@ -504,7 +548,11 @@ struct ScalablePostPin: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
+        // ズームアウトしすぎた場合は非表示
+        if shouldHide {
+            EmptyView()
+        } else {
+            VStack(spacing: 0) {
             VStack(spacing: stackSpacing) {
                 if showHeaderMeta && !hasImage {
                     HStack(spacing: 3 * fontScale) {
@@ -547,31 +595,33 @@ struct ScalablePostPin: View {
                 }
                 
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
+                    let isPhotoOnly = post.text.isEmpty
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: cardWidth - 8, height: cardWidth - 8)
+                        .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                        .padding(.horizontal, 4 * fontScale)
+                        .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
                         .onTapGesture { showingImageViewer = true }
                 } else if let imageUrl = post.imageUrl {
+                    let isPhotoOnly = post.text.isEmpty
                     AsyncImage(url: URL(string: imageUrl)) { image in
                         image
                             .resizable()
                             .scaledToFill()
-                            .frame(width: cardWidth - 8, height: cardWidth - 8)
+                            .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
                             .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                     } placeholder: {
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .frame(width: cardWidth - 8, height: cardWidth - 8)
+                            .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
                             .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                             .overlay(
                                 ProgressView()
                                     .scaleEffect(0.5 * fontScale)
                             )
                     }
-                    .padding(.horizontal, 4 * fontScale)
+                    .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
                     .onTapGesture { showingImageViewer = true }
                 }
                 
@@ -626,8 +676,8 @@ struct ScalablePostPin: View {
                         .padding(.leading, (4 + 9) * fontScale)
                         .padding(.trailing, 4 * fontScale)
                         // 画像がある場合は画像との間を少し空ける
-                        .padding(.top, hasImage ? (4 * fontScale) : (isCompactTextOnly ? 0 : (showMeta ? (post.isAnonymous ? 6 * fontScale : 2 * fontScale) : 2 * fontScale)))
-                        .padding(.bottom, isCompactTextOnly ? 0 : (showMeta ? ((isSingleLine ? 2 : 4) * fontScale) : ((isSingleLine ? 1 : 2) * fontScale)))
+                        .padding(.top, hasImage ? (4 * fontScale) : (showMeta ? (post.isAnonymous ? 6 * fontScale : 2 * fontScale) : 2 * fontScale))
+                        .padding(.bottom, showMeta ? ((isSingleLine ? 2 : 4) * fontScale) : ((isSingleLine ? 1 : 2) * fontScale))
                 }
                 // Remove Spacer to avoid extra vertical whitespace
                 
@@ -717,50 +767,66 @@ struct ScalablePostPin: View {
                 .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
                 .allowsHitTesting(false)
             )
-            // Profile icon at the exact V-tip (apex) for non-anonymous posts
+            // Profile icon at V-tip for non-anonymous posts
             .overlay(alignment: .bottom) {
-                if !post.isAnonymous {
-                    let diameter = 28 * fontScale
-                    Group {
-                        if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
-                            AsyncImage(url: url) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            } placeholder: {
-                                Circle().fill(Color.gray.opacity(0.3))
-                                    .overlay(Image(systemName: "person.fill").foregroundColor(.white))
-                            }
-                            .frame(width: diameter, height: diameter)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                        } else {
-                            Circle().fill(Color.gray.opacity(0.3))
-                                .overlay(Image(systemName: "person.fill").foregroundColor(.white))
+                // ズームレベルが一定以上の時のみアイコンを表示（縮小時は完全に非表示）
+                if !post.isAnonymous && scaleFactor >= 0.9 {
+                    // ズームレベルに応じてアイコンサイズを調整（最初は小さく、拡大時に大きく）
+                    let minDiameter: CGFloat = 16
+                    let maxDiameter: CGFloat = 40
+                    // scaleFactorが0.9の時は16px、1.5の時は40pxになるように計算
+                    let diameter = min(maxDiameter, minDiameter + (scaleFactor - 0.9) * 40)
+                    
+                    Button(action: {
+                        print("🎯 ScalablePostPin - Profile icon tapped for user: \(post.authorId)")
+                        showingUserProfile = true
+                    }) {
+                        Group {
+                            if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                } placeholder: {
+                                    Circle().fill(Color.gray.opacity(0.3))
+                                        .overlay(Image(systemName: "person.fill")
+                                            .foregroundColor(.white)
+                                            .font(.system(size: diameter * 0.4)))
+                                }
                                 .frame(width: diameter, height: diameter)
+                                .clipShape(Circle())
                                 .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                            } else {
+                                Circle().fill(Color.gray.opacity(0.3))
+                                    .overlay(Image(systemName: "person.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: diameter * 0.4)))
+                                    .frame(width: diameter, height: diameter)
+                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                            }
                         }
                     }
-                    // Position at the V-tip: move down by triangle height + half avatar
-                    .offset(y: triangleSize.height + diameter/2)
+                    .buttonStyle(PlainButtonStyle())
+                    // V字の先端から下にアイコンを配置
+                    .offset(y: triangleSize.height + diameter)
                     .zIndex(10)
-                    .allowsHitTesting(false)
                 }
             }
             // Extra bottom inset so the outside avatar is not clipped by parent bounds
-            .padding(.bottom, triangleSize.height + (14 * fontScale))
+            .padding(.bottom, 40 * fontScale)
             .shadow(color: customBlack.opacity(0.3), radius: 4 * fontScale, x: 0, y: 2 * fontScale)
         }
         .onAppear {
             commentService.loadComments(for: post.id)
             likeService.initializePost(post)
         }
-        .sheet(isPresented: $showingUserProfile) {
+        .fullScreenCover(isPresented: $showingUserProfile) {
             UserProfileView(
                 userName: post.authorName,
                 userId: post.authorId,
                 isPresented: $showingUserProfile
             )
+            .transition(.move(edge: .trailing))
         }
         .sheet(isPresented: $showingDetailedPost) {
             DetailedPostView(
@@ -774,6 +840,7 @@ struct ScalablePostPin: View {
             } else if let urlString = post.imageUrl, let url = URL(string: urlString) {
                 PhotoViewerView(imageURL: url) { showingImageViewer = false }
             }
+        }
         }
     }
 }
