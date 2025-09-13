@@ -1,6 +1,7 @@
 import Foundation
 import MapKit
 import Combine
+import SwiftUI
 
 class MapManager: ObservableObject {
     @Published var region = MKCoordinateRegion(
@@ -8,6 +9,9 @@ class MapManager: ObservableObject {
         span: MKCoordinateSpan(latitudeDelta: 1.0, longitudeDelta: 1.0) // 日本周辺表示
     )
     @Published var posts: [Post] = []
+    
+    // MapCameraPosition updates for modern Map view
+    @Published var shouldUpdateMapPosition: MapCameraPosition?
     private var cleanupTimer: Timer?
     private let postManager = PostManager.shared
     private var cancellables = Set<AnyCancellable>()
@@ -33,10 +37,29 @@ class MapManager: ObservableObject {
     }
     
     func focusOnLocation(_ coordinate: CLLocationCoordinate2D) {
-        region = MKCoordinateRegion(
+        print("🗺🔥 MapManager: focusOnLocation called with coordinate: \(coordinate)")
+        print("🗺🔥 MapManager: Current region center: \(region.center)")
+        
+        let newRegion = MKCoordinateRegion(
             center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+            span: MKCoordinateSpan(latitudeDelta: 0.003, longitudeDelta: 0.003) // より拡大（約300m範囲）
         )
+        
+        // Update the legacy region property
+        region = newRegion
+        
+        // Trigger map position update for modern Map view - 記事.txtの手法を参考
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                self.shouldUpdateMapPosition = MapCameraPosition.region(newRegion)
+            }
+            // 記事.txtのように明示的にobjectWillChange.send()を呼び出し
+            self.objectWillChange.send()
+        }
+        
+        print("🗺🔥 MapManager: Updated region center: \(region.center)")
+        print("🗺🔥 MapManager: Region span: \(region.span)")
+        print("🗺🔥 MapManager: Triggered map position update with objectWillChange")
     }
     
     // 期限切れ投稿を削除

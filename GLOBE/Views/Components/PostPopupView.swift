@@ -14,6 +14,7 @@ struct PostPopupView: View {
     @Binding var isPresented: Bool
     @ObservedObject var mapManager: MapManager
     @StateObject private var locationManager = PostLocationManager()
+    @StateObject private var mapLocationService = MapLocationService()
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var postManager = PostManager.shared
     
@@ -256,8 +257,11 @@ struct PostPopupView: View {
     // MARK: - Bottom Section View
     private var bottomSectionView: some View {
         HStack {
-            // Location info button
-            Button(action: getCurrentLocationAndMoveMap) {
+            // Location info button - move to current location
+            Button(action: {
+                print("📍🔥 PostPopup: Location button ACTION TRIGGERED!")
+                moveToCurrentLocation()
+            }) {
                 HStack(spacing: 8) {
                     ZStack {
                         Circle()
@@ -558,10 +562,16 @@ struct PostPopupView: View {
             locationManager.requestLocationUpdate { location in
                 if let location = location {
                     print("✅ PostPopup - Got location update: \(location.latitude), \(location.longitude)")
-                    self.mapManager.focusOnLocation(location)
+                    
+                    // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
+                    let offsetCoordinate = CLLocationCoordinate2D(
+                        latitude: location.latitude + 0.003, // 北に約300m移動
+                        longitude: location.longitude
+                    )
+                    self.mapManager.focusOnLocation(offsetCoordinate)
+                    // postLocation は設定せず、地図移動のみ
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.postLocation = self.mapManager.region.center
-                        self.updateAreaLocation(for: self.mapManager.region.center)
+                        // 何も設定しない - 位置ボタンは地図移動のみ
                     }
                 } else {
                     print("❌ PostPopup - Failed to get location")
@@ -621,26 +631,71 @@ struct PostPopupView: View {
         }
     }
 
+    // MARK: - Move to current location
+    private func moveToCurrentLocation() {
+        print("📍🔥 PostPopup: Location button pressed - Moving to current location")
+        print("📍🔥 PostPopup: MapLocationService location: \(String(describing: mapLocationService.location))")
+        
+        // Use MapLocationService like the blue button did
+        mapLocationService.requestLocation()
+        
+        if let location = mapLocationService.location {
+            print("📍🔥 PostPopup: Using MapLocationService cached location: \(location.coordinate)")
+            // postLocation は設定しない - 位置ボタンは地図移動のみ
+            
+            // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
+            let offsetCoordinate = CLLocationCoordinate2D(
+                latitude: location.coordinate.latitude + 0.003, // 北に約300m移動
+                longitude: location.coordinate.longitude
+            )
+            mapManager.focusOnLocation(offsetCoordinate)
+            // updateAreaLocation も呼ばない - 投稿位置とは切り離し
+        } else {
+            print("📍🔥 PostPopup: No cached location, waiting for update...")
+        }
+    }
+    
     // MARK: - Auto acquire current location on demand
     private func autoAcquireCurrentLocation() {
+        print("📍🔥 PostPopup: autoAcquireCurrentLocation called")
+        
         // Request permission if needed, then try to read cached location first
+        print("📍🔥 PostPopup: Requesting location permission...")
         locationManager.requestLocationPermission()
 
         if let loc = locationManager.location {
             // Use immediate value if available
-            self.postLocation = loc
-            self.mapManager.focusOnLocation(loc)
-            self.updateAreaLocation(for: loc)
+            print("📍🔥 PostPopup: Using cached location: \(loc)")
+            // postLocation は設定しない - 位置ボタンは地図移動のみ
+            print("📍🔥 PostPopup: Calling mapManager.focusOnLocation...")
+            
+            // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
+            let offsetCoordinate = CLLocationCoordinate2D(
+                latitude: loc.latitude + 0.003, // 北に約300m移動
+                longitude: loc.longitude
+            )
+            self.mapManager.focusOnLocation(offsetCoordinate)
+            // updateAreaLocation も呼ばない - 投稿位置とは切り離し
             return
         }
 
+        print("📍🔥 PostPopup: No cached location, requesting one-shot update...")
         // Otherwise request a one-shot update
         locationManager.requestLocationUpdate { coordinate in
+            print("📍🔥 PostPopup: One-shot update callback received: \(String(describing: coordinate))")
             if let c = coordinate {
-                self.postLocation = c
-                self.mapManager.focusOnLocation(c)
-                self.updateAreaLocation(for: c)
+                // postLocation は設定しない - 位置ボタンは地図移動のみ
+                print("📍🔥 PostPopup: Calling mapManager.focusOnLocation with new location...")
+                
+                // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
+                let offsetCoordinate = CLLocationCoordinate2D(
+                    latitude: c.latitude + 0.003, // 北に約300m移動
+                    longitude: c.longitude
+                )
+                self.mapManager.focusOnLocation(offsetCoordinate)
+                // updateAreaLocation も呼ばない - 投稿位置とは切り離し
             } else {
+                print("📍🔥 PostPopup: No coordinate received, falling back to map center")
                 // Fallback to current map center
                 self.updatePostLocation()
             }

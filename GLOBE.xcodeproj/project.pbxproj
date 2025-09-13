@@ -38,9 +38,22 @@
 		159D61BF2E576AAC00A4A438 /* GLOBEUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GLOBEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		154F59362E7591C300FC6224 /* Exceptions for "GLOBE" folder in "GLOBE" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 151F6B3D2E4F9AA800049018 /* GLOBE */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		151F6B402E4F9AA800049018 /* GLOBE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				154F59362E7591C300FC6224 /* Exceptions for "GLOBE" folder in "GLOBE" target */,
+			);
 			path = GLOBE;
 			sourceTree = "<group>";
 		};
@@ -424,8 +437,11 @@
 				DEVELOPMENT_TEAM = XG7D4M98RN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GLOBE/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "GLOBE uses the camera to take photos for your posts";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "GLOBEはあなたの現在地を地図上に表示し、近くの投稿を見つけるために位置情報を使用します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -461,8 +477,11 @@
 				DEVELOPMENT_TEAM = XG7D4M98RN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GLOBE/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "GLOBE uses the camera to take photos for your posts";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "GLOBEはあなたの現在地を地図上に表示し、近くの投稿を見つけるために位置情報を使用します";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

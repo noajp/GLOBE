@@ -90,11 +90,11 @@ struct MyPageView: View {
                             .lineLimit(1)
                     }
                     
-                    // User ID
+                    // User ID (without "ID:" prefix)
                     if let userId = viewModel.userProfile?.id {
-                        Text("ID: \(userId.prefix(8))")
+                        Text(userId.prefix(8))
                             .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(MinimalDesign.Colors.tertiary)
+                            .foregroundColor(.gray)
                             .lineLimit(1)
                     }
                     
@@ -142,13 +142,26 @@ struct MyPageView: View {
     private var profileImage: some View {
         let userProfile = viewModel.userProfile
         let avatarUrl = userProfile?.avatarUrl
+        let userId = userProfile?.id ?? ""
 
         return Group {
-            if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
+            // First try to use cached image
+            if let cachedImage = ProfileImageCacheManager.shared.getCachedImage(for: userId) {
+                Image(uiImage: cachedImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
+                // Fall back to AsyncImage if not cached
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
+                        .onAppear {
+                            // Cache the image for next time
+                            Task {
+                                await ProfileImageCacheManager.shared.getImage(for: avatarUrl, userId: userId)
+                            }
+                        }
                 } placeholder: {
                     profilePlaceholder
                 }
