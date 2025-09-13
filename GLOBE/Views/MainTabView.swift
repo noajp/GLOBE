@@ -457,20 +457,9 @@ struct MapContentView: View {
     var body: some View {
         ZStack {
             Map(position: $mapPosition) {
-                // Built-in user annotation (iOS 17+). Fallback custom blue dot otherwise
+                // 現在位置を表示
                 if appSettings.showMyLocationOnMap {
-                    if #available(iOS 17.0, *) {
-                        UserAnnotation()
-                    }
-                    if let loc = locationManager.location {
-                        Annotation("", coordinate: loc.coordinate, anchor: .center) {
-                            ZStack {
-                                Circle().fill(Color.blue.opacity(0.25)).frame(width: 36, height: 36)
-                                Circle().fill(Color.blue).frame(width: 14, height: 14)
-                                Circle().stroke(Color.white, lineWidth: 2).frame(width: 14, height: 14)
-                            }
-                        }
-                    }
+                    UserAnnotation()
                 }
 
                 // Posts
@@ -510,7 +499,11 @@ struct MapContentView: View {
                 }
             }
             .onAppear {
-                if appSettings.showMyLocationOnMap { locationManager.requestLocation() }
+                print("🗺 MapContentView appeared - showMyLocationOnMap: \(appSettings.showMyLocationOnMap)")
+                if appSettings.showMyLocationOnMap { 
+                    print("📍 Requesting location from onAppear")
+                    locationManager.requestLocation() 
+                }
             }
             .onReceive(appSettings.$showMyLocationOnMap) { newValue in
                 if newValue {
