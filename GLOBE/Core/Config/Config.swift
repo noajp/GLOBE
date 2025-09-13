@@ -23,14 +23,25 @@ enum Config {
     }
     
     static let supabaseURL: String = {
-        if let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
-            print("🔵 Supabase URL from Secrets.plist: \(url)")
-            return url
+        print("🔍 Config: Loading Supabase URL...")
+        
+        if let url = secrets["SUPABASE_URL"] {
+            print("🔍 Config: Found URL in Secrets.plist: '\(url)'")
+            if !isPlaceholder(url) {
+                print("🔵 Supabase URL from Secrets.plist: \(url)")
+                return url
+            } else {
+                print("⚠️ Config: URL in Secrets.plist is placeholder")
+            }
+        } else {
+            print("⚠️ Config: No URL found in Secrets.plist")
         }
         
         // Fallback to SecureConfig
+        print("🔍 Config: Trying SecureConfig fallback...")
         let secureURL = SecureConfig.shared.supabaseURL
-        if !secureURL.isEmpty {
+        print("🔍 Config: SecureConfig returned: '\(secureURL)'")
+        if !secureURL.isEmpty && !isPlaceholder(secureURL) {
             print("🔵 Supabase URL from SecureConfig: \(secureURL)")
             return secureURL
         }

@@ -470,8 +470,8 @@ struct PostPopupView: View {
             print("📸 PostPopup - Image data size: \(imageData.count) bytes")
         }
         print("📍 PostPopup - Location details: latitude=\(location.latitude), longitude=\(location.longitude)")
-        // Sync with global app settings just before posting
-        if appSettings.defaultAnonymousPosting { selectedPrivacyType = .anonymous }
+        // Don't override user's explicit privacy selection
+        // if appSettings.defaultAnonymousPosting { selectedPrivacyType = .anonymous }
         let privacyDescription = switch selectedPrivacyType {
         case .followersOnly: "Followers Only"
         case .publicPost: "Public"

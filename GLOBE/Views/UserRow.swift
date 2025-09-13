@@ -1,5 +1,9 @@
 import SwiftUI
 
+// TODO: 将来実装予定のユーザー行コンポーネント
+// 現在はコメントアウト中
+/*
+
 struct UserRow: View {
     let userId: String
     let isFollowing: Bool
@@ -96,3 +100,5 @@ struct UserRow: View {
     .padding()
     .background(Color.black)
 }
+
+*/

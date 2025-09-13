@@ -189,13 +189,13 @@ private init() {
                 "location_name": locationName.map { .string($0) } ?? .null,
                 "latitude": .double(latitude),
                 "longitude": .double(longitude),
-                "is_public": .bool(true),
+                "is_public": .bool(!isAnonymous),  // 匿名でない場合は公開
                 "expires_at": .string(ISO8601DateFormatter().string(from: Date().addingTimeInterval(24 * 60 * 60)))
             ]
             
             // is_anonymousフィールドを追加（データベースカラム追加済み）
             postData["is_anonymous"] = .bool(isAnonymous)
-            print("📝 SupabaseService - Creating post with isAnonymous: \(isAnonymous)")
+            print("📝 SupabaseService - Creating post with isAnonymous: \(isAnonymous), isPublic: \(!isAnonymous)")
             
             _ = try await supabaseClient
                 .from("posts")
@@ -203,15 +203,41 @@ private init() {
                 .execute()
             
             // 成功したら新しい投稿をローカル配列に追加
+            let currentUser = AuthManager.shared.currentUser
+            
+            // プロフィール情報を取得してアバターURLを取得
+            var avatarUrl: String? = nil
+            if !isAnonymous {
+                do {
+                    let profileResponse = try await supabaseClient
+                        .from("profiles")
+                        .select("avatar_url")
+                        .eq("id", value: userUUID.uuidString)
+                        .single()
+                        .execute()
+                    
+                    let data = profileResponse.data
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let url = json["avatar_url"] as? String {
+                        avatarUrl = url
+                    }
+                } catch {
+                    // プロフィール取得エラーは無視（アバターなしで続行）
+                    print("⚠️ Failed to fetch avatar URL: \(error)")
+                }
+            }
+            
             let newPost = Post(
                 location: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
                 locationName: locationName,
                 imageData: imageData,
                 imageUrl: imageUrl,
                 text: content,
-                authorName: isAnonymous ? "匿名ユーザー" : (AuthManager.shared.currentUser?.username ?? "匿名ユーザー"),
+                authorName: isAnonymous ? "匿名ユーザー" : (currentUser?.username ?? "ユーザー"),
                 authorId: isAnonymous ? "anonymous" : userId,
-                isAnonymous: isAnonymous
+                isPublic: !isAnonymous,
+                isAnonymous: isAnonymous,
+                authorAvatarUrl: avatarUrl
             )
             
             await MainActor.run {
