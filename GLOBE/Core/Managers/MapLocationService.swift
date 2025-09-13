@@ -39,6 +39,10 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.distanceFilter = 10 // Update every 10 meters
         
+        // Check location services availability
+        let servicesEnabled = CLLocationManager.locationServicesEnabled()
+        print("📱 MapLocationService: Location Services Enabled: \(servicesEnabled)")
+        
         // Check initial authorization status
         authorizationStatus = manager.authorizationStatus
         
@@ -46,6 +50,7 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
         isLocationAvailable = (authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways)
         
         print("🔍 MapLocationService: Initial setup - Authorization: \(authorizationStatusText) (\(authorizationStatus.rawValue))")
+        print("📍 MapLocationService: Accuracy Authorized: \(manager.accuracyAuthorization == .fullAccuracy)")
         
         // Don't automatically start services here - wait for explicit request
         // This prevents UI unresponsiveness warnings during initialization
@@ -56,17 +61,31 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
     func requestLocation() {
         print("📍 MapLocationService: Requesting location - Current status: \(authorizationStatusText)")
         
+        // First check if location services are enabled at system level
+        guard CLLocationManager.locationServicesEnabled() else {
+            print("❌ Location Services are disabled at system level")
+            return
+        }
+        
         switch authorizationStatus {
         case .notDetermined:
             print("🔑 Requesting authorization from user")
-            manager.requestWhenInUseAuthorization()
+            // Request permission on main thread
+            DispatchQueue.main.async { [weak self] in
+                self?.manager.requestWhenInUseAuthorization()
+                print("✅ Permission request sent")
+            }
             
         case .authorizedWhenInUse, .authorizedAlways:
             print("✅ Already authorized, starting location services")
             startLocationServices()
             
-        case .denied, .restricted:
-            print("🚫 Permission denied/restricted - cannot start services")
+        case .denied:
+            print("🚫 Permission denied - user needs to enable in Settings")
+            print("ℹ️ Guide user to: Settings > Privacy & Security > Location Services > GLOBE")
+            
+        case .restricted:
+            print("🚫 Permission restricted - parental controls or MDM")
             
         @unknown default:
             print("❓ Unknown authorization status")
