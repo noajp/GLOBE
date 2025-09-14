@@ -17,7 +17,6 @@ struct PostPin: View {
     @State private var showingUserProfile = false
     @State private var showingDetailedPost = false
     @State private var showingImageViewer = false
-    // Slightly thicker border for better visibility
     private var borderWidth: CGFloat { 1.2 }
     
     // Calculate dynamic height based on content
@@ -25,29 +24,24 @@ struct PostPin: View {
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let hasText = !post.text.isEmpty
         
-        // 写真のみの投稿の場合は余白を最小限に
         if hasImage && !hasText {
-            // 画像の高さ + 最小限の余白のみ
-            return cardWidth  // 正方形の画像なので幅と同じ
+            return cardWidth
         }
         
-        // 通常の計算
         let headerHeight: CGFloat = post.isAnonymous ? 18 : 10
         let footerHeight: CGFloat = 6
         let lineHeight: CGFloat = 9
-        let padding: CGFloat = 6 // 上下パディング
+        let padding: CGFloat = 6
         
-        let imageHeight: CGFloat = hasImage ? (cardWidth - 8) : 0 // square image: width == height
+        let imageHeight: CGFloat = hasImage ? (cardWidth - 8) : 0
         let textHeight: CGFloat = hasText ? CGFloat(actualTextLines) * lineHeight : 0
         let contentHeight = imageHeight + textHeight
 
-        // 追加の上下ゆとりは最小限に（上6pt+下2pt相当）
-        let extraMetaPadding: CGFloat = post.isAnonymous ? 0 : (6 + 2)
+        let extraMetaPadding: CGFloat = post.isAnonymous ? 0 : 8
         return headerHeight + contentHeight + footerHeight + padding + extraMetaPadding
     }
     
     private var cardWidth: CGFloat {
-        // Widen the fixed card width slightly
         return 112
     }
     
@@ -64,7 +58,6 @@ struct PostPin: View {
         let isPhotoOnly = hasImage && !hasText
         
         VStack(spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
-            // ヘッダー（非公開投稿のみ表示）- 画像がない時のみ上に表示（画像がある時は下に表示）
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
@@ -121,7 +114,6 @@ struct PostPin: View {
                     .padding(.horizontal, isPhotoOnly ? 0 : 4)
                     .onTapGesture { showingImageViewer = true }
 
-                // ヘッダー（写真の下に表示）
                 if !post.isAnonymous && !post.isPublic {
                     HStack(spacing: 3) {
                         Button(action: {
@@ -191,7 +183,6 @@ struct PostPin: View {
                 .padding(.horizontal, isPhotoOnly ? 0 : 4)
                 .onTapGesture { showingImageViewer = true }
 
-                // ヘッダー（写真の下に表示）
                 if !post.isAnonymous && !post.isPublic {
                     HStack(spacing: 3) {
                         Button(action: {
@@ -419,7 +410,6 @@ struct ScalablePostPin: View {
     @State private var showingUserProfile = false
     @State private var showingDetailedPost = false
     @State private var showingImageViewer = false
-    // Slightly thicker border for better visibility
     private var borderWidth: CGFloat { 1.2 }
     
     private var scaleFactor: CGFloat {

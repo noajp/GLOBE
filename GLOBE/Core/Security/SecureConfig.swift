@@ -7,40 +7,126 @@
 import Foundation
 import Security
 
+@MainActor
 struct SecureConfig {
     static let shared = SecureConfig()
-    
-    private init() {}
+
+    private init() {
+        // Initialize secure keychain integration
+        Task {
+            await initializeSecureStorage()
+        }
+    }
+
     private static var didAttemptSecretsImport = false
+
+    // MARK: - Secure Storage Integration
+    private let secureKeychain = SecureKeychain.shared
     
     // MARK: - Keychain Keys
-    private enum KeychainKey: String {
+    private enum KeychainKey: String, CaseIterable {
         case supabaseURL = "supabase_url"
         case supabaseAnonKey = "supabase_anon_key"
     }
     
-    // MARK: - Configuration Properties
-    var supabaseURL: String {
-        // Try to get from Keychain first
-        if let keychainURL = getFromKeychain(key: .supabaseURL) {
-            return keychainURL
-        }
-        
-        // Fallback to Info.plist
-        if let url = Bundle.main.infoDictionary?["SupabaseURL"] as? String, !isPlaceholder(url) {
-            return url
+    // MARK: - Secure Configuration Access
+    private func initializeSecureStorage() async {
+        // Migrate existing keychain items to encrypted storage if needed
+        await migrateToSecureStorage()
+
+        // Perform security validation
+        if !secureKeychain.isDeviceSecure() {
+            SecureLogger.shared.error("Device is not secure - passcode not set")
         }
 
-        // Dev-only: Try Secrets.plist (not for production). If found, cache into Keychain
-        if let secrets = loadSecretsPlist(), let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
-            // Cache to Keychain for subsequent launches
-            saveToKeychain(key: .supabaseURL, value: url)
-            return url
+        if secureKeychain.isBiometryAvailable() {
+            SecureLogger.shared.info("Biometry available for additional security")
         }
-        
-        // Emergency fallback - should not happen in production
-        SecureLogger.shared.error("No Supabase URL found in Keychain or Info.plist")
-        return ""
+    }
+
+    private func migrateToSecureStorage() async {
+        // Check if migration is needed
+        for key in KeychainKey.allCases {
+            if let legacyValue = getFromKeychain(key: key) {
+                do {
+                    // Store in secure encrypted keychain
+                    try await secureKeychain.store(
+                        legacyValue,
+                        for: key.rawValue,
+                        accessControl: .afterFirstUnlockThisDeviceOnly
+                    )
+
+                    // Remove legacy item
+                    let query: [String: Any] = [
+                        kSecClass as String: kSecClassGenericPassword,
+                        kSecAttrAccount as String: key.rawValue,
+                        kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.globe.app"
+                    ]
+                    SecItemDelete(query as CFDictionary)
+
+                    SecureLogger.shared.info("Migrated \(key.rawValue) to secure storage")
+                } catch {
+                    SecureLogger.shared.error("Failed to migrate \(key.rawValue): \(error)")
+                }
+            }
+        }
+    }
+
+    // MARK: - Configuration Properties
+    var supabaseURL: String {
+        get async {
+            // Try to get from secure keychain first
+            do {
+                if let secureURL = try await secureKeychain.retrieveString(for: KeychainKey.supabaseURL.rawValue) {
+                    return secureURL
+                }
+            } catch {
+                SecureLogger.shared.error("Failed to retrieve Supabase URL from secure storage: \(error)")
+            }
+
+            // Try legacy keychain
+            if let keychainURL = getFromKeychain(key: .supabaseURL) {
+                // Migrate to secure storage
+                Task {
+                    try? await secureKeychain.store(
+                        keychainURL,
+                        for: KeychainKey.supabaseURL.rawValue,
+                        accessControl: .afterFirstUnlockThisDeviceOnly
+                    )
+                }
+                return keychainURL
+            }
+
+            // Fallback to Info.plist
+            if let url = Bundle.main.infoDictionary?["SupabaseURL"] as? String, !isPlaceholder(url) {
+                // Store in secure keychain for future use
+                Task {
+                    try? await secureKeychain.store(
+                        url,
+                        for: KeychainKey.supabaseURL.rawValue,
+                        accessControl: .afterFirstUnlockThisDeviceOnly
+                    )
+                }
+                return url
+            }
+
+            // Dev-only: Try Secrets.plist
+            if let secrets = loadSecretsPlist(), let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
+                // Cache to secure storage
+                Task {
+                    try? await secureKeychain.store(
+                        url,
+                        for: KeychainKey.supabaseURL.rawValue,
+                        accessControl: .afterFirstUnlockThisDeviceOnly
+                    )
+                }
+                return url
+            }
+
+            // Emergency fallback - should not happen in production
+            SecureLogger.shared.error("No Supabase URL found in any secure location")
+            return ""
+        }
     }
     
     var supabaseAnonKey: String {

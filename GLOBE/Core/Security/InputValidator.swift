@@ -108,15 +108,20 @@ struct InputValidator {
     
     /// ユーザー名の検証
     static func validateUsername(_ username: String) -> ValidationResult {
+        // 長さをチェック（sanitizeする前に）
+        if username.count > 20 {
+            return .invalid("Username must be 3-20 characters long.")
+        }
+
         let sanitizedUsername = sanitizeText(username, maxLength: 20)
-        
+
         let usernameRegex = #"^[a-zA-Z0-9_]{3,20}$"#
         let usernamePredicate = NSPredicate(format: "SELF MATCHES %@", usernameRegex)
-        
+
         guard usernamePredicate.evaluate(with: sanitizedUsername) else {
             return .invalid("Username must be 3-20 characters long and can only contain letters, numbers, and underscores.")
         }
-        
+
         return .valid(sanitizedUsername)
     }
     
@@ -124,9 +129,9 @@ struct InputValidator {
     
     /// パスワードの検証
     static func validatePassword(_ password: String) -> ValidationResult {
-        let passwordRegex = #"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$"#
+        let passwordRegex = #"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d@$!%*?&#]{8,}$"#
         let passwordPredicate = NSPredicate(format: "SELF MATCHES %@", passwordRegex)
-        
+
         if passwordPredicate.evaluate(with: password) {
             return .valid(password)
         } else {

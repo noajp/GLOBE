@@ -69,16 +69,6 @@ struct PostCard: View {
                             }
                             
                             Spacer()
-                            
-                            if post.isExpired {
-                                Text("期限切れ")
-                                    .font(.system(size: 9, weight: .medium))
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 2)
-                                    .background(Color.red.opacity(0.2))
-                                    .cornerRadius(3)
-                            }
                         }
                         .padding(.horizontal, 16)
                         
@@ -157,7 +147,6 @@ struct PostCard: View {
                                 
                                 // Map icon
                                 Button(action: {
-                                    // TODO: Navigate to map view with post location
                                 }) {
                                     Image(systemName: "map")
                                         .font(.system(size: 14))
@@ -204,16 +193,6 @@ struct PostCard: View {
                             }
                             
                             Spacer()
-                            
-                            if post.isExpired {
-                                Text("期限切れ")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color.red.opacity(0.2))
-                                    .cornerRadius(6)
-                            }
                         }
                         
                         // Post text (larger area for text-only posts)
@@ -292,7 +271,6 @@ struct PostCard: View {
                                 
                                 // Map icon
                                 Button(action: {
-                                    // TODO: Navigate to map view with post location
                                 }) {
                                     Image(systemName: "map")
                                         .font(.system(size: 18))
@@ -324,7 +302,6 @@ struct PostCard: View {
             DetailedPostView(post: post, isPresented: $showingDetailedView)
         }
         .sheet(isPresented: $showingUserProfile) {
-            // TODO: Show user profile for post.authorId
             Text("User Profile: \(post.authorName)")
         }
     }

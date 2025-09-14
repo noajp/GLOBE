@@ -34,15 +34,6 @@ struct ProfileSection: View {
                 
                 Spacer()
                 
-                // TODO: 将来実装予定の統計情報
-                /*
-                // Stats
-                HStack(spacing: MinimalDesign.Spacing.lg) {
-                    StatItem(value: postManager.posts.count, label: "Posts")
-                    StatItem(value: 156, label: "Followers")  
-                    StatItem(value: 89, label: "Following")
-                }
-                */
             }
             .padding(.horizontal, MinimalDesign.Spacing.md)
             
@@ -71,17 +62,6 @@ struct ProfileSection: View {
                 .foregroundColor(MinimalDesign.Colors.primary)
                 .cornerRadius(MinimalDesign.Radius.sm)
                 
-                // TODO: 将来実装予定のシェア機能
-                /*
-                Button("Share Profile") {
-                    // Share profile action
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, MinimalDesign.Spacing.sm)
-                .background(MinimalDesign.Colors.secondary)
-                .foregroundColor(MinimalDesign.Colors.primary)
-                .cornerRadius(MinimalDesign.Radius.sm)
-                */
             }
             .padding(.horizontal, MinimalDesign.Spacing.md)
         }
@@ -90,21 +70,3 @@ struct ProfileSection: View {
     }
 }
 
-// MARK: - Helper Views
-
-struct StatItem: View {
-    let value: Int
-    let label: String
-    
-    var body: some View {
-        VStack(spacing: MinimalDesign.Spacing.xs) {
-            Text("\(value)")
-                .font(MinimalDesign.Typography.headline)
-                .foregroundColor(MinimalDesign.Colors.primary)
-            
-            Text(label)
-                .font(MinimalDesign.Typography.caption)
-                .foregroundColor(MinimalDesign.Colors.tertiary)
-        }
-    }
-}

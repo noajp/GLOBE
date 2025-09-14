@@ -10,16 +10,16 @@ struct Story: Identifiable, Equatable {
     let text: String?
     let createdAt: Date
     
-    // 24時間後に期限切れかチェック
+    // 1時間後に期限切れかチェック
     var isExpired: Bool {
-        let twentyFourHoursLater = createdAt.addingTimeInterval(24 * 60 * 60)
-        return Date() > twentyFourHoursLater
+        let oneHourLater = createdAt.addingTimeInterval(1 * 60 * 60)
+        return Date() > oneHourLater
     }
-    
+
     // 残り時間を取得
     var timeRemaining: TimeInterval {
-        let twentyFourHoursLater = createdAt.addingTimeInterval(24 * 60 * 60)
-        return max(0, twentyFourHoursLater.timeIntervalSince(Date()))
+        let oneHourLater = createdAt.addingTimeInterval(1 * 60 * 60)
+        return max(0, oneHourLater.timeIntervalSince(Date()))
     }
     
     static func == (lhs: Story, rhs: Story) -> Bool {

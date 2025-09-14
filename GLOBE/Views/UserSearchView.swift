@@ -167,7 +167,6 @@ struct UserSearchView: View {
                     } else {
                         // Other users - navigate to profile
                         Button(action: {
-                            // TODO: Navigate to user profile
                             print("Navigate to user profile: \(user.username)")
                         }) {
                             UserSearchResultRow(user: user, isCurrentUser: false)
@@ -193,8 +192,6 @@ struct UserSearchView: View {
                 print("🔍 UserSearch - Searching for: \(searchText)")
                 let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
                 
-                // TODO: Replace with actual Supabase search
-                // Mock search for now
                 let users = try await searchMockUsers(query: query)
                 
                 await MainActor.run {
