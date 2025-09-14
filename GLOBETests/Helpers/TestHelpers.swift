@@ -42,7 +42,7 @@ extension Post {
         isPublic: Bool = true,
         isAnonymous: Bool = false
     ) -> Post {
-        return Post(
+        var post = Post(
             id: id,
             createdAt: createdAt,
             location: location,
@@ -52,13 +52,14 @@ extension Post {
             text: text,
             authorName: authorName,
             authorId: authorId,
-            authorAvatarUrl: authorAvatarUrl,
             likeCount: likeCount,
             commentCount: commentCount,
-            isLikedByMe: isLikedByMe,
             isPublic: isPublic,
-            isAnonymous: isAnonymous
+            isAnonymous: isAnonymous,
+            authorAvatarUrl: authorAvatarUrl
         )
+        post.isLikedByMe = isLikedByMe
+        return post
     }
 }
 

@@ -33,7 +33,7 @@ final class PerformanceTests: XCTestCase {
 
         // When: Measure sanitization performance
         measure {
-            _ = InputValidator.validateContent(longContent)
+            _ = InputValidator.validatePostContent(longContent)
         }
 
         // Performance expectation: < 0.05 seconds for large content sanitization
@@ -57,7 +57,7 @@ final class PerformanceTests: XCTestCase {
 
         // When: Measure rate limit checking performance
         measure {
-            for ip in testIPs {
+            for _ in testIPs {
                 // Simulate rate limit check logic
                 let timestamp = Date().timeIntervalSince1970
                 _ = timestamp > 0 // Simplified check
@@ -81,7 +81,7 @@ final class PerformanceTests: XCTestCase {
         // When: Measure injection detection performance
         measure {
             for query in repeatedQueries {
-                _ = DatabaseSecurity.shared.validateQuery(query)
+                _ = DatabaseSecurity.shared.validateQuery(query, operation: .select)
             }
         }
 
@@ -161,8 +161,8 @@ final class PerformanceTests: XCTestCase {
         measure {
             autoreleasepool {
                 // Simulate the validation pipeline used in post creation
-                _ = InputValidator.validateContent(content)
-                _ = InputValidator.sanitizeLocation(locationName)
+                _ = InputValidator.validatePostContent(content)
+                _ = InputValidator.sanitizeText(locationName)
 
                 let queryData = [
                     "content": content,
