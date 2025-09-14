@@ -320,16 +320,6 @@ extension Publisher {
         return cancellable
     }
 
-    // Weak reference sink to prevent retain cycles
-    func weakSink<T: AnyObject>(
-        on object: T,
-        receiveValue: @escaping (T, Output) -> Void
-    ) -> AnyCancellable {
-        return sink { [weak object] value in
-            guard let object = object else { return }
-            receiveValue(object, value)
-        }
-    }
 
     // Store subscription with automatic cancellation
     func store<T: AnyObject>(

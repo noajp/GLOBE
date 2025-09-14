@@ -8,7 +8,7 @@ import SwiftUI
 
 struct PhotoViewerView: View {
     let image: UIImage?
-    let imageURL: URL?
+    let imageUrl: URL?
     let onClose: () -> Void
 
     @State private var scale: CGFloat = 1.0
@@ -18,13 +18,13 @@ struct PhotoViewerView: View {
 
     init(image: UIImage, onClose: @escaping () -> Void) {
         self.image = image
-        self.imageURL = nil
+        self.imageUrl = nil
         self.onClose = onClose
     }
 
-    init(imageURL: URL, onClose: @escaping () -> Void) {
+    init(imageUrl: URL, onClose: @escaping () -> Void) {
         self.image = nil
-        self.imageURL = imageURL
+        self.imageUrl = imageUrl
         self.onClose = onClose
     }
 
@@ -37,7 +37,7 @@ struct PhotoViewerView: View {
                     Image(uiImage: ui)
                         .resizable()
                         .scaledToFit()
-                } else if let url = imageURL {
+                } else if let url = imageUrl {
                     AsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let img):

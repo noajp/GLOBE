@@ -197,7 +197,7 @@ class PostCreationViewModel: BaseViewModel {
                 id: UUID(),
                 userId: userId,
                 content: validatedContent,
-                imageURL: nil, // Will be set by repository if image is uploaded
+                imageUrl: nil, // Will be set by repository if image is uploaded
                 latitude: location.latitude,
                 longitude: location.longitude,
                 locationName: locationName,

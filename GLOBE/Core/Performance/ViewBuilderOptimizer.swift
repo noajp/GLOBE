@@ -251,7 +251,7 @@ struct OptimizedPostCard: View {
 
 // MARK: - Performance Monitoring
 
-struct PerformanceMonitor: ViewModifier {
+struct ViewPerformanceMonitor: ViewModifier {
     let name: String
     @State private var renderCount = 0
     @State private var lastRenderTime = Date()
@@ -278,7 +278,7 @@ struct PerformanceMonitor: ViewModifier {
 extension View {
     func monitorPerformance(name: String) -> some View {
         #if DEBUG
-        return ModifiedContent(content: self, modifier: PerformanceMonitor(name: name))
+        return ModifiedContent(content: self, modifier: ViewPerformanceMonitor(name: name))
         #else
         return self
         #endif

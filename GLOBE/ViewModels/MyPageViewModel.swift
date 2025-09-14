@@ -235,7 +235,7 @@ final class MyPageViewModel: BaseViewModel {
 
             await MainActor.run { self.stories = built }
         } catch {
-            DebugLogger.shared.error("Failed to load followed stories: \(error.localizedDescription)", category: "MyPageViewModel")
+            SecureLogger.shared.error("Failed to load followed stories: \(error.localizedDescription)")
         }
     }
     
