@@ -7,6 +7,7 @@
 import Foundation
 import os.log
 import SwiftUI
+import Combine
 
 @MainActor
 final class AdvancedLogger: ObservableObject {
@@ -52,7 +53,7 @@ final class AdvancedLogger: ObservableObject {
     }
 
     // MARK: - Log Categories
-    enum LogCategory: String, CaseIterable {
+    enum LogCategory: String, CaseIterable, Codable {
         case general = "general"
         case security = "security"
         case authentication = "auth"
@@ -90,7 +91,7 @@ final class AdvancedLogger: ObservableObject {
     }
 
     // MARK: - Log Levels
-    enum LogLevel: String, CaseIterable, Comparable {
+    enum LogLevel: String, CaseIterable, Comparable, Codable {
         case trace = "trace"
         case debug = "debug"
         case info = "info"
@@ -137,7 +138,7 @@ final class AdvancedLogger: ObservableObject {
 
     // MARK: - Log Entry Structure
     struct LogEntry: Identifiable, Codable {
-        let id = UUID()
+        let id: UUID
         let timestamp: Date
         let level: LogLevel
         let category: LogCategory
@@ -155,17 +156,40 @@ final class AdvancedLogger: ObservableObject {
         var formattedTimestamp: String {
             DateFormatter.logFormatter.string(from: timestamp)
         }
+
+        init(timestamp: Date = Date(), level: LogLevel, category: LogCategory, message: String, file: String, function: String, line: Int, threadName: String, metadata: [String: String] = [:]) {
+            self.id = UUID()
+            self.timestamp = timestamp
+            self.level = level
+            self.category = category
+            self.message = message
+            self.file = file
+            self.function = function
+            self.line = line
+            self.threadName = threadName
+            self.metadata = metadata
+        }
     }
 
     // MARK: - Performance Metrics
     struct PerformanceMetric: Identifiable, Codable {
-        let id = UUID()
+        let id: UUID
         let timestamp: Date
         let name: String
         let value: Double
         let unit: String
         let category: String
         let metadata: [String: String]
+
+        init(timestamp: Date = Date(), name: String, value: Double, unit: String, category: String, metadata: [String: String] = [:]) {
+            self.id = UUID()
+            self.timestamp = timestamp
+            self.name = name
+            self.value = value
+            self.unit = unit
+            self.category = category
+            self.metadata = metadata
+        }
     }
 
     // MARK: - Logging Methods

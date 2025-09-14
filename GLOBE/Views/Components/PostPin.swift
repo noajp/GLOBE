@@ -393,7 +393,7 @@ struct PostPin: View {
             if let data = post.imageData, let ui = UIImage(data: data) {
                 PhotoViewerView(image: ui) { showingImageViewer = false }
             } else if let urlString = post.imageUrl, let url = URL(string: urlString) {
-                PhotoViewerView(imageURL: url) { showingImageViewer = false }
+                PhotoViewerView(imageUrl: url) { showingImageViewer = false }
             }
         }
     }
@@ -828,7 +828,7 @@ struct ScalablePostPin: View {
             if let data = post.imageData, let ui = UIImage(data: data) {
                 PhotoViewerView(image: ui) { showingImageViewer = false }
             } else if let urlString = post.imageUrl, let url = URL(string: urlString) {
-                PhotoViewerView(imageURL: url) { showingImageViewer = false }
+                PhotoViewerView(imageUrl: url) { showingImageViewer = false }
             }
         }
         }

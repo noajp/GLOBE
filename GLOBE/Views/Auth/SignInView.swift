@@ -14,7 +14,7 @@ struct SignInView: View {
     @ObservedObject private var authManager = AuthManager.shared
     @FocusState private var focusedField: Field?
     
-    private let logger = DebugLogger.shared
+    private let logger = SecureLogger.shared
     
     enum Field: Hashable {
         case email, password

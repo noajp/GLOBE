@@ -113,22 +113,41 @@ final class PerformanceMonitor: ObservableObject {
     }
 
     struct UserInteractionMetric: Identifiable, Codable {
-        let id = UUID()
-        let timestamp = Date()
+        let id: UUID
+        let timestamp: Date
         let action: String
         let screen: String
         let duration: TimeInterval?
         let metadata: [String: String]
+
+        init(action: String, screen: String, duration: TimeInterval? = nil, metadata: [String: String] = [:]) {
+            self.id = UUID()
+            self.timestamp = Date()
+            self.action = action
+            self.screen = screen
+            self.duration = duration
+            self.metadata = metadata
+        }
     }
 
     struct PerformanceMetric: Identifiable, Codable {
-        let id = UUID()
-        let timestamp = Date()
+        let id: UUID
+        let timestamp: Date
         let operation: String
         let duration: TimeInterval
         let category: String
         let success: Bool
         let metadata: [String: String]
+
+        init(operation: String, duration: TimeInterval, category: String, success: Bool, metadata: [String: String] = [:]) {
+            self.id = UUID()
+            self.timestamp = Date()
+            self.operation = operation
+            self.duration = duration
+            self.category = category
+            self.success = success
+            self.metadata = metadata
+        }
     }
 
     // MARK: - Setup Methods

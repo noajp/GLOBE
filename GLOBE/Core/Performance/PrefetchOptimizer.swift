@@ -99,8 +99,8 @@ class SmartPrefetchManager: ObservableObject {
 
             // Prefetch images for recent posts
             let imageUrls = recentPosts.compactMap { post -> URL? in
-                guard let imageURL = post.imageURL else { return nil }
-                return URL(string: imageURL)
+                guard let imageUrl = post.imageUrl else { return nil }
+                return URL(string: imageUrl)
             }
 
             if !imageUrls.isEmpty {
@@ -188,8 +188,8 @@ class SmartPrefetchManager: ObservableObject {
             let recentPosts = Array(filteredPosts.prefix(10))
 
             let imageUrls = recentPosts.compactMap { post -> URL? in
-                guard let imageURL = post.imageURL else { return nil }
-                return URL(string: imageURL)
+                guard let imageUrl = post.imageUrl else { return nil }
+                return URL(string: imageUrl)
             }
 
             if !imageUrls.isEmpty {

@@ -9,7 +9,7 @@ struct ContentView: View {
             .onAppear {
                 // ContentView表示時にログ出力
                 ConsoleLogger.shared.forceLog("ContentView appeared")
-                DebugLogger.shared.info("ContentView displayed", category: "UI")
+                SecureLogger.shared.info("ContentView displayed")
             }
     }
 }
