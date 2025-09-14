@@ -38,22 +38,9 @@
 		159D61BF2E576AAC00A4A438 /* GLOBEUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GLOBEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		154F59362E7591C300FC6224 /* Exceptions for "GLOBE" folder in "GLOBE" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 151F6B3D2E4F9AA800049018 /* GLOBE */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		151F6B402E4F9AA800049018 /* GLOBE */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				154F59362E7591C300FC6224 /* Exceptions for "GLOBE" folder in "GLOBE" target */,
-			);
 			path = GLOBE;
 			sourceTree = "<group>";
 		};
