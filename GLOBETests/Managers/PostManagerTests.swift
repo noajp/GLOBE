@@ -102,7 +102,7 @@ final class PostManagerTests: XCTestCase {
         AuthManager.shared.currentUser = AppUser(id: UUID().uuidString, email: nil, username: "tester", createdAt: nil)
 
         // 60文字を超えるコンテンツ（画像なしの場合の制限）
-        let longContent = String(repeating: "A", 100)
+        let longContent = String(repeating: "A", count: 100)
 
         // 長いコンテンツでもバリデーションエラーにならないことを確認
         do {

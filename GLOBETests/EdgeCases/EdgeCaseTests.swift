@@ -159,8 +159,8 @@ final class EdgeCaseTests: XCTestCase {
         ]
 
         for injection in advancedInjections {
-            let isValid = DatabaseSecurity.shared.validateQuery(injection)
-            XCTAssertFalse(isValid, "Should reject advanced SQL injection: \(injection)")
+            let result = DatabaseSecurity.shared.validateQuery(injection, operation: .select)
+            XCTAssertFalse(result.isValid, "Should reject advanced SQL injection: \(injection)")
         }
     }
 
