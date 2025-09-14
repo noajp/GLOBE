@@ -206,7 +206,7 @@ final class PostManagerTests: XCTestCase {
         XCTAssertFalse(postManager.isLoading)
         XCTAssertNil(postManager.error)
         // postsは空または既存の投稿があるかもしれないので、配列であることだけ確認
-        XCTAssertTrue(postManager.posts is [Post])
+        XCTAssertNotNil(postManager.posts)
     }
 }
 
