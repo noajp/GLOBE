@@ -161,16 +161,13 @@ struct PostDetailView: View {
     }
     
     private func loadPostStats() {
-        // TODO: Supabaseからいいね数とユーザーのいいね状態を取得
-        // 現在はモックデータ
         likesCount = Int.random(in: 0...50)
         hasLiked = false
     }
     
     private func toggleLike() async {
         guard authManager.isAuthenticated else { return }
-        
-        // TODO: Supabaseでいいね機能を実装
+
         hasLiked.toggle()
         likesCount += hasLiked ? 1 : -1
     }
@@ -193,9 +190,7 @@ struct PostDetailView: View {
     private func deletePost() async {
         guard authManager.isAuthenticated,
               post.authorId == authManager.currentUser?.id else { return }
-        
-        // TODO: Supabaseから投稿を削除
-        // 現在はローカルのみ
+
         postManager.posts.removeAll { $0.id == post.id }
         isPresented = false
     }

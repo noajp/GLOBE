@@ -41,7 +41,6 @@ private init() {
     // MARK: - Posts
     
     func fetchUserPosts(userId: String) async -> [Post] {
-        // TODO: 実際のSupabase SDKを使用して実装
         return []
     }
     
@@ -159,7 +158,6 @@ private init() {
                 return false
             }
             
-            // 画像をアップロード（もしあれば）
             var imageUrl: String? = nil
             if let imageData = imageData {
                 let fileName = "\(userId)/post_\(UUID().uuidString).jpg"
@@ -193,7 +191,6 @@ private init() {
                 "expires_at": .string(ISO8601DateFormatter().string(from: Date().addingTimeInterval(24 * 60 * 60)))
             ]
             
-            // is_anonymousフィールドを追加（データベースカラム追加済み）
             postData["is_anonymous"] = .bool(isAnonymous)
             print("📝 SupabaseService - Creating post with isAnonymous: \(isAnonymous), isPublic: \(!isAnonymous)")
             
@@ -222,7 +219,6 @@ private init() {
                         avatarUrl = url
                     }
                 } catch {
-                    // プロフィール取得エラーは無視（アバターなしで続行）
                     print("⚠️ Failed to fetch avatar URL: \(error)")
                 }
             }

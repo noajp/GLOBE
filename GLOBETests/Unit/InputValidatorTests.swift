@@ -31,7 +31,10 @@ final class InputValidatorTests: XCTestCase {
         // 英字+数字を含む8文字以上 → 有効
         XCTAssertTrue(InputValidator.validatePassword("Abcdef12").isValid)
         // 許可された記号を含んでもOK
-        XCTAssertTrue(InputValidator.validatePassword("Abc123!@#").isValid)
+        let symbolPassword = "Abc123!@#"
+        let result = InputValidator.validatePassword(symbolPassword)
+        print("🔍 パスワード '\(symbolPassword)' の検証結果: \(result)")
+        XCTAssertTrue(result.isValid, "記号を含むパスワードが無効と判定されました: \(result)")
         // 数字のみ or 英字のみ → 無効
         XCTAssertFalse(InputValidator.validatePassword("12345678").isValid)
         XCTAssertFalse(InputValidator.validatePassword("abcdefgh").isValid)

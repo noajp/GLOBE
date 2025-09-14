@@ -6,7 +6,7 @@
 import SwiftUI
 
 // MARK: - Tab Selection Component
-struct TabSelection: View {
+struct TabSelectionView: View {
     @Binding var selectedTab: Int
     
     private let tabs = ["Posts", "Followers", "Following", "Stories", "Notifications"]

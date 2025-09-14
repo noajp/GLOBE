@@ -18,107 +18,107 @@ final class GLOBETestUtilities {
     /// Creates a comprehensive test Post with all optional parameters
     static func createAdvancedTestPost(
         id: UUID = UUID(),
-        content: String = "Test post content 🌍",
+        text: String = "Test post content 🌍",
         createdAt: Date = Date(),
         location: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
         locationName: String = "Tokyo, Japan",
-        userId: UUID = UUID(),
-        username: String = "testuser",
+        authorName: String = "testuser",
+        authorId: String = "test-user-id",
         isPublic: Bool = true,
-        mediaUrls: [String] = ["https://example.com/test.jpg"],
-        tags: [String] = ["#test", "#globe"],
+        imageUrl: String? = "https://example.com/test.jpg",
         likeCount: Int = 0,
         commentCount: Int = 0,
-        isLikedByCurrentUser: Bool = false
+        isLikedByMe: Bool = false,
+        authorAvatarUrl: String? = nil
     ) -> Post {
-        Post(
+        var post = Post(
             id: id,
-            content: content,
             createdAt: createdAt,
             location: location,
             locationName: locationName,
-            userId: userId,
-            username: username,
-            isPublic: isPublic,
-            mediaUrls: mediaUrls,
-            tags: tags,
+            imageData: nil,
+            imageUrl: imageUrl,
+            text: text,
+            authorName: authorName,
+            authorId: authorId,
             likeCount: likeCount,
             commentCount: commentCount,
-            isLikedByCurrentUser: isLikedByCurrentUser
+            isPublic: isPublic,
+            isAnonymous: false,
+            authorAvatarUrl: authorAvatarUrl
         )
+        post.isLikedByMe = isLikedByMe
+        return post
     }
 
     /// Creates a test UserProfile with comprehensive data
     static func createAdvancedTestUserProfile(
-        id: UUID = UUID(),
+        id: String = "test-user-id",
         username: String = "testuser",
-        displayName: String = "Test User",
-        email: String = "test@example.com",
-        bio: String = "Test user bio",
+        displayName: String? = "Test User",
+        bio: String? = "Test user bio",
         avatarUrl: String? = "https://example.com/avatar.jpg",
-        isPrivate: Bool = false,
-        followersCount: Int = 100,
-        followingCount: Int = 50,
-        postsCount: Int = 25,
-        createdAt: Date = Date()
+        postCount: Int? = 25,
+        followerCount: Int? = 100,
+        followingCount: Int? = 50
     ) -> UserProfile {
         UserProfile(
             id: id,
             username: username,
             displayName: displayName,
-            email: email,
             bio: bio,
             avatarUrl: avatarUrl,
-            isPrivate: isPrivate,
-            followersCount: followersCount,
-            followingCount: followingCount,
-            postsCount: postsCount,
-            createdAt: createdAt
+            postCount: postCount,
+            followerCount: followerCount,
+            followingCount: followingCount
         )
     }
 
     /// Creates a test Story with realistic data
     static func createAdvancedTestStory(
-        id: UUID = UUID(),
-        userId: UUID = UUID(),
-        username: String = "testuser",
-        content: String = "Test story content",
-        mediaUrl: String = "https://example.com/story.jpg",
-        createdAt: Date = Date(),
-        expiresAt: Date = Calendar.current.date(byAdding: .hour, value: 24, to: Date()) ?? Date(),
-        viewCount: Int = 10,
-        isViewed: Bool = false
+        userId: String = "test-user-id",
+        userName: String = "testuser",
+        userAvatarData: Data? = nil,
+        imageData: Data = Data(),
+        text: String? = "Test story content",
+        createdAt: Date = Date()
     ) -> Story {
         Story(
-            id: id,
             userId: userId,
-            username: username,
-            content: content,
-            mediaUrl: mediaUrl,
-            createdAt: createdAt,
-            expiresAt: expiresAt,
-            viewCount: viewCount,
-            isViewed: isViewed
+            userName: userName,
+            userAvatarData: userAvatarData,
+            imageData: imageData,
+            text: text,
+            createdAt: createdAt
         )
     }
 
     /// Creates multiple test posts with varied data
     static func createVariedTestPosts(count: Int = 5) -> [Post] {
-        (0..<count).map { index in
-            createAdvancedTestPost(
+        var posts: [Post] = []
+
+        for index in 0..<count {
+            let location = CLLocationCoordinate2D(
+                latitude: 35.0 + Double(index) * 0.1,
+                longitude: 139.0 + Double(index) * 0.1
+            )
+
+            let post = createAdvancedTestPost(
                 id: UUID(),
-                content: "Test post \(index) with different content 📱",
-                location: CLLocationCoordinate2D(
-                    latitude: 35.0 + Double(index) * 0.1,
-                    longitude: 139.0 + Double(index) * 0.1
-                ),
+                text: "Test post \(index) with different content 📱",
+                location: location,
                 locationName: "Location \(index)",
-                username: "user\(index)",
+                authorName: "user\(index)",
+                authorId: "user-\(index)",
                 likeCount: index * 5,
                 commentCount: index * 2,
-                isLikedByCurrentUser: index % 2 == 0
+                isLikedByMe: index % 2 == 0
             )
+
+            posts.append(post)
         }
+
+        return posts
     }
 
     // MARK: - Async Testing Utilities
@@ -141,8 +141,8 @@ final class GLOBETestUtilities {
     }
 
     /// Creates test ValidationError
-    static func createValidationError(field: String, message: String) -> ValidationResult {
-        return ValidationResult(isValid: false, errorMessage: message)
+    static func createValidationError(message: String) -> ValidationResult {
+        return ValidationResult.invalid(message)
     }
 
     // MARK: - Location Testing
@@ -270,7 +270,7 @@ extension XCTestCase {
 
     /// Enhanced async assertion with timeout and custom error messages
     func assertAsync<T>(
-        _ expression: @autoclosure () async throws -> T,
+        _ expression: @escaping () async throws -> T,
         timeout: TimeInterval = 2.0,
         file: StaticString = #filePath,
         line: UInt = #line

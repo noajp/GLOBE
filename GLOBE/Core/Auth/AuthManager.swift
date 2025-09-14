@@ -19,7 +19,7 @@ enum SecuritySeverity {
 }
 
 @MainActor
-class AuthManager: ObservableObject {
+class AuthManager: AuthServiceProtocol {
     static let shared = AuthManager()
     
     @Published var currentUser: AppUser?
@@ -40,18 +40,18 @@ class AuthManager: ObservableObject {
     private init() {
         // 初期化時は現在のセッションをチェック
         Task {
-            await checkCurrentUser()
+            let _ = await checkCurrentUser()
         }
         logger.info("AuthManager initialized")
     }
     
     // MARK: - Session Management
     
-    func checkCurrentUser() async {
+    func checkCurrentUser() async -> Bool {
         do {
             let session = try await supabase.auth.session
             let user = session.user
-            
+
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
@@ -60,11 +60,13 @@ class AuthManager: ObservableObject {
             )
             isAuthenticated = true
             logger.info("Current user session found: \(user.email ?? "")")
-            
+            return true
+
         } catch {
             logger.info("No current user session found")
             isAuthenticated = false
             currentUser = nil
+            return false
         }
     }
     
@@ -239,9 +241,9 @@ class AuthManager: ObservableObject {
     
     // MARK: - Sign Out
     
-    func signOut() async throws {
+    func signOut() async {
         logger.info("Sign out attempt")
-        
+
         do {
             try await supabase.auth.signOut()
             currentUser = nil
@@ -249,12 +251,17 @@ class AuthManager: ObservableObject {
             logger.info("Sign out successful")
         } catch {
             logger.error("Sign out failed: \(error.localizedDescription)")
-            throw AuthError.unknown(error.localizedDescription)
+            // Don't throw error for signOut - just log it
         }
     }
     
     // MARK: - Rate Limiting
-    
+
+    func checkRateLimit(for operation: String) -> Bool {
+        // Default implementation for protocol conformance
+        return true
+    }
+
     private func checkRateLimit(for email: String) throws {
         let now = Date()
         if let attempt = loginAttempts[email] {
@@ -296,31 +303,31 @@ class AuthManager: ObservableObject {
     
     // MARK: - Session Validation
     
-    func validateSession() async -> Bool {
+    func validateSession() async throws -> Bool {
         do {
             _ = try await supabase.auth.session
             logger.info("Session validation successful")
             return true
         } catch {
             logger.warning("Session validation failed: \(error.localizedDescription)")
-            return false
+            throw AuthError.unknown(error.localizedDescription)
         }
     }
     
     // MARK: - Security Methods (Simplified for GLOBE)
     
-    func getDeviceSecurityInfo() -> [String: String] {
-        var info: [String: String] = [:]
-        
+    func getDeviceSecurityInfo() -> [String: Any] {
+        var info: [String: Any] = [:]
+
         #if targetEnvironment(simulator)
-        info["is_simulator"] = "true"
+        info["is_simulator"] = true
         #else
-        info["is_simulator"] = "false"
+        info["is_simulator"] = false
         #endif
-        
+
         // 簡単なJailbreak検出
-        info["is_jailbroken"] = isJailbroken() ? "true" : "false"
-        
+        info["is_jailbroken"] = isJailbroken()
+
         return info
     }
     

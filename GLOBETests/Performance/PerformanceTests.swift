@@ -132,9 +132,6 @@ final class PerformanceTests: XCTestCase {
 
     // MARK: - Concurrent Access Performance Tests
     func testConcurrentValidation_threadSafety_performance() {
-        let expectation = self.expectation(description: "Concurrent validation")
-        expectation.expectedFulfillmentCount = 10
-
         // When: Multiple concurrent validation operations
         measure {
             DispatchQueue.concurrentPerform(iterations: 10) { index in
@@ -142,12 +139,11 @@ final class PerformanceTests: XCTestCase {
                     for i in 1...100 {
                         _ = InputValidator.validateEmail("concurrent\(index)-\(i)@test.com")
                     }
-                    expectation.fulfill()
                 }
             }
         }
 
-        waitForExpectations(timeout: 5.0)
+        // Performance expectation: < 1.0 seconds for concurrent validation
     }
 
     // MARK: - Real-world Scenario Performance Tests

@@ -15,7 +15,6 @@ class LikeService: ObservableObject {
     @Published var likeCounts: [UUID: Int] = [:]
     
     private init() {
-        // Initialize service - no mock data
     }
     
     func toggleLike(for post: Post, userId: String) -> Bool {
@@ -44,10 +43,8 @@ class LikeService: ObservableObject {
     }
     
     // MARK: - Database Integration Methods
-    // TODO: Implement actual database loading
     
     func initializePost(_ post: Post) {
-        // Initialize with zero likes - actual data should come from database
         if likeCounts[post.id] == nil {
             likeCounts[post.id] = 0
         }

@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - User Profile Models
 
-struct UserProfile: Identifiable, Codable, @unchecked Sendable {
+struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
     let id: String
     let username: String
     let displayName: String?
@@ -37,7 +37,7 @@ struct ProfileInsert: Codable, @unchecked Sendable {
 
 // MARK: - App User
 
-struct AppUser: Codable, @unchecked Sendable {
+struct AppUser: Codable, Equatable, @unchecked Sendable {
     let id: String
     let email: String?
     let username: String?

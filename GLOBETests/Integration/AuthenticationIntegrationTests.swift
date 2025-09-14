@@ -103,7 +103,7 @@ final class AuthenticationIntegrationTests: XCTestCase {
         let details = ["source": "integration_test", "timestamp": "\(Date())"]
 
         // When: Report security event
-        await AuthManager.shared.reportSecurityEvent(eventName, severity: severity, details: details)
+        AuthManager.shared.reportSecurityEvent(eventName, severity: severity, details: details)
 
         // Then: Event should be reported without throwing
         // (In a real integration test, we would verify log output)

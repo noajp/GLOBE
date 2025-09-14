@@ -33,8 +33,6 @@ class CommentService: ObservableObject {
     }
     
     func loadComments(for postId: UUID) {
-        // TODO: Load from database
-        // Initialize with empty data - actual data should come from database
         if comments[postId] == nil {
             comments[postId] = []
             commentCounts[postId] = 0

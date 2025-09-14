@@ -5,7 +5,7 @@ import Combine
 
 // クラス全体をMainActorで実行するように指定します。
 @MainActor
-class PostManager: ObservableObject {
+class PostManager: PostServiceProtocol {
     static let shared = PostManager()
 
     @Published var posts: [Post] = []
@@ -122,17 +122,14 @@ class PostManager: ObservableObject {
         return await supabaseService.deletePost(postId)
     }
     
-    func likePost(_ postId: UUID) async -> Bool {
+    func toggleLike(for postId: UUID) async -> Bool {
         guard let userIdString = AuthManager.shared.currentUser?.id else {
             return false
         }
         return await supabaseService.toggleLike(postId: postId, userId: userIdString)
     }
 
-    func unlikePost(_ postId: UUID) async -> Bool {
-        guard let userIdString = AuthManager.shared.currentUser?.id else {
-            return false
-        }
-        return await supabaseService.toggleLike(postId: postId, userId: userIdString)
+    func updatePosts(_ newPosts: [Post]) {
+        self.posts = newPosts
     }
 }

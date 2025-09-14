@@ -11,17 +11,73 @@ final class GLOBEUITests: XCTestCase {
     // MARK: - Test Properties
     var app: XCUIApplication!
 
+    // MARK: - Test Constants
+    private struct TestConstants {
+        static let defaultTimeout: TimeInterval = 10
+        static let shortTimeout: TimeInterval = 3
+        static let longTimeout: TimeInterval = 15
+        static let animationTimeout: TimeInterval = 1
+    }
+
+    // MARK: - Accessibility Identifiers
+    private struct AccessibilityIdentifiers {
+        static let mapView = "MainMapView"
+        static let createPostButton = "CreatePostButton"
+        static let locationButton = "LocationButton"
+        static let postCreationModal = "PostCreationModal"
+        static let postContentTextView = "PostContentTextView"
+        static let submitPostButton = "SubmitPostButton"
+        static let profileTab = "ProfileTab"
+        static let mapTab = "MapTab"
+        static let settingsTab = "SettingsTab"
+    }
+
     // MARK: - Setup & Teardown
     override func setUpWithError() throws {
         continueAfterFailure = false
 
         app = XCUIApplication()
         app.launchArguments = ["--uitesting"] // UI testing flag
+        app.launchEnvironment = ["ANIMATION_SPEED": "100"] // Speed up animations
         app.launch()
+
+        // Wait for app to be ready
+        XCTAssertTrue(app.waitForExistence(timeout: TestConstants.defaultTimeout))
     }
 
     override func tearDownWithError() throws {
         app = nil
+    }
+
+    // MARK: - Helper Methods
+
+    private func waitForElement(_ element: XCUIElement, timeout: TimeInterval = TestConstants.defaultTimeout) -> Bool {
+        return element.waitForExistence(timeout: timeout)
+    }
+
+    private func waitForElementToBeHittable(_ element: XCUIElement, timeout: TimeInterval = TestConstants.defaultTimeout) -> Bool {
+        let predicate = NSPredicate(format: "isHittable == true")
+        let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
+        return result == .completed
+    }
+
+    private func tapElementSafely(_ element: XCUIElement, description: String = "element") {
+        XCTAssertTrue(waitForElement(element), "\(description) should exist")
+        XCTAssertTrue(waitForElementToBeHittable(element), "\(description) should be hittable")
+        element.tap()
+    }
+
+    private func dismissKeyboardIfPresent() {
+        if app.keyboards.firstMatch.exists {
+            app.keyboards.buttons["return"].tap()
+        }
+    }
+
+    private func scrollToElement(_ element: XCUIElement, in scrollView: XCUIElement) {
+        while !element.isHittable && scrollView.exists {
+            scrollView.swipeUp()
+        }
     }
 
     // MARK: - App Launch Tests
@@ -30,47 +86,103 @@ final class GLOBEUITests: XCTestCase {
         // Given: App is launched in setUpWithError()
 
         // Then: Main interface elements should be visible
-        XCTAssertTrue(app.waitForExistence(timeout: 10))
-
-        // Check for main tab bar or navigation elements
         let tabBar = app.tabBars.firstMatch
         if tabBar.exists {
-            XCTAssertTrue(tabBar.isHittable)
+            XCTAssertTrue(waitForElementToBeHittable(tabBar), "Tab bar should be hittable")
+
+            // Verify essential tabs exist
+            let mapTab = app.tabBars.buttons.matching(identifier: AccessibilityIdentifiers.mapTab).firstMatch
+            let profileTab = app.tabBars.buttons.matching(identifier: AccessibilityIdentifiers.profileTab).firstMatch
+
+            if mapTab.exists {
+                XCTAssertTrue(mapTab.isHittable, "Map tab should be hittable")
+            }
+            if profileTab.exists {
+                XCTAssertTrue(profileTab.isHittable, "Profile tab should be hittable")
+            }
+        }
+
+        // Check for map view existence (primary interface)
+        let mapView = app.maps.matching(identifier: AccessibilityIdentifiers.mapView).firstMatch
+        if mapView.exists {
+            XCTAssertTrue(mapView.isHittable, "Map view should be interactive")
         }
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            let testApp = XCUIApplication()
+            testApp.launchArguments = ["--uitesting"]
+            testApp.launch()
+        }
+    }
+
+    @MainActor
+    func testAppStability_multipleBackgroundForeground() throws {
+        // Test app stability with background/foreground cycles
+        for _ in 0..<3 {
+            XCUIDevice.shared.press(.home)
+            sleep(1)
+            app.activate()
+            XCTAssertTrue(waitForElement(app.windows.firstMatch, timeout: TestConstants.shortTimeout))
         }
     }
 
     // MARK: - Main Navigation Tests
     @MainActor
     func testMainNavigation_tabBarNavigation() throws {
-        // Wait for app to fully load
-        _ = app.waitForExistence(timeout: 10)
-
         let tabBar = app.tabBars.firstMatch
-        if tabBar.exists {
-            let tabButtons = tabBar.buttons
+        guard tabBar.exists else {
+            XCTSkip("Tab bar not found - app may not use tab navigation")
+        }
 
-            // Test tapping each tab if they exist
-            if tabButtons.count > 0 {
-                for i in 0..<min(tabButtons.count, 5) { // Test up to 5 tabs
-                    let tabButton = tabButtons.element(boundBy: i)
-                    if tabButton.exists && tabButton.isHittable {
-                        tabButton.tap()
+        XCTAssertTrue(waitForElementToBeHittable(tabBar), "Tab bar should be interactive")
 
-                        // Wait for tab content to load
-                        _ = app.waitForExistence(timeout: 3)
+        let tabButtons = tabBar.buttons
+        XCTAssertGreaterThan(tabButtons.count, 0, "Should have at least one tab")
 
-                        // Verify tab selection (tab should remain visible)
-                        XCTAssertTrue(tabButton.exists)
-                    }
-                }
+        // Test navigation to each tab
+        var previousTabTitle: String?
+        for i in 0..<min(tabButtons.count, 5) { // Test up to 5 tabs
+            let tabButton = tabButtons.element(boundBy: i)
+
+            if tabButton.exists && tabButton.isHittable {
+                let tabTitle = tabButton.label
+                XCTAssertNotEqual(tabTitle, previousTabTitle, "Tab titles should be unique")
+
+                tapElementSafely(tabButton, description: "Tab button '\(tabTitle)'")
+
+                // Wait for tab content to load and verify selection
+                Thread.sleep(forTimeInterval: TestConstants.animationTimeout)
+                XCTAssertTrue(tabButton.isSelected || tabButton.value(forKey: "isSelected") as? Bool == true,
+                             "Tab '\(tabTitle)' should be selected after tap")
+
+                previousTabTitle = tabTitle
+            }
+        }
+    }
+
+    @MainActor
+    func testMainNavigation_backButtonFunctionality() throws {
+        let tabBar = app.tabBars.firstMatch
+        guard tabBar.exists else {
+            XCTSkip("Tab bar not found")
+        }
+
+        // Navigate to profile if available
+        let profileTab = app.tabBars.buttons.matching(identifier: AccessibilityIdentifiers.profileTab).firstMatch
+        if profileTab.exists {
+            tapElementSafely(profileTab, description: "Profile tab")
+
+            // Look for navigation back button
+            let backButton = app.navigationBars.buttons.firstMatch
+            if backButton.exists && backButton.label.contains("Back") {
+                tapElementSafely(backButton, description: "Back button")
+
+                // Verify we navigated back
+                Thread.sleep(forTimeInterval: TestConstants.animationTimeout)
+                XCTAssertTrue(waitForElement(tabBar), "Should return to main navigation")
             }
         }
     }

@@ -9,9 +9,9 @@ import Supabase
 import CoreLocation
 
 @MainActor
-final class MyPageViewModel: ObservableObject, @unchecked Sendable {
+final class MyPageViewModel: BaseViewModel {
     // MARK: - Published Properties
-    
+
     @Published var userProfile: UserProfile?
     @Published var userPosts: [Post] = []
     @Published var postsCount: Int = 0
@@ -20,32 +20,73 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
     @Published var stories: [Story] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
-    
+
     // MARK: - Dependencies
-    
-    private let authManager = AuthManager.shared
-    private let postManager = PostManager.shared
-    private let logger = DebugLogger.shared
-    private var cancellables = Set<AnyCancellable>()
+
+    private let authService: AuthServiceProtocol
+    private let userRepository: UserRepositoryProtocol
+    private let postRepository: PostRepositoryProtocol
+    private let cacheRepository: CacheRepositoryProtocol
     
     // MARK: - Private Properties
     
     private var hasLoadedInitially = false
     private var currentUserId: String? {
-        // 常にSupabaseのセッションから取得
-        get async {
-            do {
-                let session = try await supabase.auth.session
-                return session.user.id.uuidString
-            } catch {
-                return authManager.currentUser?.id
+        authService.currentUser?.id
+    }
+
+    private func handleAuthStateChange() {
+        if authService.isAuthenticated {
+            Task {
+                await loadUserDataIfNeeded()
             }
+        } else {
+            clearUserData()
         }
+    }
+
+    private func clearUserData() {
+        userProfile = nil
+        userPosts = []
+        stories = []
+        postsCount = 0
+        followersCount = 0
+        followingCount = 0
+        hasLoadedInitially = false
     }
     
     // MARK: - Initialization
-    
-    init() {
+
+    init(
+        authService: AuthServiceProtocol = ServiceContainer.serviceLocator.authService(),
+        userRepository: UserRepositoryProtocol = ServiceContainer.serviceLocator.userRepository(),
+        postRepository: PostRepositoryProtocol = ServiceContainer.serviceLocator.postRepository(),
+        cacheRepository: CacheRepositoryProtocol = ServiceContainer.serviceLocator.cacheRepository()
+    ) {
+        self.authService = authService
+        self.userRepository = userRepository
+        self.postRepository = postRepository
+        self.cacheRepository = cacheRepository
+
+        super.init()
+
+        setupObservers()
+        loadInitialData()
+    }
+
+    // MARK: - Setup
+
+    private func setupObservers() {
+        // Observe authentication state changes
+        authService.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.handleAuthStateChange()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func loadInitialData() {
         Task {
             // まずプロフィールと認証情報を同期
             await syncProfileWithAuthData()
@@ -53,17 +94,6 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
             await loadFollowedStories()
         }
         
-        // Listen for post updates
-        postManager.$posts
-            .sink { [weak self] posts in
-                guard let self = self else { return }
-                Task {
-                    guard let userId = await self.currentUserId else { return }
-                    self.userPosts = posts.filter { $0.userId == userId }
-                    self.postsCount = self.userPosts.count
-                }
-            }
-            .store(in: &cancellables)
     }
     
     // MARK: - Public Methods
@@ -74,97 +104,62 @@ final class MyPageViewModel: ObservableObject, @unchecked Sendable {
     }
     
     func loadUserData() async {
-        guard let userId = await currentUserId else {
-            logger.warning("Load user data attempted without user ID", category: "MyPageViewModel")
+        guard let userId = currentUserId else {
+            SecureLogger.shared.warning("Load user data attempted without user ID")
             return
         }
-        
-        logger.info("Starting to load user data", category: "MyPageViewModel", details: [
-            "user_id": userId
-        ])
+
+        SecureLogger.shared.info("Starting to load user data", details: ["user_id": userId])
         isLoading = true
-        
+
         do {
-            // Load profile
-            let profileData = try await supabase
-                .from("profiles")
-                .select()
-                .eq("id", value: userId)
-                .execute()
-            
-            let profiles: [UserProfile] = try JSONDecoder().decode([UserProfile].self, from: profileData.data)
-            
-            if let profile = profiles.first {
+            // Load profile using repository
+            if let profile = try await userRepository.getUserProfile(by: userId) {
                 userProfile = profile
-                print("✅ MyPageViewModel: Profile loaded for \(profile.username)")
+                SecureLogger.shared.info("Profile loaded successfully", details: ["username": profile.username])
             } else {
                 // プロフィールが存在しない場合、認証情報から作成
-                print("⚠️ MyPageViewModel: Profile not found, creating from auth data...")
+                SecureLogger.shared.warning("Profile not found, creating from auth data")
                 await createProfileFromAuthData()
-                return // createProfileFromAuthData内でloadUserDataを再帰呼び出しするため、ここで終了
+                return
             }
-            
-            // Load posts
-            let postData = try await supabase
-                .from("posts")
-                .select()
-                .eq("user_id", value: userId)
-                .order("created_at", ascending: false)
-                .execute()
-            
-            // Decode with ISO8601 dates and map to Post
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            if let dbPosts = try? decoder.decode([DatabasePost].self, from: postData.data) {
-                self.userPosts = dbPosts.map { dbPost in
-                    Post(
-                        id: dbPost.id,
-                        createdAt: dbPost.created_at,
-                        location: CLLocationCoordinate2D(latitude: dbPost.latitude, longitude: dbPost.longitude),
-                        locationName: dbPost.location_name,
-                        imageData: nil,
-                        imageUrl: dbPost.image_url,
-                        text: dbPost.content,
-                        authorName: (dbPost.is_anonymous ?? false) ? "匿名ユーザー" : (dbPost.profiles?.display_name ?? dbPost.profiles?.username ?? "匿名ユーザー"),
-                        authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
-                        likeCount: 0,
-                        commentCount: 0,
-                        isPublic: true,
-                        isAnonymous: dbPost.is_anonymous ?? false,
-                        authorAvatarUrl: dbPost.profiles?.avatar_url
-                    )
-                }
-            } else {
-                // Fallback: decode directly to Post with ISO8601 dates
-                self.userPosts = try decoder.decode([Post].self, from: postData.data)
+
+            // Load user posts using repository
+            let posts = try await postRepository.getPostsByUser(userId)
+            userPosts = posts
+            postsCount = posts.count
+
+            // Update local user profile with post count
+            if var profile = userProfile {
+                profile = UserProfile(
+                    id: profile.id,
+                    username: profile.username,
+                    displayName: profile.displayName,
+                    bio: profile.bio,
+                    avatarUrl: profile.avatarUrl,
+                    postCount: postsCount,
+                    followerCount: profile.followerCount,
+                    followingCount: profile.followingCount
+                )
+                userProfile = profile
             }
-            postsCount = userPosts.count
-            
-            // Load follower/following counts
-            let followersData = try await supabase
-                .from("follows")
-                .select("*", head: false, count: .exact)
-                .eq("following_id", value: userId)
-                .execute()
-            
-            followersCount = followersData.count ?? 0
-            
-            let followingData = try await supabase
-                .from("follows")
-                .select("*", head: false, count: .exact)
-                .eq("follower_id", value: userId)
-                .execute()
-            
-            followingCount = followingData.count ?? 0
-            
-            print("📊 Stats - Posts: \(postsCount), Followers: \(followersCount), Following: \(followingCount)")
-            
+
+            // Load follower/following counts (placeholder - would need FollowRepository)
+            followersCount = 0
+            followingCount = 0
+
+            SecureLogger.shared.info("User data loaded successfully", details: [
+                "posts": String(postsCount),
+                "followers": String(followersCount),
+                "following": String(followingCount)
+            ])
+
             hasLoadedInitially = true
             isLoading = false
-            
+
         } catch {
-            print("❌ MyPageViewModel: Error loading user data: \(error)")
-            errorMessage = error.localizedDescription
+            SecureLogger.shared.error("Error loading user data", error: error)
+            errorMessage = AppError.from(error).localizedDescription
             isLoading = false
         }
     }

@@ -1,0 +1,350 @@
+# SwiftLint Configuration for GLOBE Project
+# Purpose: Code quality and consistency enforcement
+# Updated: Phase 8 - Developer Experience Enhancement
+
+# Disabled Rules (carefully curated)
+disabled_rules:
+  - trailing_whitespace  # Handled by formatter
+  - todo                # We allow TODO comments for development
+  - file_length         # We handle this with custom rule
+  - force_cast          # Sometimes necessary for UI code
+  - force_try           # We use where appropriate with proper error handling
+
+# Enabled Opt-in Rules
+opt_in_rules:
+  # Code Quality
+  - array_init
+  - attributes
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - discouraged_object_literal
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - enum_case_associated_values_count
+  - explicit_init
+  - extension_access_modifier
+  - fallthrough
+  - fatal_error_message
+  - file_header
+  - first_where
+  - flatmap_over_map_reduce
+  - identical_operands
+  - implicit_return
+  - joined_default_parameter
+  - last_where
+  - literal_expression_end_indentation
+  - multiline_arguments
+  - multiline_function_chains
+  - multiline_literal_brackets
+  - multiline_parameters
+  - multiline_parameters_brackets
+  - operator_usage_whitespace
+  - overridden_super_call
+  - pattern_matching_keywords
+  - prefer_self_type_over_type_of_self
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - sorted_first_last
+  - static_operator
+  - strong_iboutlet
+  - toggle_bool
+  - unavailable_function
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+  - yoda_condition
+
+  # Performance
+  - reduce_into
+  - contains_over_range_nil_comparison
+
+  # SwiftUI Specific
+  - accessibility_label_for_image
+  - accessibility_trait_for_button
+
+  # Security & Best Practices
+  - legacy_hashing
+  - legacy_random
+  - unowned_variable_capture
+  - weak_delegate
+
+# Rule Configurations
+
+# Enforced file header for consistency
+file_header:
+  required_pattern: |
+                    \/\/======================================================================
+                    \/\/ MARK: - .*\.swift
+                    \/\/ Purpose: .*
+                    \/\/ Path: .*\.swift
+                    \/\/======================================================================
+
+# Line length - reasonable for modern displays
+line_length:
+  warning: 120
+  error: 140
+  ignores_comments: true
+  ignores_urls: true
+  ignores_function_declarations: true
+  ignores_interpolated_strings: true
+
+# Function body length - encourage small, focused functions
+function_body_length:
+  warning: 50
+  error: 100
+
+# Function parameter count - encourage good design
+function_parameter_count:
+  warning: 5
+  error: 8
+
+# Type body length - reasonable for ViewModels and complex types
+type_body_length:
+  warning: 300
+  error: 500
+
+# File length - custom handling for large files
+file_length:
+  warning: 400
+  error: 600
+  ignore_comment_only_lines: true
+
+# Cyclomatic complexity - maintain readability
+cyclomatic_complexity:
+  warning: 8
+  error: 12
+  ignores_case_statements: true
+
+# Nesting depth - prevent overly complex structures
+nesting:
+  type_level:
+    warning: 2
+    error: 3
+  statement_level:
+    warning: 4
+    error: 6
+
+# Identifier naming rules
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 40
+    error: 50
+  excluded:
+    - id
+    - x
+    - y
+    - z
+    - dx
+    - dy
+    - dz
+    - i
+    - j
+    - k
+    - ok
+    - up
+  validates_start_with_lowercase: true
+
+# Type naming
+type_name:
+  min_length:
+    warning: 3
+    error: 2
+  max_length:
+    warning: 40
+    error: 50
+  validates_start_with_lowercase: false
+  excluded:
+    - UI
+    - ID
+    - URL
+    - API
+    - GPS
+    - RLS
+    - AWS
+    - CDN
+    - DOM
+    - CPU
+    - GPU
+    - RAM
+    - SSD
+    - USB
+    - PDF
+    - PNG
+    - JPG
+    - GIF
+    - SVG
+    - XML
+    - CSV
+    - JSON
+    - HTML
+    - CSS
+    - JWT
+    - OAuth
+    - GDPR
+
+# Generic type naming
+generic_type_name:
+  min_length:
+    warning: 1
+    error: 1
+  max_length:
+    warning: 20
+    error: 30
+
+# Closure parameter count
+closure_parameter_count:
+  warning: 3
+  error: 5
+
+# Large tuple - encourage custom types
+large_tuple:
+  warning: 3
+  error: 4
+
+# Multiline arguments alignment
+multiline_arguments:
+  only_enforce_after_first_closure_on_first_line: false
+
+# Multiline parameters alignment
+multiline_parameters:
+  allows_single_line: true
+
+# Vertical whitespace
+vertical_whitespace:
+  max_empty_lines: 2
+
+# Force unwrapping - allow in specific contexts
+force_unwrapping:
+  severity: warning
+
+# Implicit getter - clean code
+implicit_getter:
+  severity: warning
+
+# Redundant optional initialization
+redundant_optional_initialization:
+  severity: warning
+
+# Switch case alignment
+switch_case_alignment:
+  indented_cases: true
+
+# Trailing closure
+trailing_closure:
+  only_single_muted_parameter: true
+
+# Custom Rules for GLOBE Project
+custom_rules:
+  # Security: Prevent hardcoded secrets
+  no_hardcoded_secrets:
+    name: "No Hardcoded Secrets"
+    regex: '(password|secret|key|token)\s*=\s*"[^"]*"'
+    message: "Potential hardcoded secret detected"
+    severity: error
+
+  # Performance: Discourage print statements in production
+  no_print_statements:
+    name: "No Print Statements"
+    regex: '^\s*print\s*\('
+    message: "Use SecureLogger instead of print statements"
+    severity: warning
+    excluded: ".*Tests.*"
+
+  # Code Quality: Enforce MARK comments for large files
+  require_mark_comments:
+    name: "Require MARK Comments"
+    regex: '^(class|struct|enum|protocol|extension)\s+\w+'
+    message: "Large types should be organized with MARK comments"
+    severity: warning
+
+  # SwiftUI: Discourage direct UIKit usage
+  swiftui_over_uikit:
+    name: "Prefer SwiftUI over UIKit"
+    regex: 'import\s+UIKit'
+    message: "Consider using SwiftUI alternatives when possible"
+    severity: warning
+    excluded:
+      - ".*Bridge.*"
+      - ".*Legacy.*"
+      - ".*Extensions.*"
+
+  # Architecture: Enforce proper naming for ViewModels
+  viewmodel_naming:
+    name: "ViewModel Naming Convention"
+    regex: '(class|struct)\s+\w*(?<!ViewModel)\s*:\s*.*ObservableObject'
+    message: "Classes conforming to ObservableObject should end with 'ViewModel'"
+    severity: warning
+
+  # Security: Ensure proper error handling
+  proper_error_handling:
+    name: "Proper Error Handling"
+    regex: 'try!\s+'
+    message: "Use proper error handling instead of force try"
+    severity: warning
+    excluded: ".*Tests.*"
+
+# Included/Excluded Paths
+included:
+  - GLOBE
+  - GLOBETests
+  - GLOBEUITests
+
+excluded:
+  - Carthage
+  - Pods
+  - .build
+  - DerivedData
+  - vendor
+  - .package.resolved
+  - Package.swift
+
+# Specific file exclusions
+excluded_paths:
+  - "GLOBE/Generated"
+  - "GLOBETests/Generated"
+  - "*.generated.swift"
+  - "*+Generated.swift"
+
+# Reporter configuration
+reporter: "xcode" # Options: xcode, json, csv, checkstyle, junit, html, emoji, sonarqube, markdown
+
+# Execution configuration
+strict: false # Don't fail build on warnings
+force_exclude: true # Force exclusion even if explicitly included
+
+# Performance settings
+compilation_database: .swiftlint_cache
+
+# Analysis configuration
+analyze_generated_files: false
+check_for_updates: true
+
+# Rule-specific exclusions
+trailing_comma:
+  mandatory_comma: true
+
+# Documentation
+documentation_comment:
+  severity: warning
+  excluded:
+    - ".*Tests.*"
+    - ".*Mock.*"
+
+# Deployment target checks
+deployment_target:
+  iOS_deployment_target: "15.0"
+  severity: error
+
+# Unused imports
+unused_import:
+  severity: warning
+  always_keep_imports:
+    - Foundation
+    - SwiftUI
+    - Combine
