@@ -1,0 +1,60 @@
+name: iOS Unit Tests
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Create Secrets.plist from GitHub Secrets
+        working-directory: GLOBE
+        run: |
+          echo "Generating Secrets.plist"
+          cat > Secrets.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>SUPABASE_URL</key>
+            <string>${SUPABASE_URL}</string>
+            <key>SUPABASE_ANON_KEY</key>
+            <string>${SUPABASE_ANON_KEY}</string>
+          </dict>
+          </plist>
+          EOF
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: List schemes
+        run: xcodebuild -list -project GLOBE.xcodeproj
+
+      - name: Build
+        run: xcodebuild -project GLOBE.xcodeproj -scheme GLOBE -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 15' build | xcpretty
+        env:
+          NSUnbufferedIO: YES
+        shell: bash
+
+      - name: Run unit tests (GLOBETests only)
+        run: xcodebuild -project GLOBE.xcodeproj -scheme GLOBE -destination 'platform=iOS Simulator,name=iPhone 15' -enableCodeCoverage YES test -only-testing:GLOBETests | xcpretty
+        env:
+          NSUnbufferedIO: YES
+        shell: bash
+

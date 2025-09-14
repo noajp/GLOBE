@@ -485,7 +485,6 @@ struct MapContentView: View {
             }
             .mapStyle(.hybrid(elevation: .realistic))
             .mapControls {
-                MapCompass()
                 MapScaleView()
             }
             .onMapCameraChange { context in
