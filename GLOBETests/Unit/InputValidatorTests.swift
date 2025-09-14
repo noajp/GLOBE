@@ -83,5 +83,29 @@ final class InputValidatorTests: XCTestCase {
         let osaka = InputValidator.validateLocationSafety(latitude: 34.6937, longitude: 135.5023)
         XCTAssertTrue(osaka.isValid)
     }
+    
+    // MARK: - Username
+    func testValidateUsername_rules() {
+        XCTAssertTrue(InputValidator.validateUsername("user_01").isValid)
+        XCTAssertFalse(InputValidator.validateUsername("ab").isValid) // 3文字未満
+        XCTAssertFalse(InputValidator.validateUsername("too-long-username-123").isValid)
+        XCTAssertFalse(InputValidator.validateUsername("bad name").isValid)
+        XCTAssertFalse(InputValidator.validateUsername("日本語").isValid)
+    }
+    
+    // MARK: - URL
+    func testValidateURL_basic() {
+        XCTAssertTrue(InputValidator.validateURL("https://example.com").isValid)
+        XCTAssertTrue(InputValidator.validateURL("https://example.com/path?x=1#y").isValid)
+        XCTAssertFalse(InputValidator.validateURL("javascript:alert(1)").isValid)
+        XCTAssertFalse(InputValidator.validateURL("data:text/html;base64,aaa").isValid)
+        XCTAssertFalse(InputValidator.validateURL("ftp://example.com").isValid) // 実装次第で変わる可能性あり
+    }
+    
+    // MARK: - Phone
+    func testValidatePhoneNumber() {
+        XCTAssertTrue(InputValidator.validatePhoneNumber("090-1234-5678").isValid)
+        XCTAssertTrue(InputValidator.validatePhoneNumber("+81 90 1234 5678").isValid)
+        XCTAssertFalse(InputValidator.validatePhoneNumber("abc-123").isValid)
+    }
 }
-

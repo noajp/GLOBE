@@ -90,9 +90,9 @@ struct MyPageView: View {
                             .lineLimit(1)
                     }
                     
-                    // User ID (without "ID:" prefix)
+                    // User ID with @ prefix
                     if let userId = viewModel.userProfile?.id {
-                        Text(userId.prefix(8))
+                        Text("@\(userId.prefix(8))")
                             .font(.system(size: 12, weight: .regular))
                             .foregroundColor(.gray)
                             .lineLimit(1)
