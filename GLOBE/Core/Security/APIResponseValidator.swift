@@ -211,7 +211,7 @@ final class APIResponseValidator {
         }
 
         // Validate signature if provided (placeholder for future implementation)
-        if let signature = signature, let publicKey = publicKey {
+        if let _ = signature, let _ = publicKey {
             // This would implement signature verification using the public key
             // For now, just log that signature verification was requested
             SecureLogger.shared.info("Signature verification requested but not yet implemented")
@@ -408,12 +408,13 @@ extension APIResponseValidator {
     /// Create a secure data task with built-in validation
     func createSecureDataTask(
         with request: URLRequest,
-        session: URLSession = CertificatePinning.createSecureURLSession(),
+        session: URLSession? = nil,
         expectedChecksum: String? = nil
     ) -> SecureDataTask {
+        let actualSession = session ?? URLSession(configuration: .default)
         return SecureDataTask(
             request: request,
-            session: session,
+            session: actualSession,
             validator: self,
             expectedChecksum: expectedChecksum
         )

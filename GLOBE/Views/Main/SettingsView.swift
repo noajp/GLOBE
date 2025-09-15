@@ -192,13 +192,7 @@ struct SettingsView: View {
                     // Sign Out
                     Button(action: {
                         Task { @MainActor in
-                            do {
-                                try await authManager.signOut()
-                            } catch {
-                                print("❌ サインアウトエラー: \(error.localizedDescription)")
-                                // エラーログを記録
-                                SecureLogger.shared.error("Sign out failed in Settings", file: #file, function: #function, line: #line)
-                            }
+                            await authManager.signOut()
                         }
                     }) {
                         Text("Sign Out")

@@ -364,6 +364,7 @@ final class CertificatePinning: NSObject {
 
 // MARK: - URLSessionDelegate Extension
 
+@MainActor
 extension CertificatePinning: URLSessionDelegate {
 
     func urlSession(
@@ -394,7 +395,7 @@ extension CertificatePinning: URLSessionDelegate {
 extension CertificatePinning {
 
     /// Create URLSession with certificate pinning enabled
-    nonisolated static func createSecureURLSession(
+    static func createSecureURLSession(
         configuration: URLSessionConfiguration = .default,
         delegateQueue: OperationQueue? = nil
     ) -> URLSession {

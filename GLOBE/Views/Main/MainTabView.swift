@@ -15,46 +15,16 @@ struct MainTabView: View {
     @State private var showingAuth = false
     @State private var showingProfile = false
     @State private var shouldMoveToCurrentLocation = false
+    @State private var notificationObservers: [NSObjectProtocol] = []
 
-    
+
     // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
     
     var body: some View {
-        ZStack {
-            // Main content with header
-            VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 0) {
-                    // App title bar
-                    HStack {
-                        Text("GLOBE")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-
-                        Spacer()
-
-                        // Profile button
-                        Button(action: {
-                            if authManager.isAuthenticated {
-                                showingProfile = true
-                            } else {
-                                showingAuth = true
-                            }
-                        }) {
-                            Image(systemName: authManager.isAuthenticated ? "person.circle.fill" : "person.circle")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 10)
-                    .background(customBlack)
-                }
-                .background(customBlack)
-                
-                // Main content area - always show map
+        GlassEffectContainer {
+            ZStack {
+                // Full screen map
                 MapContentView(
                     mapManager: mapManager,
                     locationManager: locationManager,
@@ -64,34 +34,25 @@ struct MainTabView: View {
                     shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation
                 )
                     .environmentObject(appSettings)
-                    .ignoresSafeArea(edges: .bottom)
-            }
-            .background(Color.clear)
-            
-            // Floating post button (bottom right)
-            if authManager.isAuthenticated {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            showingCreatePost = true
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(customBlack)
-                                    .frame(width: 50, height: 50)
-                                
-                                Image(systemName: "plus")
-                                    .font(.title3)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                            }
+                    .ignoresSafeArea(.all)
+
+                // Glass Tab Bar at bottom
+                LiquidGlassBottomTabBar(
+                    onProfileTapped: {
+                        if authManager.isAuthenticated {
+                            self.showingProfile = true
+                        } else {
+                            self.showingAuth = true
                         }
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 40)
+                    },
+                    onPostTapped: {
+                        if authManager.isAuthenticated {
+                            self.showingCreatePost = true
+                        } else {
+                            self.showingAuth = true
+                        }
                     }
-                }
+                )
             }
         }
         .ignoresSafeArea(.keyboard)
@@ -118,119 +79,120 @@ struct MainTabView: View {
             if !isAuthenticated {
                 // Dismiss any existing sheets before presenting auth to avoid
                 // "Currently, only presenting a single sheet is supported" warnings
-                showingCreatePost = false
-                showingProfile = false
+                self.showingCreatePost = false
+                self.showingProfile = false
                 // Present auth slightly delayed to let dismissals complete
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 200_000_000)
                     showingAuth = true
                 }
             } else {
                 // Ensure auth sheet is closed once signed in
-                showingAuth = false
+                self.showingAuth = false
             }
         }
         .onAppear {
             // 通知の監視を開始
-            NotificationCenter.default.addObserver(
+            let postAtLocationObserver = NotificationCenter.default.addObserver(
                 forName: Notification.Name("PostAtCurrentLocation"),
                 object: nil,
                 queue: .main
             ) { _ in
                 // 現在地に移動してから投稿画面を開く
-                Task {
-                    await moveToCurrentLocationAndPost()
-                }
+                moveToCurrentLocationAndPost()
             }
-            
-            // セキュリティ初期化
+
+            notificationObservers = [postAtLocationObserver]
+
+            // セキュリティ初期化（メインスレッドで実行）
             performSecurityChecks()
-            
+
             // アプリ起動時に認証状態をチェック
             if !authManager.isAuthenticated {
-
                 showingAuth = true
             } else {
-
-                
                 // 認証済みユーザーのセッション検証
-                Task {
-                    let isValidSession = (try? await authManager.validateSession()) ?? false
-                    if !isValidSession {
-
-                        showingAuth = true
+                Task { @MainActor in
+                    do {
+                        let isValidSession = (try? await authManager.validateSession()) ?? false
+                        if !isValidSession {
+                            showingAuth = true
+                            return
+                        }
+                        // 最初の投稿取得はUI表示後に遅延して実行（起動体感を軽く）
+                        try await Task.sleep(nanoseconds: 200_000_000)
+                        await mapManager.fetchInitialPostsIfNeeded()
+                    } catch {
+                        SecureLogger.shared.error("Failed to initialize user session: \(error)")
                     }
-                    // 最初の投稿取得はUI表示後に遅延して実行（起動体感を軽く）
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                    await mapManager.fetchInitialPostsIfNeeded()
                 }
             }
         }
         .onChange(of: authManager.isAuthenticated) { _, authed in
             if authed {
-                Task { await mapManager.fetchInitialPostsIfNeeded() }
+                Task {
+                    await mapManager.fetchInitialPostsIfNeeded()
+                }
             }
         }
         .task {
             // 定期的なセキュリティチェック（バックグラウンドで実行）
-            await performPeriodicSecurityChecks()
+            do {
+                await performPeriodicSecurityChecks()
+            }
         }
+        .onDisappear {
+            // NotificationCenter observersをクリーンアップ
+            for observer in notificationObservers {
+                NotificationCenter.default.removeObserver(observer)
+            }
+            notificationObservers.removeAll()
+        }
+        } // GlassEffectContainer
     }
-    
+
+// MARK: - Security Methods
+
+extension MainTabView {
     // MARK: - Post at Current Location
-    private func moveToCurrentLocationAndPost() async {
-        // 位置情報許可を確認
+    @MainActor
+    private func moveToCurrentLocationAndPost() {
         let locationManager = CLLocationManager()
         let status = locationManager.authorizationStatus
-        
+
         guard status == .authorizedWhenInUse || status == .authorizedAlways else {
-            // 位置情報が許可されていない場合は許可をリクエスト
             if status == .notDetermined {
                 locationManager.requestWhenInUseAuthorization()
             }
             return
         }
-        
-        // 現在地を取得
+
         if let currentLocation = locationManager.location?.coordinate {
-            // メインスレッドで地図を現在地に移動
-            await MainActor.run {
-                // 地図を現在地にフォーカス
-                mapManager.focusOnLocation(currentLocation)
-                
-                // 少し待ってから投稿画面を開く
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    showingCreatePost = true
-                }
+            mapManager.focusOnLocation(currentLocation)
+
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                showingCreatePost = true
             }
         }
     }
-    
+
     // MARK: - Location Permission Check
     private func checkLocationPermission() {
         let locationManager = CLLocationManager()
         let status = locationManager.authorizationStatus
-        
+
         switch status {
         case .notDetermined:
-            // まだ許可を求めていない場合は直接システムダイアログを表示
             locationManager.requestWhenInUseAuthorization()
         case .denied, .restricted:
-            // 拒否されている場合は設定アプリへの誘導を検討（ここではログのみ）
             break
-
         case .authorizedWhenInUse, .authorizedAlways:
-            // 許可済みの場合は何もしない
             break
         @unknown default:
             break
-
         }
     }
-}
-
-// MARK: - Security Methods
-
-extension MainTabView {
     
     /// アプリ起動時のセキュリティチェック
     private func performSecurityChecks() {
@@ -270,14 +232,22 @@ extension MainTabView {
     
     /// 定期的なセキュリティチェック
     private func performPeriodicSecurityChecks() async {
-        while true {
+        while !Task.isCancelled {
             // 5分ごとにセキュリティチェックを実行
-            try? await Task.sleep(nanoseconds: 300_000_000_000) // 5分
-            
-            guard authManager.isAuthenticated else { continue }
-            
+            do {
+                try await Task.sleep(nanoseconds: 300_000_000_000) // 5分
+            } catch {
+                // Task was cancelled, exit gracefully
+                break
+            }
+
+            guard authManager.isAuthenticated && !Task.isCancelled else { continue }
+
             SecureLogger.shared.debug("Performing periodic security checks")
             
+            // Task cancellation check
+            guard !Task.isCancelled else { break }
+
             // セッション妥当性チェック
             let isValidSession = (try? await authManager.validateSession()) ?? false
             if !isValidSession {
@@ -287,7 +257,10 @@ extension MainTabView {
                 }
                 break
             }
-            
+
+            // Task cancellation check
+            guard !Task.isCancelled else { break }
+
             // デバイス状態チェック
             let currentDeviceInfo = authManager.getDeviceSecurityInfo()
             let currentDeviceInfoStrings: [String: String] = currentDeviceInfo.reduce(into: [:]) { dict, pair in

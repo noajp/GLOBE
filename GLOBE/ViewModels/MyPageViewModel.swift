@@ -23,10 +23,10 @@ final class MyPageViewModel: BaseViewModel {
 
     // MARK: - Dependencies
 
-    private let authService: AuthServiceProtocol
-    private let userRepository: UserRepositoryProtocol
-    private let postRepository: PostRepositoryProtocol
-    private let cacheRepository: CacheRepositoryProtocol
+    private let authService: any AuthServiceProtocol
+    private let userRepository: any UserRepositoryProtocol
+    private let postRepository: any PostRepositoryProtocol
+    private let cacheRepository: any CacheRepositoryProtocol
     
     // MARK: - Private Properties
     
@@ -60,15 +60,15 @@ final class MyPageViewModel: BaseViewModel {
     // MARK: - Initialization
 
     init(
-        authService: AuthServiceProtocol = ServiceContainer.serviceLocator.authService(),
-        userRepository: UserRepositoryProtocol = ServiceContainer.serviceLocator.userRepository(),
-        postRepository: PostRepositoryProtocol = ServiceContainer.serviceLocator.postRepository(),
-        cacheRepository: CacheRepositoryProtocol = ServiceContainer.serviceLocator.cacheRepository()
+        authService: any AuthServiceProtocol = AuthManager.shared,
+        userRepository: (any UserRepositoryProtocol)? = nil,
+        postRepository: (any PostRepositoryProtocol)? = nil,
+        cacheRepository: (any CacheRepositoryProtocol)? = nil
     ) {
         self.authService = authService
-        self.userRepository = userRepository
-        self.postRepository = postRepository
-        self.cacheRepository = cacheRepository
+        self.userRepository = userRepository ?? UserRepository.create()
+        self.postRepository = postRepository ?? PostRepository.create()
+        self.cacheRepository = cacheRepository ?? CacheRepository.create()
 
         super.init()
 

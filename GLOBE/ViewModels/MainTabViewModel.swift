@@ -12,10 +12,10 @@ import CoreLocation
 @MainActor
 class MainTabViewModel: ObservableObject {
     // MARK: - Dependencies
-    private let authService: AuthServiceProtocol
-    private let postService: PostServiceProtocol
-    private let userRepository: UserRepositoryProtocol
-    private let postRepository: PostRepositoryProtocol
+    private let authService: any AuthServiceProtocol
+    private let postService: any PostServiceProtocol
+    private let userRepository: any UserRepositoryProtocol
+    private let postRepository: any PostRepositoryProtocol
 
     // MARK: - Published Properties
     @Published var showingAuth = false
@@ -55,15 +55,15 @@ class MainTabViewModel: ObservableObject {
 
     // MARK: - Initialization
     init(
-        authService: AuthServiceProtocol = ServiceContainer.serviceLocator.authService(),
-        postService: PostServiceProtocol = ServiceContainer.serviceLocator.postService(),
-        userRepository: UserRepositoryProtocol = ServiceContainer.serviceLocator.userRepository(),
-        postRepository: PostRepositoryProtocol = ServiceContainer.serviceLocator.postRepository()
+        authService: any AuthServiceProtocol = AuthManager.shared,
+        postService: any PostServiceProtocol = PostManager.shared,
+        userRepository: (any UserRepositoryProtocol)? = nil,
+        postRepository: (any PostRepositoryProtocol)? = nil
     ) {
         self.authService = authService
         self.postService = postService
-        self.userRepository = userRepository
-        self.postRepository = postRepository
+        self.userRepository = userRepository ?? UserRepository.create()
+        self.postRepository = postRepository ?? PostRepository.create()
 
         setupObservers()
         checkAuthenticationState()

@@ -57,37 +57,20 @@ class UserRepository: UserRepositoryProtocol {
     }
 
     func updateUserProfile(_ user: AppUser) async throws -> Bool {
-        do {
-            let updates = [
-                "email": user.email,
-                "data": [
-                    "username": user.username ?? ""
-                ]
-            ] as [String : Any]
+        _ = try await supabaseClient.auth.update(user: UserAttributes(
+            email: user.email,
+            data: ["username": AnyJSON.string(user.username ?? "")]
+        ))
 
-            _ = try await supabaseClient.auth.update(user: UserAttributes(
-                email: user.email,
-                data: ["username": AnyJSON.string(user.username ?? "")]
-            ))
-
-            SecureLogger.shared.info("User profile updated successfully")
-            return true
-        } catch {
-            SecureLogger.shared.error("Failed to update user profile: \(error.localizedDescription)")
-            throw AppError.from(error)
-        }
+        SecureLogger.shared.info("User profile updated successfully")
+        return true
     }
 
     func deleteUser(_ userId: String) async throws -> Bool {
-        do {
-            // Note: User deletion typically requires admin privileges
-            // This is a placeholder implementation
-            SecureLogger.shared.securityEvent("User deletion requested", details: ["userId": userId])
-            return false // Not implemented for security reasons
-        } catch {
-            SecureLogger.shared.error("Failed to delete user: \(error.localizedDescription)")
-            throw AppError.from(error)
-        }
+        // Note: User deletion typically requires admin privileges
+        // This is a placeholder implementation
+        SecureLogger.shared.securityEvent("User deletion requested", details: ["userId": userId])
+        return false // Not implemented for security reasons
     }
 
     // MARK: - User Profile Management
