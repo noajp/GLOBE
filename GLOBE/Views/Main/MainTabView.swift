@@ -18,6 +18,7 @@ struct MainTabView: View {
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var shouldShowPostAfterDelay = false
     @State private var tappedLocation: CLLocationCoordinate2D?
+    @State private var vTipPoint: CGPoint?
 
 
     // カスタムデザイン用の色定義
@@ -33,7 +34,8 @@ struct MainTabView: View {
                 authManager: authManager,
                 showingCreatePost: $showingCreatePost,
                 shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
-                tappedLocation: $tappedLocation
+                tappedLocation: $tappedLocation,
+                vTipPoint: $vTipPoint
             )
                 .environmentObject(appSettings)
                 .ignoresSafeArea(.all)
@@ -47,41 +49,37 @@ struct MainTabView: View {
 
                     VStack(spacing: 16) {
                         // Profile Button (上)
-                        GlassCircleButton(
-                            id: "profile-button",
-                            size: 50,
-                            action: {
-                                if authManager.isAuthenticated {
-                                    self.showingProfile = true
-                                } else {
-                                    self.showingAuth = true
-                                }
+                        Button(action: {
+                            if authManager.isAuthenticated {
+                                self.showingProfile = true
+                            } else {
+                                self.showingAuth = true
                             }
-                        ) {
+                        }) {
                             Image(systemName: "person.circle.fill")
                                 .font(.system(size: 24, weight: .medium))
                                 .foregroundStyle(.white)
-                                .shadow(color: .white.opacity(0.3), radius: 2, x: 0, y: 0)
+                                .frame(width: 50, height: 50)
+                                .background(Color.black.opacity(0.7))
+                                .clipShape(Circle())
                         }
 
                         // Post Button (下)
-                        GlassCircleButton(
-                            id: "post-button-main",
-                            size: 50,
-                            action: {
-                                if authManager.isAuthenticated {
-                                    // 現在の地図中心を固定して渡す（表示ズレ防止）
-                                    self.tappedLocation = mapManager.region.center
-                                    self.showingCreatePost = true
-                                } else {
-                                    self.showingAuth = true
-                                }
+                        Button(action: {
+                            if authManager.isAuthenticated {
+                                // 現在の地図中心を固定して渡す（表示ズレ防止）
+                                self.tappedLocation = mapManager.region.center
+                                self.showingCreatePost = true
+                            } else {
+                                self.showingAuth = true
                             }
-                        ) {
+                        }) {
                             Image(systemName: "plus")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundStyle(.white)
-                                .shadow(color: .white.opacity(0.4), radius: 2, x: 0, y: 0)
+                                .frame(width: 50, height: 50)
+                                .background(Color.black.opacity(0.7))
+                                .clipShape(Circle())
                         }
                     }
                     .padding(.trailing, 20)
@@ -89,7 +87,6 @@ struct MainTabView: View {
                 }
             }
         }
-        .glassContainer()
         .ignoresSafeArea(.keyboard)
         .overlay(
             Group {
@@ -99,13 +96,17 @@ struct MainTabView: View {
                         mapManager: mapManager,
                         initialLocation: tappedLocation
                     )
-                        // 中央表示（Vの先端を地図の中心に一致させる）
-                        .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
-                        .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
+                    // 既存のカード位置を維持（下寄せ 50px）
+                    .offset(y: 50)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
+                    .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
                 }
             }
-            .allowsHitTesting(showingCreatePost) // ポップアップが表示されている時のみHitTestingを有効にする
+            // 吹き出しVのスクリーン座標を受け取ってMapへ渡す
+            .onPreferenceChange(VTipPreferenceKey.self) { point in
+                self.vTipPoint = point
+            }
         )
         .fullScreenCover(isPresented: $showingAuth) {
             AuthenticationView()
@@ -195,7 +196,7 @@ struct MainTabView: View {
             }
             notificationObservers.removeAll()
         }
-        } // GlassEffectContainer
+        }
     }
 
 // MARK: - Security Methods

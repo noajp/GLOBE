@@ -373,7 +373,6 @@ struct PostPin: View {
         }
         .shadow(color: customBlack.opacity(0.3), radius: 4, x: 0, y: 2)
         .onAppear {
-            print("🔥 PostPin appeared for post: \(post.id) at (\(post.location.latitude), \(post.location.longitude)) - '\(post.text)'")
             commentService.loadComments(for: post.id)
             likeService.initializePost(post)
         }

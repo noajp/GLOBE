@@ -24,6 +24,7 @@ struct RefactoredMainTabView: View {
     @State private var shouldMoveToCurrentLocation = false
     @State private var selectedStory: Story?
     @State private var tappedLocation: CLLocationCoordinate2D?
+    @State private var vTipPoint: CGPoint?
 
     var body: some View {
         ZStack {
@@ -49,7 +50,8 @@ struct RefactoredMainTabView: View {
                     authManager: authManager,
                     showingCreatePost: $showingCreatePost,
                     shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
-                    tappedLocation: $tappedLocation
+                    tappedLocation: $tappedLocation,
+                    vTipPoint: $vTipPoint
                 )
             }
             .background(MinimalDesign.Colors.background)
@@ -64,6 +66,10 @@ struct RefactoredMainTabView: View {
                 .transition(.scale.combined(with: .opacity))
                 .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
             }
+        }
+        // 吹き出しのV先端スクリーン座標を受け取り、Map側へ橋渡し
+        .onPreferenceChange(VTipPreferenceKey.self) { point in
+            self.vTipPoint = point
         }
         .onAppear {
             setupInitialState()

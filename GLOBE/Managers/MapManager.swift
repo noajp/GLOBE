@@ -15,6 +15,8 @@ class MapManager: ObservableObject {
     private var cleanupTimer: Timer?
     private let postManager = PostManager.shared
     private var cancellables = Set<AnyCancellable>()
+    // 吹き出しV先端から算出されたドラフト投稿座標
+    @Published var draftPostCoordinate: CLLocationCoordinate2D?
     
     init() {
         startCleanupTimer()
