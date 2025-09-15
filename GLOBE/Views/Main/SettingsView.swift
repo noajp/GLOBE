@@ -222,7 +222,7 @@ struct SettingsView: View {
         .background(MinimalDesign.Colors.background)
         .navigationBarHidden(true)
         .sheet(isPresented: $showDebugLogs) {
-            DebugLogView()
+            DebugConsoleView()
         }
         .onAppear {
             updateLocationAuthStatus()

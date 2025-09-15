@@ -148,10 +148,7 @@ struct OptimizedPostList: View {
                 isLoadingMore = false
             }
 
-            SecureLogger.shared.info("Loaded more posts", details: [
-                "newCount": String(newCount),
-                "totalPosts": String(posts.count)
-            ])
+            SecureLogger.shared.info("Loaded more posts newCount=\(newCount) totalPosts=\(posts.count)")
         }
     }
 }
@@ -373,8 +370,6 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 // MARK: - Memory-Efficient Extensions
 
-extension ForEach where Data.Element: Identifiable {
-    func memoryOptimized() -> some View {
-        self.drawingGroup(opaque: false, colorMode: .nonLinear)
-    }
+extension View {
+    func memoryOptimized() -> some View { self.drawingGroup(opaque: false, colorMode: .nonLinear) }
 }

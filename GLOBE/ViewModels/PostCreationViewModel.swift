@@ -76,11 +76,12 @@ class PostCreationViewModel: BaseViewModel {
                 let isValid = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && text.count <= maxLength
                 return (isValid, remaining)
             }
-            .sink { [weak self] (isValid, remaining) in
+            .sink { [weak self] pair in
+                let (isValid, remaining) = pair
                 self?.isValidContent = isValid
                 self?.remainingCharacters = remaining
             }
-            .store(in: &cancellables)
+            .store(with: self)
 
         $selectedImage
             .sink { [weak self] image in
@@ -92,7 +93,7 @@ class PostCreationViewModel: BaseViewModel {
                 // Recalculate content validation when image changes
                 self?.updateContentValidation()
             }
-            .store(in: &cancellables)
+            .store(with: self)
     }
 
     // MARK: - Content Management
@@ -192,21 +193,22 @@ class PostCreationViewModel: BaseViewModel {
                 validatedContent = validated
             }
 
-            // Create post object
+            // Create post object (app-level model)
             let post = Post(
                 id: UUID(),
-                userId: userId,
-                content: validatedContent,
-                imageUrl: nil, // Will be set by repository if image is uploaded
-                latitude: location.latitude,
-                longitude: location.longitude,
-                locationName: locationName,
-                isAnonymous: isAnonymous,
                 createdAt: Date(),
+                location: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude),
+                locationName: locationName,
+                imageData: imageData,
+                imageUrl: nil,
+                text: validatedContent,
+                authorName: authService.currentUser?.username ?? authService.currentUser?.email ?? "ユーザー",
+                authorId: userId,
                 likeCount: 0,
                 commentCount: 0,
-                isLikedByCurrentUser: false,
-                authorProfile: nil // Will be populated by repository
+                isPublic: !isAnonymous,
+                isAnonymous: isAnonymous,
+                authorAvatarUrl: nil
             )
 
             // Use PostRepository to create the post
@@ -216,10 +218,7 @@ class PostCreationViewModel: BaseViewModel {
                 self.isLoading = false
             }
 
-            SecureLogger.shared.info("Post created successfully", details: [
-                "postId": createdPost.id.uuidString,
-                "hasImage": self.selectedImage != nil ? "true" : "false"
-            ])
+            SecureLogger.shared.info("Post created successfully id=\(createdPost.id.uuidString) hasImage=\(self.selectedImage != nil)")
 
             return true
 
@@ -229,7 +228,7 @@ class PostCreationViewModel: BaseViewModel {
                 self.isLoading = false
             }
 
-            SecureLogger.shared.error("Failed to create post", error: error)
+            SecureLogger.shared.error("Failed to create post: \(error.localizedDescription)")
             return false
         }
     }
@@ -240,7 +239,7 @@ class PostCreationViewModel: BaseViewModel {
 
         // Allow empty content if there's an image
         if trimmedContent.isEmpty && selectedImage != nil {
-            return ValidationResult(isValid: true, value: "", errorMessage: nil)
+            return .valid("")
         }
 
         // Otherwise, validate normally

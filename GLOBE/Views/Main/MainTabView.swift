@@ -32,9 +32,9 @@ struct MainTabView: View {
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-                        
+
                         Spacer()
-                        
+
                         // Profile button
                         Button(action: {
                             if authManager.isAuthenticated {
@@ -55,7 +55,14 @@ struct MainTabView: View {
                 .background(customBlack)
                 
                 // Main content area - always show map
-                MapContentView(mapManager: mapManager, showCenterPin: showingCreatePost)
+                MapContentView(
+                    mapManager: mapManager,
+                    locationManager: locationManager,
+                    postManager: postManager,
+                    authManager: authManager,
+                    showingCreatePost: $showingCreatePost,
+                    shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation
+                )
                     .environmentObject(appSettings)
                     .ignoresSafeArea(edges: .bottom)
             }
@@ -147,7 +154,7 @@ struct MainTabView: View {
                 
                 // 認証済みユーザーのセッション検証
                 Task {
-                    let isValidSession = await authManager.validateSession()
+                    let isValidSession = (try? await authManager.validateSession()) ?? false
                     if !isValidSession {
 
                         showingAuth = true
@@ -231,23 +238,26 @@ extension MainTabView {
         
         // デバイスセキュリティチェック
         let deviceInfo = authManager.getDeviceSecurityInfo()
+        let deviceInfoStrings: [String: String] = deviceInfo.reduce(into: [:]) { dict, pair in
+            dict[pair.key] = String(describing: pair.value)
+        }
         
         // Jailbreak検出
-        if deviceInfo["is_jailbroken"] == "true" {
+        if (deviceInfo["is_jailbroken"] as? Bool) == true {
             authManager.reportSecurityEvent(
                 "jailbreak_detected",
                 severity: .critical,
-                details: deviceInfo
+                details: deviceInfoStrings
             )
         }
         
         // シミュレータ検出（本番では警告）
         #if !DEBUG
-        if deviceInfo["is_simulator"] == "true" {
+        if (deviceInfo["is_simulator"] as? Bool) == true {
             authManager.reportSecurityEvent(
                 "simulator_detected_in_production",
                 severity: .high,
-                details: deviceInfo
+                details: deviceInfoStrings
             )
         }
         #endif
@@ -269,7 +279,7 @@ extension MainTabView {
             SecureLogger.shared.debug("Performing periodic security checks")
             
             // セッション妥当性チェック
-            let isValidSession = await authManager.validateSession()
+            let isValidSession = (try? await authManager.validateSession()) ?? false
             if !isValidSession {
                 SecureLogger.shared.securityEvent("Periodic session validation failed")
                 await MainActor.run {
@@ -280,11 +290,14 @@ extension MainTabView {
             
             // デバイス状態チェック
             let currentDeviceInfo = authManager.getDeviceSecurityInfo()
-            if currentDeviceInfo["is_jailbroken"] == "true" {
+            let currentDeviceInfoStrings: [String: String] = currentDeviceInfo.reduce(into: [:]) { dict, pair in
+                dict[pair.key] = String(describing: pair.value)
+            }
+            if (currentDeviceInfo["is_jailbroken"] as? Bool) == true {
                 authManager.reportSecurityEvent(
                     "runtime_jailbreak_detected",
                     severity: .critical,
-                    details: currentDeviceInfo
+                    details: currentDeviceInfoStrings
                 )
                 break
             }

@@ -121,6 +121,11 @@ final class SecureLogger: @unchecked Sendable {
         
         return sanitized
     }
+
+    // Internal wrapper for other logging utilities in the module
+    func sanitizePublic(_ message: String) -> String {
+        return sanitizeLogMessage(message)
+    }
     
     private func sanitizeSecurityDetails(_ details: [String: Any]) -> String {
         var sanitizedDetails: [String: String] = [:]

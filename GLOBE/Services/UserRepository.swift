@@ -21,8 +21,11 @@ class UserRepository: UserRepositoryProtocol {
 
     func getUser(by id: String) async throws -> AppUser? {
         do {
-            let response = try await supabaseClient.auth.admin.getUserById(id)
-            let user = response.user
+            guard let uuid = UUID(uuidString: id) else {
+                SecureLogger.shared.error("Invalid user id format: \(id)")
+                return nil
+            }
+            let user = try await supabaseClient.auth.admin.getUserById(uuid)
 
             return AppUser(
                 id: user.id.uuidString,
@@ -120,15 +123,18 @@ class UserRepository: UserRepositoryProtocol {
 
     func updateUserProfile(_ profile: UserProfile) async throws -> Bool {
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-
-            let profileData = try encoder.encode(profile)
-            let profileDict = try JSONSerialization.jsonObject(with: profileData) as? [String: Any]
+            let iso = ISO8601DateFormatter()
+            let updates: [String: AnyJSON] = [
+                "username": .string(profile.username),
+                "display_name": profile.displayName.map { .string($0) } ?? .null,
+                "bio": profile.bio.map { .string($0) } ?? .null,
+                "avatar_url": profile.avatarUrl.map { .string($0) } ?? .null,
+                "updated_at": .string(iso.string(from: Date()))
+            ]
 
             _ = try await supabaseClient
                 .from("profiles")
-                .update(profileDict ?? [:])
+                .update(updates)
                 .eq("id", value: profile.id)
                 .execute()
 
@@ -149,6 +155,6 @@ class UserRepository: UserRepositoryProtocol {
 extension UserRepository {
     static func create() -> UserRepository {
         let cacheRepository = ServiceContainer.shared.resolve(CacheRepositoryProtocol.self) ?? CacheRepository()
-        return UserRepository(supabaseClient: supabase, cacheRepository: cacheRepository)
+        return UserRepository(supabaseClient: SupabaseManager.shared.syncClient, cacheRepository: cacheRepository)
     }
 }

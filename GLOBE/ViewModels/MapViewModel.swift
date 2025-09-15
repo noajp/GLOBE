@@ -46,6 +46,9 @@ class MapViewModel: NSObject, ObservableObject {
     private let localZoomThreshold: Double = 0.05  // Show all posts
     private let nearbyRadius: Double = 10000       // 10km radius for nearby posts
 
+    // MARK: - Combine
+    private var cancellables = Set<AnyCancellable>()
+
     // MARK: - Computed Properties
     var shouldShowAllPosts: Bool {
         currentZoomLevel <= localZoomThreshold
@@ -170,7 +173,7 @@ class MapViewModel: NSObject, ObservableObject {
             await MainActor.run {
                 self.errorMessage = "投稿の読み込みに失敗しました"
                 self.isLoading = false
-                SecureLogger.shared.error("Failed to load posts for map", error: error)
+                SecureLogger.shared.error("Failed to load posts for map: \(error.localizedDescription)")
             }
         }
     }
@@ -242,7 +245,7 @@ class MapViewModel: NSObject, ObservableObject {
                     .first
             }
         } catch {
-            SecureLogger.shared.error("Failed to geocode location", error: error)
+            SecureLogger.shared.error("Failed to geocode location: \(error.localizedDescription)")
         }
 
         return nil
@@ -261,9 +264,7 @@ class MapViewModel: NSObject, ObservableObject {
     }
 
     // MARK: - Cleanup
-    deinit {
-        stopLocationUpdates()
-    }
+    // Note: CLLocationManager will stop updates when deallocated with its owner.
 }
 
 // MARK: - CLLocationManagerDelegate
@@ -283,15 +284,12 @@ extension MapViewModel: CLLocationManagerDelegate {
             }
         }
 
-        SecureLogger.shared.info("User location updated", details: [
-            "latitude": String(newCoordinate.latitude),
-            "longitude": String(newCoordinate.longitude)
-        ])
+        SecureLogger.shared.info("User location updated lat=\(newCoordinate.latitude), lon=\(newCoordinate.longitude)")
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         locationError = "位置情報の取得に失敗しました: \(error.localizedDescription)"
-        SecureLogger.shared.error("Location manager failed", error: error)
+        SecureLogger.shared.error("Location manager failed: \(error.localizedDescription)")
     }
 
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -299,19 +297,17 @@ extension MapViewModel: CLLocationManagerDelegate {
 
         switch status {
         case .authorizedWhenInUse, .authorizedAlways:
-            startLocationUpdates()
+            Task { @MainActor in self.startLocationUpdates() }
             locationError = nil
         case .denied, .restricted:
             locationError = "位置情報へのアクセスが拒否されています"
-            stopLocationUpdates()
+            Task { @MainActor in self.stopLocationUpdates() }
         case .notDetermined:
             locationError = nil
         @unknown default:
             locationError = "不明な位置情報エラー"
         }
 
-        SecureLogger.shared.info("Location authorization changed", details: [
-            "status": String(describing: status)
-        ])
+        SecureLogger.shared.info("Location authorization changed: status=\(String(describing: status))")
     }
 }

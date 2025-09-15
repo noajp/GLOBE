@@ -140,37 +140,10 @@ struct MyPageView: View {
     
     // MARK: - Profile Image
     private var profileImage: some View {
-        let userProfile = viewModel.userProfile
-        let avatarUrl = userProfile?.avatarUrl
-        let userId = userProfile?.id ?? ""
-
-        return Group {
-            // First try to use cached image
-            if let cachedImage = ProfileImageCacheManager.shared.getCachedImage(for: userId) {
-                Image(uiImage: cachedImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
-                // Fall back to AsyncImage if not cached
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .onAppear {
-                            // Cache the image for next time
-                            Task {
-                                await ProfileImageCacheManager.shared.getImage(for: avatarUrl, userId: userId)
-                            }
-                        }
-                } placeholder: {
-                    profilePlaceholder
-                }
-            } else {
-                profilePlaceholder
-            }
-        }
-        .frame(width: 70, height: 70)
-        .clipShape(Circle())
+        ProfileImageView(
+            userProfile: viewModel.userProfile,
+            size: 70
+        )
     }
 
     // MARK: - Stories Section
@@ -260,7 +233,11 @@ struct PostGridItem: View {
                             .aspectRatio(contentMode: .fill)
                             .frame(width: geometry.size.width, height: geometry.size.width)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                    } placeholder: { Color.clear }
+                    } placeholder: {
+                        Color.gray.opacity(0.1)
+                            .frame(width: geometry.size.width, height: geometry.size.width)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
                 } else if let data = post.imageData, let uiImage = UIImage(data: data) {
                     Image(uiImage: uiImage)
                         .resizable()

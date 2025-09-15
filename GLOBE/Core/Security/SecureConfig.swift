@@ -13,12 +13,11 @@ struct SecureConfig {
 
     private init() {
         // Initialize secure keychain integration
-        Task {
-            await initializeSecureStorage()
-        }
+        // Note: Async initialization will be handled on first access
     }
 
     private static var didAttemptSecretsImport = false
+    private static var isInitialized = false
 
     // MARK: - Secure Storage Integration
     private let secureKeychain = SecureKeychain.shared
@@ -30,6 +29,12 @@ struct SecureConfig {
     }
     
     // MARK: - Secure Configuration Access
+    private static func ensureInitialization() async {
+        guard !isInitialized else { return }
+        await shared.initializeSecureStorage()
+        isInitialized = true
+    }
+
     private func initializeSecureStorage() async {
         // Migrate existing keychain items to encrypted storage if needed
         await migrateToSecureStorage()
@@ -75,6 +80,9 @@ struct SecureConfig {
     // MARK: - Configuration Properties
     var supabaseURL: String {
         get async {
+            // Ensure initialization
+            await Self.ensureInitialization()
+
             // Try to get from secure keychain first
             do {
                 if let secureURL = try await secureKeychain.retrieveString(for: KeychainKey.supabaseURL.rawValue) {
@@ -98,7 +106,7 @@ struct SecureConfig {
             }
 
             // Fallback to Info.plist
-            if let url = Bundle.main.infoDictionary?["SupabaseURL"] as? String, !isPlaceholder(url) {
+            if let url = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String, !isPlaceholder(url) {
                 // Store in secure keychain for future use
                 Task {
                     try? await secureKeychain.store(
@@ -129,6 +137,22 @@ struct SecureConfig {
         }
     }
     
+    // Non-blocking, synchronous accessor used for early initialization paths
+    // Falls back to Keychain -> Info.plist -> Secrets.plist without async calls
+    func supabaseURLSync() -> String {
+        if let keychainURL = getFromKeychain(key: .supabaseURL), !isPlaceholder(keychainURL) {
+            return keychainURL
+        }
+        if let url = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String, !isPlaceholder(url) {
+            return url
+        }
+        if let secrets = loadSecretsPlist(), let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
+            return url
+        }
+        SecureLogger.shared.error("No Supabase URL (sync) found in secure locations")
+        return ""
+    }
+
     var supabaseAnonKey: String {
         // Try to get from Keychain first
         if let keychainKey = getFromKeychain(key: .supabaseAnonKey) {
@@ -136,7 +160,7 @@ struct SecureConfig {
         }
         
         // Fallback to Info.plist
-        if let key = Bundle.main.infoDictionary?["SupabaseAnonKey"] as? String, !isPlaceholder(key) {
+        if let key = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String, !isPlaceholder(key) {
             return key
         }
 

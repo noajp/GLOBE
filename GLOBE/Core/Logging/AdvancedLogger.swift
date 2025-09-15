@@ -495,7 +495,7 @@ final class AdvancedLogger: ObservableObject {
     // MARK: - Message Sanitization
 
     private func sanitizeMessage(_ message: String) -> String {
-        return SecureLogger.shared.sanitizeLogMessage(message)
+        return SecureLogger.shared.sanitizePublic(message)
     }
 
     private func sanitizeURL(_ url: String) -> String {

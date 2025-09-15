@@ -126,7 +126,7 @@ class MockPostRepository: PostRepositoryProtocol {
             createdAt: Date(),
             likeCount: 5,
             commentCount: 2,
-            isLikedByCurrentUser: false,
+            isLikedByMe: false,
             authorProfile: MockUserRepository.sampleProfile
         ),
         Post(
@@ -141,7 +141,7 @@ class MockPostRepository: PostRepositoryProtocol {
             createdAt: Date().addingTimeInterval(-3600),
             likeCount: 12,
             commentCount: 7,
-            isLikedByCurrentUser: true,
+            isLikedByMe: true,
             authorProfile: nil
         )
     ]
@@ -206,7 +206,7 @@ class MockPostRepository: PostRepositoryProtocol {
                 createdAt: Date(),
                 likeCount: 0,
                 commentCount: 0,
-                isLikedByCurrentUser: false,
+                isLikedByMe: false,
                 authorProfile: post.authorProfile
             )
             mockPosts.insert(newPost, at: 0)
@@ -244,7 +244,7 @@ class MockPostRepository: PostRepositoryProtocol {
 
         if shouldSucceed {
             if let index = mockPosts.firstIndex(where: { $0.id == postId }) {
-                mockPosts[index].isLikedByCurrentUser = true
+                mockPosts[index].isLikedByMe = true
                 mockPosts[index].likeCount += 1
             }
             return true
@@ -258,7 +258,7 @@ class MockPostRepository: PostRepositoryProtocol {
 
         if shouldSucceed {
             if let index = mockPosts.firstIndex(where: { $0.id == postId }) {
-                mockPosts[index].isLikedByCurrentUser = false
+                mockPosts[index].isLikedByMe = false
                 mockPosts[index].likeCount = max(0, mockPosts[index].likeCount - 1)
             }
             return true

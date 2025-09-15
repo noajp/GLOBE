@@ -136,7 +136,7 @@ final class PostServiceTests: XCTestCase {
         XCTAssertEqual(createdPost.isAnonymous, isAnonymous)
         XCTAssertEqual(createdPost.likeCount, 0)
         XCTAssertEqual(createdPost.commentCount, 0)
-        XCTAssertFalse(createdPost.isLikedByCurrentUser)
+        XCTAssertFalse(createdPost.isLikedByMe)
         XCTAssertEqual(createdPost.imageURL, "mock://image.jpg")
     }
 
@@ -256,7 +256,7 @@ final class PostServiceTests: XCTestCase {
         // Arrange
         let post = postService.posts.first!
         let initialLikeCount = post.likeCount
-        let initialLikedState = post.isLikedByCurrentUser
+        let initialLikedState = post.isLikedByMe
 
         // Act
         let success = await postService.toggleLike(for: post.id)
@@ -264,7 +264,7 @@ final class PostServiceTests: XCTestCase {
         // Assert
         XCTAssertTrue(success)
         let updatedPost = postService.posts.first { $0.id == post.id }!
-        XCTAssertEqual(updatedPost.isLikedByCurrentUser, !initialLikedState)
+        XCTAssertEqual(updatedPost.isLikedByMe, !initialLikedState)
 
         if initialLikedState {
             XCTAssertEqual(updatedPost.likeCount, initialLikeCount - 1)
@@ -282,14 +282,14 @@ final class PostServiceTests: XCTestCase {
         var success = await postService.toggleLike(for: post.id)
         XCTAssertTrue(success)
         var updatedPost = postService.posts.first { $0.id == post.id }!
-        XCTAssertTrue(updatedPost.isLikedByCurrentUser)
+        XCTAssertTrue(updatedPost.isLikedByMe)
         XCTAssertEqual(updatedPost.likeCount, initialLikeCount + 1)
 
         // Act & Assert - Second toggle (unlike)
         success = await postService.toggleLike(for: post.id)
         XCTAssertTrue(success)
         updatedPost = postService.posts.first { $0.id == post.id }!
-        XCTAssertFalse(updatedPost.isLikedByCurrentUser)
+        XCTAssertFalse(updatedPost.isLikedByMe)
         XCTAssertEqual(updatedPost.likeCount, initialLikeCount)
     }
 

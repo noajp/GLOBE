@@ -185,7 +185,7 @@ class MockPostService: PostServiceProtocol, ObservableObject {
                 createdAt: Date(),
                 likeCount: 0,
                 commentCount: 0,
-                isLikedByCurrentUser: false,
+                isLikedByMe: false,
                 authorProfile: nil
             )
             posts.insert(newPost, at: 0)
@@ -214,8 +214,8 @@ class MockPostService: PostServiceProtocol, ObservableObject {
     func toggleLike(for postId: UUID) async -> Bool {
         if shouldSucceed {
             if let index = posts.firstIndex(where: { $0.id == postId }) {
-                posts[index].isLikedByCurrentUser.toggle()
-                posts[index].likeCount += posts[index].isLikedByCurrentUser ? 1 : -1
+                posts[index].isLikedByMe.toggle()
+                posts[index].likeCount += posts[index].isLikedByMe ? 1 : -1
                 return true
             }
         }
@@ -304,7 +304,7 @@ extension MockPostService {
             createdAt: Date(),
             likeCount: 0,
             commentCount: 0,
-            isLikedByCurrentUser: false,
+            isLikedByMe: false,
             authorProfile: nil
         )
         posts.append(newPost)
@@ -409,7 +409,7 @@ class TestHelpers {
             createdAt: Date(),
             likeCount: isLiked ? 1 : 0,
             commentCount: 0,
-            isLikedByCurrentUser: isLiked,
+            isLikedByMe: isLiked,
             authorProfile: nil
         )
     }

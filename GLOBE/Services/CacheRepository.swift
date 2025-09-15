@@ -48,7 +48,7 @@ class CacheRepository: CacheRepositoryProtocol {
                     try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
                     SecureLogger.shared.info("Created cache directory: \(directory.lastPathComponent)")
                 } catch {
-                    SecureLogger.shared.error("Failed to create cache directory", error: error)
+                    SecureLogger.shared.error("Failed to create cache directory: \(error.localizedDescription)")
                 }
             }
         }
@@ -67,9 +67,9 @@ class CacheRepository: CacheRepositoryProtocol {
 
         do {
             try data.write(to: fileURL)
-            SecureLogger.shared.info("Image cached to disk", details: ["key": key])
+            SecureLogger.shared.info("Image cached to disk - key: \(key)")
         } catch {
-            SecureLogger.shared.error("Failed to cache image to disk", error: error)
+            SecureLogger.shared.error("Failed to cache image to disk: \(error.localizedDescription)")
             throw AppError.storageError("Failed to cache image")
         }
     }
@@ -97,7 +97,7 @@ class CacheRepository: CacheRepositoryProtocol {
 
             return data
         } catch {
-            SecureLogger.shared.error("Failed to read cached image", error: error)
+            SecureLogger.shared.error("Failed to read cached image: \(error.localizedDescription)")
             throw AppError.storageError("Failed to read cached image")
         }
     }
@@ -114,9 +114,9 @@ class CacheRepository: CacheRepositoryProtocol {
         if fileManager.fileExists(atPath: fileURL.path) {
             do {
                 try fileManager.removeItem(at: fileURL)
-                SecureLogger.shared.info("Removed cached image", details: ["key": key])
+                SecureLogger.shared.info("Removed cached image - key: \(key)")
             } catch {
-                SecureLogger.shared.error("Failed to remove cached image", error: error)
+                SecureLogger.shared.error("Failed to remove cached image: \(error.localizedDescription)")
                 throw AppError.storageError("Failed to remove cached image")
             }
         }
@@ -138,9 +138,9 @@ class CacheRepository: CacheRepositoryProtocol {
             encoder.dateEncodingStrategy = .iso8601
             let data = try encoder.encode(profile)
             try data.write(to: fileURL)
-            SecureLogger.shared.info("User profile cached", details: ["userId": userId])
+            SecureLogger.shared.info("User profile cached - userId: \(userId)")
         } catch {
-            SecureLogger.shared.error("Failed to cache user profile", error: error)
+            SecureLogger.shared.error("Failed to cache user profile: \(error.localizedDescription)")
             throw AppError.storageError("Failed to cache user profile")
         }
     }
@@ -171,7 +171,7 @@ class CacheRepository: CacheRepositoryProtocol {
 
             return profile
         } catch {
-            SecureLogger.shared.error("Failed to read cached user profile", error: error)
+            SecureLogger.shared.error("Failed to read cached user profile: \(error.localizedDescription)")
             throw AppError.storageError("Failed to read cached user profile")
         }
     }
@@ -188,9 +188,9 @@ class CacheRepository: CacheRepositoryProtocol {
         if fileManager.fileExists(atPath: fileURL.path) {
             do {
                 try fileManager.removeItem(at: fileURL)
-                SecureLogger.shared.info("Removed cached user profile", details: ["userId": userId])
+                SecureLogger.shared.info("Removed cached user profile - userId: \(userId)")
             } catch {
-                SecureLogger.shared.error("Failed to remove cached user profile", error: error)
+                SecureLogger.shared.error("Failed to remove cached user profile: \(error.localizedDescription)")
                 throw AppError.storageError("Failed to remove cached user profile")
             }
         }
@@ -215,7 +215,7 @@ class CacheRepository: CacheRepositoryProtocol {
                     }
                     SecureLogger.shared.info("Cleared cache directory: \(directory.lastPathComponent)")
                 } catch {
-                    SecureLogger.shared.error("Failed to clear cache directory", error: error)
+                    SecureLogger.shared.error("Failed to clear cache directory: \(error.localizedDescription)")
                     throw AppError.storageError("Failed to clear cache")
                 }
             }
@@ -237,7 +237,7 @@ class CacheRepository: CacheRepositoryProtocol {
                         totalSize += Int64(attributes.fileSize ?? 0)
                     }
                 } catch {
-                    SecureLogger.shared.error("Failed to calculate cache size", error: error)
+                    SecureLogger.shared.error("Failed to calculate cache size: \(error.localizedDescription)")
                     throw AppError.storageError("Failed to calculate cache size")
                 }
             }

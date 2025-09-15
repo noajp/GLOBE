@@ -210,13 +210,7 @@ struct SignInView: View {
     
     private func signIn() async {
         ConsoleLogger.shared.forceLog("SignInView: Starting sign in process for \(email)")
-        
-        logger.info("Starting sign in process", category: "SignInView", details: [
-            "email": email,
-            "password_length": password.count,
-            "has_email": !email.isEmpty,
-            "has_password": !password.isEmpty
-        ])
+        logger.info("Starting sign in process for email=\(email) len=\(password.count)")
         
         do {
             try await authManager.signIn(
@@ -224,15 +218,10 @@ struct SignInView: View {
                 password: password
             )
             ConsoleLogger.shared.forceLog("SignInView: Sign in SUCCESS")
-            logger.success("Sign in completed successfully", category: "SignInView")
+            logger.info("Sign in completed successfully")
         } catch {
             ConsoleLogger.shared.logError("SignInView sign in failed", error: error)
-            
-            logger.error("Sign in failed", category: "SignInView", details: [
-                "error": error.localizedDescription,
-                "error_type": String(describing: type(of: error)),
-                "email": email
-            ])
+            logger.error("Sign in failed: \(error.localizedDescription)")
             
             errorMessage = error.localizedDescription
             showError = true
@@ -241,28 +230,21 @@ struct SignInView: View {
     
     private func resetPassword() async {
         guard !email.isEmpty else {
-            logger.warning("Password reset attempted without email", category: "SignInView")
+            logger.warning("Password reset attempted without email")
             errorMessage = "パスワードリセットを行うにはメールアドレスを入力してください"
             showError = true
             return
         }
         
-        logger.info("Starting password reset", category: "SignInView", details: [
-            "email": email
-        ])
+        logger.info("Starting password reset for email=\(email)")
         
         do {
             try await authManager.sendPasswordResetEmail(email: email)
-            logger.success("Password reset email sent successfully", category: "SignInView", details: [
-                "email": email
-            ])
+            logger.info("Password reset email sent successfully for email=\(email)")
             resetMessage = "パスワードリセットメールを送信しました。メールをご確認ください。"
             showPasswordReset = true
         } catch {
-            logger.error("Password reset failed", category: "SignInView", details: [
-                "email": email,
-                "error": error.localizedDescription
-            ])
+            logger.error("Password reset failed for email=\(email): \(error.localizedDescription)")
             errorMessage = error.localizedDescription
             showError = true
         }
