@@ -468,7 +468,9 @@ final class AdvancedLogger: ObservableObject {
 
         // Write to file
         logQueue.async { [weak self] in
-            self?.writeToFile(logEntry)
+            Task { @MainActor in
+                self?.writeToFile(logEntry)
+            }
         }
     }
 
@@ -515,8 +517,10 @@ final class AdvancedLogger: ObservableObject {
         guard LoggingConfig.enableFileLogging else { return }
 
         logQueue.async { [weak self] in
-            self?.createLogFile()
-            self?.cleanupOldLogs()
+            Task { @MainActor in
+                self?.createLogFile()
+                self?.cleanupOldLogs()
+            }
         }
     }
 
@@ -592,12 +596,14 @@ final class AdvancedLogger: ObservableObject {
 
     private func startPerformanceMonitoring() {
         Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            self?.collectSystemMetrics()
+            Task { @MainActor in
+                self?.collectSystemMetrics()
+            }
         }
     }
 
     private func collectSystemMetrics() {
-        let memoryInfo = mach_task_basic_info()
+        let memoryInfo = readMachTaskInfo()
         let memoryUsage = Double(memoryInfo.resident_size) / 1024 / 1024 // MB
 
         trackPerformance(name: "memory_usage", value: memoryUsage, unit: "MB", category: "system")
@@ -609,7 +615,9 @@ final class AdvancedLogger: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.warning("Received memory warning", category: .lifecycle)
+            Task { @MainActor in
+                self?.warning("Received memory warning", category: .lifecycle)
+            }
         }
     }
 
@@ -654,11 +662,11 @@ private extension DateFormatter {
 
 // MARK: - System Info Helper
 
-private func mach_task_basic_info() -> mach_task_basic_info {
+private func readMachTaskInfo() -> mach_task_basic_info {
     var info = mach_task_basic_info()
     var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
 
-    let result = withUnsafeMutablePointer(to: &info) {
+    _ = withUnsafeMutablePointer(to: &info) {
         $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
             task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
         }

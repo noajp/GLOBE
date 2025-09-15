@@ -29,15 +29,15 @@ struct SecureConfig {
     }
     
     // MARK: - Secure Configuration Access
-    private static func ensureInitialization() async {
+    private static func ensureInitialization() {
         guard !isInitialized else { return }
-        await shared.initializeSecureStorage()
+        shared.initializeSecureStorage()
         isInitialized = true
     }
 
-    private func initializeSecureStorage() async {
+    private func initializeSecureStorage() {
         // Migrate existing keychain items to encrypted storage if needed
-        await migrateToSecureStorage()
+        migrateToSecureStorage()
 
         // Perform security validation
         if !secureKeychain.isDeviceSecure() {
@@ -49,13 +49,13 @@ struct SecureConfig {
         }
     }
 
-    private func migrateToSecureStorage() async {
+    private func migrateToSecureStorage() {
         // Check if migration is needed
         for key in KeychainKey.allCases {
             if let legacyValue = getFromKeychain(key: key) {
                 do {
                     // Store in secure encrypted keychain
-                    try await secureKeychain.store(
+                    try secureKeychain.store(
                         legacyValue,
                         for: key.rawValue,
                         accessControl: .afterFirstUnlockThisDeviceOnly
@@ -79,13 +79,13 @@ struct SecureConfig {
 
     // MARK: - Configuration Properties
     var supabaseURL: String {
-        get async {
+        get {
             // Ensure initialization
-            await Self.ensureInitialization()
+            Self.ensureInitialization()
 
             // Try to get from secure keychain first
             do {
-                if let secureURL = try await secureKeychain.retrieveString(for: KeychainKey.supabaseURL.rawValue) {
+                if let secureURL = try secureKeychain.retrieveString(for: KeychainKey.supabaseURL.rawValue) {
                     return secureURL
                 }
             } catch {
@@ -95,39 +95,33 @@ struct SecureConfig {
             // Try legacy keychain
             if let keychainURL = getFromKeychain(key: .supabaseURL) {
                 // Migrate to secure storage
-                Task {
-                    try? await secureKeychain.store(
-                        keychainURL,
-                        for: KeychainKey.supabaseURL.rawValue,
-                        accessControl: .afterFirstUnlockThisDeviceOnly
-                    )
-                }
+                try? secureKeychain.store(
+                    keychainURL,
+                    for: KeychainKey.supabaseURL.rawValue,
+                    accessControl: .afterFirstUnlockThisDeviceOnly
+                )
                 return keychainURL
             }
 
             // Fallback to Info.plist
             if let url = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String, !isPlaceholder(url) {
                 // Store in secure keychain for future use
-                Task {
-                    try? await secureKeychain.store(
-                        url,
-                        for: KeychainKey.supabaseURL.rawValue,
-                        accessControl: .afterFirstUnlockThisDeviceOnly
-                    )
-                }
+                try? secureKeychain.store(
+                    url,
+                    for: KeychainKey.supabaseURL.rawValue,
+                    accessControl: .afterFirstUnlockThisDeviceOnly
+                )
                 return url
             }
 
             // Dev-only: Try Secrets.plist
             if let secrets = loadSecretsPlist(), let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
                 // Cache to secure storage
-                Task {
-                    try? await secureKeychain.store(
-                        url,
-                        for: KeychainKey.supabaseURL.rawValue,
-                        accessControl: .afterFirstUnlockThisDeviceOnly
-                    )
-                }
+                try? secureKeychain.store(
+                    url,
+                    for: KeychainKey.supabaseURL.rawValue,
+                    accessControl: .afterFirstUnlockThisDeviceOnly
+                )
                 return url
             }
 

@@ -32,8 +32,8 @@ class ImageCacheManager: ObservableObject {
     private var cacheHits = 0
     private var totalRequests = 0
 
-    init(cacheRepository: CacheRepositoryProtocol = ServiceContainer.serviceLocator.cacheRepository()) {
-        self.cacheRepository = cacheRepository
+    init(cacheRepository: CacheRepositoryProtocol? = nil) {
+        self.cacheRepository = cacheRepository ?? CacheRepository.create()
 
         // Configure memory cache
         memoryCache.totalCostLimit = maxMemoryCacheSize
@@ -52,7 +52,9 @@ class ImageCacheManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleMemoryWarning()
+            Task { @MainActor in
+                self?.handleMemoryWarning()
+            }
         }
 
         // Periodic cache maintenance
@@ -158,25 +160,25 @@ class ImageCacheManager: ObservableObject {
 
                 // Resize if target size specified
                 if let targetSize = targetSize {
-                    processedImage = self.resizeImage(processedImage, to: targetSize)
+                    processedImage = ImageCacheManager.resizeImage(processedImage, to: targetSize)
                 }
 
                 // Optimize for display
-                processedImage = self.optimizeImageForDisplay(processedImage)
+                processedImage = ImageCacheManager.optimizeImageForDisplay(processedImage)
 
                 continuation.resume(returning: processedImage)
             }
         }
     }
 
-    private func resizeImage(_ image: UIImage, to targetSize: CGSize) -> UIImage {
+    nonisolated private static func resizeImage(_ image: UIImage, to targetSize: CGSize) -> UIImage {
         let renderer = UIGraphicsImageRenderer(size: targetSize)
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
     }
 
-    private func optimizeImageForDisplay(_ image: UIImage) -> UIImage {
+    nonisolated private static func optimizeImageForDisplay(_ image: UIImage) -> UIImage {
         // Force decode image to avoid on-demand decoding during scroll
         let renderer = UIGraphicsImageRenderer(size: image.size, format: image.imageRendererFormat)
         return renderer.image { _ in
@@ -190,8 +192,9 @@ class ImageCacheManager: ObservableObject {
 
         // Store in disk cache asynchronously
         Task.detached(priority: .utility) { [weak self] in
+            guard let self = self else { return }
             do {
-                try await self?.cacheRepository.cacheImage(data: originalData, for: key)
+                try await self.cacheRepository.cacheImage(data: originalData, for: key)
             } catch {
                 SecureLogger.shared.error("Failed to cache image to disk: \(error.localizedDescription)")
             }

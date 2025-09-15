@@ -14,7 +14,7 @@ class SupabaseManager {
                 return existingClient
             }
 
-            let url = await SecureConfig.shared.supabaseURL
+            let url = SecureConfig.shared.supabaseURLSync()
             let key = SecureConfig.shared.supabaseAnonKey
 
             guard let supabaseURL = URL(string: url) else {

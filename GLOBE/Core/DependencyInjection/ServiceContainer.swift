@@ -49,25 +49,25 @@ class ServiceLocator {
         self.container = container
     }
 
-    func authService() -> AuthServiceProtocol {
-        return container.resolve(AuthServiceProtocol.self) ?? AuthManager.shared
+    func authService() -> any AuthServiceProtocol {
+        return container.resolve((any AuthServiceProtocol).self) ?? AuthManager.shared
     }
 
-    func postService() -> PostServiceProtocol {
-        return container.resolve(PostServiceProtocol.self) ?? PostManager.shared
+    func postService() -> any PostServiceProtocol {
+        return container.resolve((any PostServiceProtocol).self) ?? PostManager.shared
     }
 
     // MARK: - Repository Access
-    func userRepository() -> UserRepositoryProtocol {
-        return container.resolve(UserRepositoryProtocol.self) ?? UserRepository.create()
+    func userRepository() -> any UserRepositoryProtocol {
+        return container.resolve((any UserRepositoryProtocol).self) ?? UserRepository.create()
     }
 
-    func postRepository() -> PostRepositoryProtocol {
-        return container.resolve(PostRepositoryProtocol.self) ?? PostRepository.create()
+    func postRepository() -> any PostRepositoryProtocol {
+        return container.resolve((any PostRepositoryProtocol).self) ?? PostRepository.create()
     }
 
-    func cacheRepository() -> CacheRepositoryProtocol {
-        return container.resolve(CacheRepositoryProtocol.self) ?? CacheRepository.create()
+    func cacheRepository() -> any CacheRepositoryProtocol {
+        return container.resolve((any CacheRepositoryProtocol).self) ?? CacheRepository.create()
     }
 }
 
@@ -75,13 +75,13 @@ class ServiceLocator {
 extension ServiceContainer {
     func registerDefaultServices() {
         // Register repositories first
-        registerSingleton({ CacheRepository.create() }, for: CacheRepositoryProtocol.self)
-        registerSingleton({ UserRepository.create() }, for: UserRepositoryProtocol.self)
-        registerSingleton({ PostRepository.create() }, for: PostRepositoryProtocol.self)
+        registerSingleton({ CacheRepository.create() as any CacheRepositoryProtocol }, for: (any CacheRepositoryProtocol).self)
+        registerSingleton({ UserRepository.create() as any UserRepositoryProtocol }, for: (any UserRepositoryProtocol).self)
+        registerSingleton({ PostRepository.create() as any PostRepositoryProtocol }, for: (any PostRepositoryProtocol).self)
 
         // Register services that depend on repositories
-        registerSingleton({ AuthManager.shared }, for: AuthServiceProtocol.self)
-        registerSingleton({ PostManager.shared }, for: PostServiceProtocol.self)
+        registerSingleton({ AuthManager.shared as any AuthServiceProtocol }, for: (any AuthServiceProtocol).self)
+        registerSingleton({ PostManager.shared as any PostServiceProtocol }, for: (any PostServiceProtocol).self)
     }
 }
 

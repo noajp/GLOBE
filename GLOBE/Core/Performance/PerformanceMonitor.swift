@@ -155,7 +155,9 @@ final class PerformanceMonitor: ObservableObject {
     private func setupMonitoring() {
         // Frame rate monitoring
         frameRateTimer = Timer.scheduledTimer(withTimeInterval: MonitoringConfig.frameRateUpdateInterval, repeats: true) { [weak self] _ in
-            self?.updateFrameRate()
+            Task { @MainActor in
+                self?.updateFrameRate()
+            }
         }
 
         // Memory monitoring
@@ -251,7 +253,7 @@ final class PerformanceMonitor: ObservableObject {
     // MARK: - Memory Monitoring
 
     private func updateMemoryUsage() {
-        let info = mach_task_basic_info()
+        let info = readMachTaskInfo()
         let previousResident = memoryUsage.resident
 
         memoryUsage.resident = UInt64(info.resident_size)
@@ -599,11 +601,11 @@ private extension DateFormatter {
     }()
 }
 
-private func mach_task_basic_info() -> mach_task_basic_info {
+private func readMachTaskInfo() -> mach_task_basic_info {
     var info = mach_task_basic_info()
     var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
 
-    let result = withUnsafeMutablePointer(to: &info) {
+    _ = withUnsafeMutablePointer(to: &info) {
         $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
             task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
         }

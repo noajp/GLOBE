@@ -13,7 +13,7 @@ import MapKit
 @MainActor
 class MapViewModel: NSObject, ObservableObject {
     // MARK: - Dependencies
-    private let postRepository: PostRepositoryProtocol
+    private let postRepository: any PostRepositoryProtocol
     private let locationManager: CLLocationManager
 
     // MARK: - Published Properties
@@ -64,9 +64,9 @@ class MapViewModel: NSObject, ObservableObject {
 
     // MARK: - Initialization
     init(
-        postRepository: PostRepositoryProtocol = ServiceContainer.serviceLocator.postRepository()
+        postRepository: (any PostRepositoryProtocol)? = nil
     ) {
-        self.postRepository = postRepository
+        self.postRepository = postRepository ?? PostRepository.create()
         self.locationManager = CLLocationManager()
 
         super.init()

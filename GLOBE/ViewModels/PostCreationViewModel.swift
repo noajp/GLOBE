@@ -13,8 +13,8 @@ import UIKit
 @MainActor
 class PostCreationViewModel: BaseViewModel {
     // MARK: - Dependencies
-    private let postRepository: PostRepositoryProtocol
-    private let authService: AuthServiceProtocol
+    private let postRepository: any PostRepositoryProtocol
+    private let authService: any AuthServiceProtocol
 
     // MARK: - Published Properties
     @Published var content = ""
@@ -55,10 +55,10 @@ class PostCreationViewModel: BaseViewModel {
 
     // MARK: - Initialization
     init(
-        postRepository: PostRepositoryProtocol = ServiceContainer.serviceLocator.postRepository(),
-        authService: AuthServiceProtocol = ServiceContainer.serviceLocator.authService()
+        postRepository: (any PostRepositoryProtocol)? = nil,
+        authService: any AuthServiceProtocol = AuthManager.shared
     ) {
-        self.postRepository = postRepository
+        self.postRepository = postRepository ?? PostRepository.create()
         self.authService = authService
 
         super.init()
