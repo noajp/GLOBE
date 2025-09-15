@@ -62,8 +62,8 @@ struct GlobeApp: App {
                     SecItemDelete(deleteQuery as CFDictionary)
                 }
                 
-                // 正しい設定を読み込み
-                _ = SecureConfig.shared.supabaseURL
+                // 正しい設定を読み込み（同期アクセサ）
+                _ = SecureConfig.shared.supabaseURLSync()
                 _ = SecureConfig.shared.supabaseAnonKey
                 print("🔧 Reloaded correct Supabase configuration")
             }

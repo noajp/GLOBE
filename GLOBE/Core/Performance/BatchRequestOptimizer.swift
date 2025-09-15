@@ -7,6 +7,7 @@
 import Foundation
 import Combine
 import CoreLocation
+import Supabase
 
 // MARK: - Batch Request Manager
 
@@ -213,21 +214,21 @@ class BatchRequestManager: ObservableObject {
     private func executeBatchPostRequest(_ request: PostBatchRequest) async -> Result<[Post], AppError> {
         do {
             // Build optimized query
-            var rpcParams: [String: Any] = [
-                "limit_count": request.limit
+            var rpcParams: [String: AnyJSON] = [
+                "limit_count": .double(Double(request.limit))
             ]
 
             if let userIds = request.userIds {
-                rpcParams["user_ids"] = userIds
+                rpcParams["user_ids"] = .array(userIds.map { .string($0) })
             }
 
             if let location = request.locationRadius {
-                rpcParams["latitude"] = location.coordinate.latitude
-                rpcParams["longitude"] = location.coordinate.longitude
-                rpcParams["radius_meters"] = location.radius
+                rpcParams["latitude"] = .double(location.coordinate.latitude)
+                rpcParams["longitude"] = .double(location.coordinate.longitude)
+                rpcParams["radius_meters"] = .double(location.radius)
             }
 
-            let response = try await supabase
+            let response = try await (await supabase)
                 .rpc("get_posts_batch", params: rpcParams)
                 .execute()
 
@@ -246,17 +247,17 @@ class BatchRequestManager: ObservableObject {
 
     private func executeBatchLikeOperations(_ requests: [LikeRequest]) async -> Result<Void, AppError> {
         do {
-            let likeOperations = requests.map { request in
+            let likeOperations: [[String: AnyJSON]] = requests.map { request in
                 [
-                    "post_id": request.postId.uuidString,
-                    "user_id": request.userId,
-                    "is_like": request.isLike
+                    "post_id": .string(request.postId.uuidString),
+                    "user_id": .string(request.userId),
+                    "is_like": .bool(request.isLike)
                 ]
             }
 
-            let params = ["operations": likeOperations]
+            let params: [String: AnyJSON] = ["operations": .array(likeOperations.map { .object($0) })]
 
-            _ = try await supabase
+            _ = try await (await supabase)
                 .rpc("batch_like_operations", params: params)
                 .execute()
 
@@ -271,30 +272,30 @@ class BatchRequestManager: ObservableObject {
 
     private func executeBatchPostOperations(_ requests: [PostRequest]) async -> Result<Void, AppError> {
         do {
-            let operations = requests.map { request -> [String: Any] in
+            let operations: [[String: AnyJSON]] = requests.map { request -> [String: AnyJSON] in
                 switch request.action {
                 case .create:
                     return [
-                        "action": "create",
-                        "data": encodePost(request.post)
+                        "action": .string("create"),
+                        "data": .object(encodePost(request.post))
                     ]
                 case .update:
                     return [
-                        "action": "update",
-                        "post_id": request.post.id.uuidString,
-                        "data": encodePost(request.post)
+                        "action": .string("update"),
+                        "post_id": .string(request.post.id.uuidString),
+                        "data": .object(encodePost(request.post))
                     ]
                 case .delete:
                     return [
-                        "action": "delete",
-                        "post_id": request.post.id.uuidString
+                        "action": .string("delete"),
+                        "post_id": .string(request.post.id.uuidString)
                     ]
                 }
             }
 
-            let params = ["operations": operations]
+            let params: [String: AnyJSON] = ["operations": .array(operations.map { .object($0) })]
 
-            _ = try await supabase
+            _ = try await (await supabase)
                 .rpc("batch_post_operations", params: params)
                 .execute()
 
@@ -309,34 +310,34 @@ class BatchRequestManager: ObservableObject {
 
     private func executeBatchCommentOperations(_ requests: [CommentRequest]) async -> Result<Void, AppError> {
         do {
-            let operations = requests.compactMap { request -> [String: Any]? in
+            let operations: [[String: AnyJSON]] = requests.compactMap { request -> [String: AnyJSON]? in
                 switch request.action {
                 case .create:
                     guard let comment = request.comment else { return nil }
                     return [
-                        "action": "create",
-                        "post_id": request.postId.uuidString,
-                        "data": encodeComment(comment)
+                        "action": .string("create"),
+                        "post_id": .string(request.postId.uuidString),
+                        "data": .object(encodeComment(comment))
                     ]
                 case .update:
                     guard let comment = request.comment else { return nil }
                     return [
-                        "action": "update",
-                        "comment_id": comment.id.uuidString,
-                        "data": encodeComment(comment)
+                        "action": .string("update"),
+                        "comment_id": .string(comment.id.uuidString),
+                        "data": .object(encodeComment(comment))
                     ]
                 case .delete:
                     guard let comment = request.comment else { return nil }
                     return [
-                        "action": "delete",
-                        "comment_id": comment.id.uuidString
+                        "action": .string("delete"),
+                        "comment_id": .string(comment.id.uuidString)
                     ]
                 }
             }
 
-            let params = ["operations": operations]
+            let params: [String: AnyJSON] = ["operations": .array(operations.map { .object($0) })]
 
-            _ = try await supabase
+            _ = try await (await supabase)
                 .rpc("batch_comment_operations", params: params)
                 .execute()
 
@@ -351,28 +352,25 @@ class BatchRequestManager: ObservableObject {
 
     private func executePrefetchRequest(_ request: PrefetchRequest) async {
         // Implement prefetch logic based on request type
-        SecureLogger.shared.info("Executing prefetch request", details: [
-            "type": String(describing: request.contentType),
-            "priority": String(describing: request.priority)
-        ])
+        SecureLogger.shared.info("Executing prefetch request type=\(String(describing: request.contentType)) priority=\(String(describing: request.priority))")
     }
 
     // MARK: - Helper Methods
 
-    private func encodePost(_ post: Post) -> [String: Any] {
+    private func encodePost(_ post: Post) -> [String: AnyJSON] {
         return [
-            "content": post.content,
-            "latitude": post.latitude,
-            "longitude": post.longitude,
-            "location_name": post.locationName ?? NSNull(),
-            "is_anonymous": post.isAnonymous
+            "content": .string(post.text),
+            "latitude": .double(post.latitude),
+            "longitude": .double(post.longitude),
+            "location_name": post.locationName.map { .string($0) } ?? .null,
+            "is_anonymous": .bool(post.isAnonymous)
         ]
     }
 
-    private func encodeComment(_ comment: Comment) -> [String: Any] {
+    private func encodeComment(_ comment: Comment) -> [String: AnyJSON] {
         return [
-            "content": comment.content,
-            "user_id": comment.userId
+            "content": .string(comment.text),
+            "user_id": .string(comment.authorId)
         ]
     }
 

@@ -11,6 +11,7 @@ protocol AuthServiceProtocol: ObservableObject {
     // MARK: - Published Properties
     var isAuthenticated: Bool { get }
     var currentUser: AppUser? { get set }
+    var isAuthenticatedPublisher: AnyPublisher<Bool, Never> { get }
 
     // MARK: - Authentication Methods
     func signIn(email: String, password: String) async throws

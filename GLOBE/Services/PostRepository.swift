@@ -48,7 +48,7 @@ class PostRepository: PostRepositoryProtocol {
             SecureLogger.shared.info("Retrieved \(posts.count) posts from database")
             return posts
         } catch {
-            SecureLogger.shared.error("Failed to fetch all posts", error: error)
+            SecureLogger.shared.error("Failed to fetch all posts: \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -81,7 +81,7 @@ class PostRepository: PostRepositoryProtocol {
             let post = try decoder.decode(Post.self, from: response.data)
             return post
         } catch {
-            SecureLogger.shared.error("Failed to get post by id: \(id)", error: error)
+            SecureLogger.shared.error("Failed to get post by id: \(id) - \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -114,7 +114,7 @@ class PostRepository: PostRepositoryProtocol {
             let posts = try decoder.decode([Post].self, from: response.data)
             return posts
         } catch {
-            SecureLogger.shared.error("Failed to get posts by user: \(userId)", error: error)
+            SecureLogger.shared.error("Failed to get posts by user: \(userId) - \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -136,7 +136,7 @@ class PostRepository: PostRepositoryProtocol {
             let posts = try decoder.decode([Post].self, from: response.data)
             return posts
         } catch {
-            SecureLogger.shared.error("Failed to get posts by location", error: error)
+            SecureLogger.shared.error("Failed to get posts by location: \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -145,15 +145,22 @@ class PostRepository: PostRepositoryProtocol {
 
     func createPost(_ post: Post) async throws -> Post {
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-
-            let postData = try encoder.encode(post)
-            let postDict = try JSONSerialization.jsonObject(with: postData) as? [String: Any]
+            let iso = ISO8601DateFormatter()
+            let payload: [String: AnyJSON] = [
+                "user_id": .string(post.authorId),
+                "content": .string(post.text),
+                "image_url": post.imageUrl.map { .string($0) } ?? .null,
+                "latitude": .double(post.latitude),
+                "longitude": .double(post.longitude),
+                "location_name": post.locationName.map { .string($0) } ?? .null,
+                "is_anonymous": .bool(post.isAnonymous),
+                "is_public": .bool(post.isPublic),
+                "created_at": .string(iso.string(from: post.createdAt))
+            ]
 
             let response = try await supabaseClient
                 .from("posts")
-                .insert(postDict ?? [:])
+                .insert(payload)
                 .select()
                 .single()
                 .execute()
@@ -162,32 +169,38 @@ class PostRepository: PostRepositoryProtocol {
             decoder.dateDecodingStrategy = .iso8601
 
             let createdPost = try decoder.decode(Post.self, from: response.data)
-            SecureLogger.shared.info("Post created successfully", details: ["postId": createdPost.id.uuidString])
+            SecureLogger.shared.info("Post created successfully - postId: \(createdPost.id.uuidString)")
             return createdPost
         } catch {
-            SecureLogger.shared.error("Failed to create post", error: error)
+            SecureLogger.shared.error("Failed to create post: \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
 
     func updatePost(_ post: Post) async throws -> Bool {
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-
-            let postData = try encoder.encode(post)
-            let postDict = try JSONSerialization.jsonObject(with: postData) as? [String: Any]
+            let iso = ISO8601DateFormatter()
+            let updates: [String: AnyJSON] = [
+                "content": .string(post.text),
+                "image_url": post.imageUrl.map { .string($0) } ?? .null,
+                "location_name": post.locationName.map { .string($0) } ?? .null,
+                "latitude": .double(post.latitude),
+                "longitude": .double(post.longitude),
+                "is_anonymous": .bool(post.isAnonymous),
+                "is_public": .bool(post.isPublic),
+                "updated_at": .string(iso.string(from: Date()))
+            ]
 
             _ = try await supabaseClient
                 .from("posts")
-                .update(postDict ?? [:])
+                .update(updates)
                 .eq("id", value: post.id.uuidString)
                 .execute()
 
-            SecureLogger.shared.info("Post updated successfully", details: ["postId": post.id.uuidString])
+            SecureLogger.shared.info("Post updated successfully - postId: \(post.id.uuidString)")
             return true
         } catch {
-            SecureLogger.shared.error("Failed to update post", error: error)
+            SecureLogger.shared.error("Failed to update post: \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -200,10 +213,10 @@ class PostRepository: PostRepositoryProtocol {
                 .eq("id", value: postId.uuidString)
                 .execute()
 
-            SecureLogger.shared.info("Post deleted successfully", details: ["postId": postId.uuidString])
+            SecureLogger.shared.info("Post deleted successfully - postId: \(postId.uuidString)")
             return true
         } catch {
-            SecureLogger.shared.error("Failed to delete post", error: error)
+            SecureLogger.shared.error("Failed to delete post: \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -220,13 +233,10 @@ class PostRepository: PostRepositoryProtocol {
                 ])
                 .execute()
 
-            SecureLogger.shared.info("Post like toggled", details: [
-                "postId": postId.uuidString,
-                "userId": userId
-            ])
+            SecureLogger.shared.info("Post like toggled - postId: \(postId.uuidString), userId: \(userId)")
             return true
         } catch {
-            SecureLogger.shared.error("Failed to like post", error: error)
+            SecureLogger.shared.error("Failed to like post: \(error.localizedDescription)")
             throw AppError.from(error)
         }
     }
@@ -242,6 +252,6 @@ class PostRepository: PostRepositoryProtocol {
 extension PostRepository {
     static func create() -> PostRepository {
         let cacheRepository = ServiceContainer.shared.resolve(CacheRepositoryProtocol.self) ?? CacheRepository()
-        return PostRepository(supabaseClient: supabase, cacheRepository: cacheRepository)
+        return PostRepository(supabaseClient: SupabaseManager.shared.syncClient, cacheRepository: cacheRepository)
     }
 }

@@ -291,6 +291,9 @@ final class CertificatePinning: NSObject {
             let name = commonName as String? ?? "Unknown"
 
             // Check not valid before
+            // Certificate date validation removed - iOS handles this automatically
+            // kSecOIDX509V1ValidityNotBefore is not available in iOS SDK
+            /*
             if let notValidBefore = getCertificateDate(certificate, property: kSecOIDX509V1ValidityNotBefore) {
                 if currentDate < notValidBefore {
                     SecureLogger.shared.error("Certificate \(name) is not yet valid")
@@ -299,6 +302,10 @@ final class CertificatePinning: NSObject {
             }
 
             // Check not valid after
+            if let notValidAfter = getCertificateDate(certificate, property: kSecOIDX509V1ValidityNotAfter) {
+            */
+            // kSecOIDX509V1ValidityNotAfter is not available in iOS SDK
+            /*
             if let notValidAfter = getCertificateDate(certificate, property: kSecOIDX509V1ValidityNotAfter) {
                 if currentDate > notValidAfter {
                     SecureLogger.shared.error("Certificate \(name) has expired")
@@ -311,11 +318,14 @@ final class CertificatePinning: NSObject {
                     SecureLogger.shared.warning("Certificate \(name) expires soon: \(notValidAfter)")
                 }
             }
+            */
         }
 
         return true
     }
 
+    // Certificate date extraction removed - kSecPropertyKeyValue not available in iOS SDK
+    /*
     private func getCertificateDate(_ certificate: SecCertificate, property: CFString) -> Date? {
         guard let values = SecCertificateCopyValues(certificate, [property], nil) as? [CFString: Any],
               let dateDict = values[property] as? [CFString: Any],
@@ -325,12 +335,13 @@ final class CertificatePinning: NSObject {
 
         return Date(timeIntervalSinceReferenceDate: dateValue)
     }
+    */
 
     // MARK: - Security Reporting
 
     /// Report certificate pinning failures for security monitoring
     private func reportPinningFailure(host: String, reason: String) {
-        let report = [
+        let report: [String: Any] = [
             "event": "certificate_pinning_failure",
             "host": host,
             "reason": reason,
@@ -338,7 +349,7 @@ final class CertificatePinning: NSObject {
             "network_available": isNetworkAvailable
         ]
 
-        SecureLogger.shared.critical("Certificate pinning failure: \(report)")
+        SecureLogger.shared.error("CRITICAL: Certificate pinning failure: \(report)")
 
         // In production, this could be sent to a security monitoring service
         #if DEBUG

@@ -110,7 +110,7 @@ class SmartPrefetchManager: ObservableObject {
             prefetchStats.recordPrefetch(type: .userTimeline, count: recentPosts.count)
 
         } catch {
-            SecureLogger.shared.error("Failed to prefetch user timeline", error: error)
+            SecureLogger.shared.error("Failed to prefetch user timeline: \(error.localizedDescription)")
         }
     }
 
@@ -158,8 +158,8 @@ class SmartPrefetchManager: ObservableObject {
 
                 // Prefetch images
                 let imageUrls = postsToCache.compactMap { post -> URL? in
-                    guard let imageURL = post.imageURL else { return nil }
-                    return URL(string: imageURL)
+                    guard let imageUrl = post.imageUrl else { return nil }
+                    return URL(string: imageUrl)
                 }
 
                 if !imageUrls.isEmpty {
@@ -170,13 +170,10 @@ class SmartPrefetchManager: ObservableObject {
                     prefetchStats.recordPrefetch(type: .locationBased, count: postsToCache.count)
                 }
 
-                SecureLogger.shared.info("Prefetched nearby content", details: [
-                    "location": "\(location.latitude),\(location.longitude)",
-                    "postCount": String(postsToCache.count)
-                ])
+                SecureLogger.shared.info("Prefetched nearby content - location: \(location.latitude),\(location.longitude), postCount: \(postsToCache.count)")
 
             } catch {
-                SecureLogger.shared.error("Failed to prefetch nearby content", error: error)
+                SecureLogger.shared.error("Failed to prefetch nearby content: \(error.localizedDescription)")
             }
         }
     }
@@ -199,13 +196,13 @@ class SmartPrefetchManager: ObservableObject {
             prefetchStats.recordPrefetch(type: .userContent, count: recentPosts.count)
 
         } catch {
-            SecureLogger.shared.error("Failed to prefetch user posts", error: error)
+            SecureLogger.shared.error("Failed to prefetch user posts: \(error.localizedDescription)")
         }
     }
 
     private func prefetchComments(for postId: UUID) async {
         // Implementation would depend on having a CommentRepository
-        SecureLogger.shared.info("Prefetching comments for post", details: ["postId": postId.uuidString])
+        SecureLogger.shared.info("Prefetching comments for post: \(postId.uuidString)")
     }
 
     private func cacheHighEngagementPosts() async {

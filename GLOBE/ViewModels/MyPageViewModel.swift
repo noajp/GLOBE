@@ -35,6 +35,8 @@ final class MyPageViewModel: BaseViewModel {
         authService.currentUser?.id
     }
 
+    private let logger = SecureLogger.shared
+
     private func handleAuthStateChange() {
         if authService.isAuthenticated {
             Task {
@@ -78,12 +80,12 @@ final class MyPageViewModel: BaseViewModel {
 
     private func setupObservers() {
         // Observe authentication state changes
-        authService.objectWillChange
+        authService.isAuthenticatedPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.handleAuthStateChange()
             }
-            .store(in: &cancellables)
+            .store(with: self)
     }
 
     private func loadInitialData() {
@@ -109,14 +111,14 @@ final class MyPageViewModel: BaseViewModel {
             return
         }
 
-        SecureLogger.shared.info("Starting to load user data", details: ["user_id": userId])
+        SecureLogger.shared.info("Starting to load user data user_id=\(userId)")
         isLoading = true
 
         do {
             // Load profile using repository
             if let profile = try await userRepository.getUserProfile(by: userId) {
                 userProfile = profile
-                SecureLogger.shared.info("Profile loaded successfully", details: ["username": profile.username])
+                SecureLogger.shared.info("Profile loaded successfully username=\(profile.username)")
             } else {
                 // プロフィールが存在しない場合、認証情報から作成
                 SecureLogger.shared.warning("Profile not found, creating from auth data")
@@ -148,17 +150,13 @@ final class MyPageViewModel: BaseViewModel {
             followersCount = 0
             followingCount = 0
 
-            SecureLogger.shared.info("User data loaded successfully", details: [
-                "posts": String(postsCount),
-                "followers": String(followersCount),
-                "following": String(followingCount)
-            ])
+            SecureLogger.shared.info("User data loaded successfully posts=\(postsCount) followers=\(followersCount) following=\(followingCount)")
 
             hasLoadedInitially = true
             isLoading = false
 
         } catch {
-            SecureLogger.shared.error("Error loading user data", error: error)
+            SecureLogger.shared.error("Error loading user data: \(error.localizedDescription)")
             errorMessage = AppError.from(error).localizedDescription
             isLoading = false
         }
@@ -245,7 +243,7 @@ final class MyPageViewModel: BaseViewModel {
     private func createProfileFromAuthData() async {
         // Supabaseのセッションから実際のユーザーIDを取得
         do {
-            let session = try await supabase.auth.session
+            let session = try await (await supabase).auth.session
             let userId = session.user.id.uuidString
             let _ = session.user.userMetadata["username"]?.stringValue ?? 
                          session.user.email?.components(separatedBy: "@").first ?? "user"
@@ -296,7 +294,7 @@ final class MyPageViewModel: BaseViewModel {
             if error.localizedDescription.contains("sessionMissing") {
                 errorMessage = "セッションが無効です。再度ログインしてください。"
                 // AuthManagerに再認証を促す
-                await authManager.checkCurrentUser()
+                await authService.checkCurrentUser()
             } else {
                 errorMessage = "プロフィール取得に失敗しました: \(error.localizedDescription)"
             }
@@ -307,7 +305,7 @@ final class MyPageViewModel: BaseViewModel {
     /// プロフィールと認証情報の整合性をチェックし、必要に応じて修正
     @MainActor
     func syncProfileWithAuthData() async {
-        guard let currentUser = authManager.currentUser,
+        guard let currentUser = authService.currentUser,
               let userId = await currentUserId else {
             print("❌ MyPageViewModel: No current user for sync")
             return
@@ -404,15 +402,10 @@ final class MyPageViewModel: BaseViewModel {
                 .execute()
             
             userProfile = updatedProfile
-            logger.info("Profile updated successfully", category: "MyPageViewModel", details: [
-                "username": validatedUsername,
-                "displayName": validatedDisplayName
-            ])
+            logger.info("Profile updated successfully username=\(validatedUsername) displayName=\(validatedDisplayName)")
             
         } catch {
-            logger.error("Failed to update profile", category: "MyPageViewModel", details: [
-                "error": error.localizedDescription
-            ])
+            logger.error("Failed to update profile: \(error.localizedDescription)")
             errorMessage = "プロフィールの更新に失敗しました: \(error.localizedDescription)"
         }
     }
@@ -452,17 +445,17 @@ final class MyPageViewModel: BaseViewModel {
             print("🖼️ Uploading avatar for user: \(userId) to avatars/\(fileName)")
 
             // Upload to 'avatars' bucket (SDK default options)
-            try await supabase.storage
+            try await (await supabase).storage
                 .from("avatars")
                 .upload(fileName, data: jpegData)
 
-            let publicURL = try supabase.storage
+            let publicURL = try (await supabase).storage
                 .from("avatars")
                 .getPublicURL(path: fileName)
                 .absoluteString
 
             // Update profiles.avatar_url
-            try await supabase
+            try await (await supabase)
                 .from("profiles")
                 .update(["avatar_url": AnyJSON.string(publicURL)])
                 .eq("id", value: userId)
@@ -485,9 +478,9 @@ final class MyPageViewModel: BaseViewModel {
                 await loadUserData()
             }
 
-            logger.info("Avatar updated successfully", category: "MyPageViewModel")
+            logger.info("Avatar updated successfully")
         } catch {
-            logger.error("Failed to update avatar", category: "MyPageViewModel", details: ["error": error.localizedDescription])
+            logger.error("Failed to update avatar: \(error.localizedDescription)")
             errorMessage = "アバターの更新に失敗しました: \(error.localizedDescription)"
         }
     }

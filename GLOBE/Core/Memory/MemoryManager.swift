@@ -80,10 +80,10 @@ extension Publisher {
         on object: T,
         receiveValue: @escaping (T, Output) -> Void
     ) -> AnyCancellable {
-        return sink { [weak object] value in
+        return sink(receiveCompletion: { _ in }, receiveValue: { [weak object] value in
             guard let object = object else { return }
             receiveValue(object, value)
-        }
+        })
     }
 }
 
@@ -117,8 +117,20 @@ class BaseViewModel: ObservableObject {
         cancellable.store(in: &cancellables)
     }
 
+    // Convenience: store using instance reference (for chaining in sinks)
+    func store(with _: BaseViewModel, _ cancellable: AnyCancellable) {
+        cancellable.store(in: &cancellables)
+    }
+
     func cancelAllSubscriptions() {
         cancellables.forEach { $0.cancel() }
         cancellables.removeAll()
+    }
+}
+
+// MARK: - Convenience storing for Combine
+extension AnyCancellable {
+    func store(with viewModel: BaseViewModel) {
+        viewModel.store(self)
     }
 }

@@ -314,7 +314,7 @@ class SmartImagePreloader {
         let startIndex = max(0, currentIndex - prefetchDistance)
         let endIndex = min(posts.count, currentIndex + prefetchDistance * 2)
 
-        let urlsToPreload = posts[startIndex..<endIndex].compactMap { post in
+        let urlsToPreload: [URL] = posts[startIndex..<endIndex].compactMap { post in
             guard let imageUrl = post.imageUrl else { return nil }
             return URL(string: imageUrl)
         }

@@ -16,7 +16,7 @@ class SupabaseService: ObservableObject {
     private let secureConfig = SecureConfig.shared
     private let secureLogger = SecureLogger.shared
     
-    // Supabase client
+    // Supabase client (sync accessor to avoid async init in singleton)
     private let supabaseClient: SupabaseClient
     
     @Published var posts: [Post] = []
@@ -24,18 +24,8 @@ class SupabaseService: ObservableObject {
     @Published var error: String?
     
 private init() {
-        let urlString = secureConfig.supabaseURL
-        print("🔧 SupabaseService - Using URL: \(urlString)")
-        print("🔧 SupabaseService - Using Key: \(secureConfig.supabaseAnonKey.prefix(20))...")
-        
-        guard let url = URL(string: urlString) else {
-            fatalError("Invalid Supabase URL: \(urlString)")
-        }
-        
-        supabaseClient = SupabaseClient(
-            supabaseURL: url,
-            supabaseKey: secureConfig.supabaseAnonKey
-        )
+        // Use sync client for singleton construction
+        supabaseClient = SupabaseManager.shared.syncClient
     }
     
     // MARK: - Posts

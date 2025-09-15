@@ -76,10 +76,7 @@ class AppStore: StoreProtocol, ObservableObject {
             // Notify subscribers
             notifySubscribers(newState: newState)
 
-            SecureLogger.shared.info("State updated", details: [
-                "action": finalAction.type,
-                "stateChanges": String(stateChangeCount)
-            ])
+            SecureLogger.shared.info("State updated - action: \(finalAction.type), stateChanges: \(stateChangeCount)")
         }
     }
 
@@ -185,10 +182,7 @@ class AppStore: StoreProtocol, ObservableObject {
     }
 
     private func logStoreInitialization() {
-        SecureLogger.shared.info("AppStore initialized", details: [
-            "middlewareCount": String(middleware.count),
-            "initialState": "AppState.initial"
-        ])
+        SecureLogger.shared.info("AppStore initialized - middlewareCount: \(middleware.count), initialState: AppState.initial")
     }
 
     // MARK: - Debug Methods
@@ -232,10 +226,7 @@ protocol Middleware {
 
 struct LoggingMiddleware: Middleware {
     func process(action: Action, state: AppState, dispatch: @escaping (Action) -> Void) -> Action {
-        SecureLogger.shared.info("Middleware: Processing action", details: [
-            "action": action.type,
-            "timestamp": action.timestamp.ISO8601Format()
-        ])
+        SecureLogger.shared.info("Middleware: Processing action - action: \(action.type), timestamp: \(action.timestamp.ISO8601Format())")
         return action
     }
 }
@@ -294,10 +285,7 @@ struct AnalyticsMiddleware: Middleware {
         ]
 
         if trackableActions.contains(action.type) {
-            SecureLogger.shared.info("Analytics: User action tracked", details: [
-                "action": action.type,
-                "timestamp": action.timestamp.ISO8601Format()
-            ])
+            SecureLogger.shared.info("Analytics: User action tracked - action: \(action.type), timestamp: \(action.timestamp.ISO8601Format())")
         }
 
         return action

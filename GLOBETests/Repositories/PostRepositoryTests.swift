@@ -207,7 +207,7 @@ final class PostRepositoryTests: XCTestCase {
             createdAt: Date(),
             likeCount: 0,
             commentCount: 0,
-            isLikedByCurrentUser: false,
+            isLikedByMe: false,
             authorProfile: nil
         )
 
@@ -221,7 +221,7 @@ final class PostRepositoryTests: XCTestCase {
         XCTAssertEqual(createdPost.userId, newPost.userId)
         XCTAssertEqual(createdPost.likeCount, 0)
         XCTAssertEqual(createdPost.commentCount, 0)
-        XCTAssertFalse(createdPost.isLikedByCurrentUser)
+        XCTAssertFalse(createdPost.isLikedByMe)
 
         // Check that the post was added to the beginning of the array
         XCTAssertEqual(postRepository.mockPosts.first?.content, newPost.content)
@@ -242,7 +242,7 @@ final class PostRepositoryTests: XCTestCase {
             createdAt: Date(),
             likeCount: 0,
             commentCount: 0,
-            isLikedByCurrentUser: false,
+            isLikedByMe: false,
             authorProfile: nil
         )
 
@@ -273,7 +273,7 @@ final class PostRepositoryTests: XCTestCase {
             createdAt: existingPost.createdAt,
             likeCount: existingPost.likeCount,
             commentCount: existingPost.commentCount,
-            isLikedByCurrentUser: existingPost.isLikedByCurrentUser,
+            isLikedByMe: existingPost.isLikedByMe,
             authorProfile: existingPost.authorProfile
         )
 
@@ -300,7 +300,7 @@ final class PostRepositoryTests: XCTestCase {
             createdAt: Date(),
             likeCount: 0,
             commentCount: 0,
-            isLikedByCurrentUser: false,
+            isLikedByMe: false,
             authorProfile: nil
         )
 
@@ -387,7 +387,7 @@ final class PostRepositoryTests: XCTestCase {
 
         let updatedPost = postRepository.mockPosts.first { $0.id == post.id }
         XCTAssertEqual(updatedPost?.likeCount, initialLikeCount + 1)
-        XCTAssertTrue(updatedPost?.isLikedByCurrentUser ?? false)
+        XCTAssertTrue(updatedPost?.isLikedByMe ?? false)
     }
 
     func testLikePostNotFound() async {
@@ -441,7 +441,7 @@ final class PostRepositoryTests: XCTestCase {
 
         let updatedPost = postRepository.mockPosts.first { $0.id == post.id }
         XCTAssertEqual(updatedPost?.likeCount, max(0, likeCount - 1))
-        XCTAssertFalse(updatedPost?.isLikedByCurrentUser ?? true)
+        XCTAssertFalse(updatedPost?.isLikedByMe ?? true)
     }
 
     func testUnlikePostFailure() async {
@@ -477,7 +477,7 @@ final class PostRepositoryTests: XCTestCase {
                 createdAt: Date(),
                 likeCount: index % 10,
                 commentCount: index % 5,
-                isLikedByCurrentUser: index % 3 == 0,
+                isLikedByMe: index % 3 == 0,
                 authorProfile: nil
             )
         }
@@ -507,7 +507,7 @@ final class PostRepositoryTests: XCTestCase {
                 createdAt: Date(),
                 likeCount: 0,
                 commentCount: 0,
-                isLikedByCurrentUser: false,
+                isLikedByMe: false,
                 authorProfile: nil
             )
         }

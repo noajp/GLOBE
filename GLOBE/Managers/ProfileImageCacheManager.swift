@@ -32,7 +32,7 @@ final class ProfileImageCacheManager: ObservableObject {
         
         do {
             // Fetch user profile to get avatar URL
-            let profileData = try await supabase
+            let profileData = try await SupabaseManager.shared.client
                 .from("profiles")
                 .select("avatar_url")
                 .eq("id", value: userId)

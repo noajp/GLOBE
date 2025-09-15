@@ -26,7 +26,7 @@ class AuthManager: AuthServiceProtocol {
     @Published var isAuthenticated = false
     @Published var isLoading = false
     
-    private let logger = Logger.shared
+    private let logger = SecureLogger.shared
     
     /// 最大ログイン試行回数
     private let maxLoginAttempts = 5
@@ -44,12 +44,15 @@ class AuthManager: AuthServiceProtocol {
         }
         logger.info("AuthManager initialized")
     }
+
+    // Publisher exposure for protocol requirement
+    var isAuthenticatedPublisher: AnyPublisher<Bool, Never> { $isAuthenticated.eraseToAnyPublisher() }
     
     // MARK: - Session Management
     
     func checkCurrentUser() async -> Bool {
         do {
-            let session = try await supabase.auth.session
+            let session = try await (await supabase).auth.session
             let user = session.user
 
             currentUser = AppUser(
@@ -73,23 +76,23 @@ class AuthManager: AuthServiceProtocol {
     // MARK: - Sign Up
     
     func signUp(email: String, password: String, username: String) async throws {
-        ConsoleLogger.shared.forceLog("AuthManager.signUp: begin for \(email)")
+        logger.info("AuthManager.signUp: begin for \(email)")
         // 入力検証
         let emailValidation = InputValidator.validateEmail(email)
         guard emailValidation.isValid, let validEmail = emailValidation.value else {
-            ConsoleLogger.shared.forceLog("AuthManager.signUp: invalid email")
+            logger.error("AuthManager.signUp: invalid email")
             throw AuthError.invalidInput("有効なメールアドレスを入力してください")
         }
         
         let passwordValidation = InputValidator.validatePassword(password)
         guard passwordValidation.isValid else {
-            ConsoleLogger.shared.forceLog("AuthManager.signUp: weak password")
+            logger.error("AuthManager.signUp: weak password")
             throw AuthError.weakPassword(["パスワードは8文字以上で、英字と数字を含む必要があります"])
         }
         
         let usernameValidation = InputValidator.validateUsername(username)
         guard usernameValidation.isValid, let validUsername = usernameValidation.value else {
-            ConsoleLogger.shared.forceLog("AuthManager.signUp: invalid username")
+            logger.error("AuthManager.signUp: invalid username")
             throw AuthError.invalidInput("ユーザー名は3-20文字で、英字、数字、アンダースコアのみ使用できます")
         }
         
@@ -100,7 +103,7 @@ class AuthManager: AuthServiceProtocol {
         SecureLogger.shared.authEvent("sign_up_attempt", userID: nil)
         
         do {
-            let response = try await supabase.auth.signUp(
+            let response = try await (await supabase).auth.signUp(
                 email: validEmail,
                 password: password,
                 data: [
@@ -110,7 +113,7 @@ class AuthManager: AuthServiceProtocol {
             
             let user = response.user
             logger.info("Sign up successful for user: \(user.id.uuidString)")
-            ConsoleLogger.shared.forceLog("AuthManager.signUp: success user=\(user.id.uuidString)")
+            logger.info("AuthManager.signUp: success user=\(user.id.uuidString)")
             SecureLogger.shared.authEvent("sign_up_success", userID: user.id.uuidString)
             
             // メール認証をスキップして直接認証済み状態にする
@@ -129,7 +132,7 @@ class AuthManager: AuthServiceProtocol {
         } catch {
             logger.error("Sign up failed: \(error.localizedDescription)")
             let ns = error as NSError
-            ConsoleLogger.shared.logError("AuthManager.signUp failed", error: error)
+            logger.error("AuthManager.signUp failed: \(error.localizedDescription)")
             SecureLogger.shared.authEvent("sign_up_failed_\(ns.domain)_\(ns.code)")
             throw AuthError.unknown(error.localizedDescription)
         }
@@ -138,21 +141,21 @@ class AuthManager: AuthServiceProtocol {
     // MARK: - Sign In
     
     func signIn(email: String, password: String) async throws {
-        ConsoleLogger.shared.forceLog("AuthManager.signIn: begin for \(email)")
+        logger.info("AuthManager.signIn: begin for \(email)")
         // 入力検証
         let emailValidation = InputValidator.validateEmail(email)
         guard emailValidation.isValid, let validEmail = emailValidation.value else {
-            ConsoleLogger.shared.forceLog("AuthManager.signIn: invalid email")
+            logger.error("AuthManager.signIn: invalid email")
             throw AuthError.invalidInput("有効なメールアドレスを入力してください")
         }
         
         guard !password.isEmpty else {
-            ConsoleLogger.shared.forceLog("AuthManager.signIn: empty password")
+            logger.error("AuthManager.signIn: empty password")
             throw AuthError.invalidInput("パスワードを入力してください")
         }
         
         // レート制限チェック
-        try checkRateLimit(for: validEmail)
+        try checkEmailRateLimit(for: validEmail)
         
         isLoading = true
         defer { isLoading = false }
@@ -164,14 +167,14 @@ class AuthManager: AuthServiceProtocol {
             // Normalize email casing; passwords are case-sensitive and must not be trimmed/altered
             let normalizedEmail = validEmail.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             // Use SDK's signIn(email:password:) for this version
-            let response = try await supabase.auth.signIn(
+            let response = try await (await supabase).auth.signIn(
                 email: normalizedEmail,
                 password: password
             )
             
             let user = response.user
             logger.info("Sign in successful for user: \(user.id.uuidString)")
-            ConsoleLogger.shared.forceLog("AuthManager.signIn: success user=\(user.id.uuidString)")
+            logger.info("AuthManager.signIn: success user=\(user.id.uuidString)")
             SecureLogger.shared.authEvent("sign_in_success", userID: user.id.uuidString)
             
             currentUser = AppUser(
@@ -190,7 +193,7 @@ class AuthManager: AuthServiceProtocol {
             
             // Supabase特有のエラーハンドリング
             if let nsError = error as NSError? {
-                ConsoleLogger.shared.forceLog("AuthManager.signIn: failed domain=\(nsError.domain) code=\(nsError.code) desc=\(nsError.localizedDescription)")
+                logger.error("AuthManager.signIn: failed domain=\(nsError.domain) code=\(nsError.code) desc=\(nsError.localizedDescription)")
                 let errorMessage: String
                 switch nsError.code {
                 case 400:
@@ -231,7 +234,7 @@ class AuthManager: AuthServiceProtocol {
         logger.info("Password reset request for: \(validEmail)")
         
         do {
-            try await supabase.auth.resetPasswordForEmail(validEmail)
+            try await (await supabase).auth.resetPasswordForEmail(validEmail)
             logger.info("Password reset email sent to: \(validEmail)")
         } catch {
             logger.error("Password reset failed: \(error.localizedDescription)")
@@ -245,7 +248,7 @@ class AuthManager: AuthServiceProtocol {
         logger.info("Sign out attempt")
 
         do {
-            try await supabase.auth.signOut()
+            try await (await supabase).auth.signOut()
             currentUser = nil
             isAuthenticated = false
             logger.info("Sign out successful")
@@ -262,7 +265,7 @@ class AuthManager: AuthServiceProtocol {
         return true
     }
 
-    private func checkRateLimit(for email: String) throws {
+    private func checkEmailRateLimit(for email: String) throws {
         let now = Date()
         if let attempt = loginAttempts[email] {
             let timeSinceLastAttempt = now.timeIntervalSince(attempt.lastAttempt)
@@ -305,7 +308,7 @@ class AuthManager: AuthServiceProtocol {
     
     func validateSession() async throws -> Bool {
         do {
-            _ = try await supabase.auth.session
+            _ = try await (await supabase).auth.session
             logger.info("Session validation successful")
             return true
         } catch {

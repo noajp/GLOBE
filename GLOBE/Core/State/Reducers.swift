@@ -199,7 +199,7 @@ struct PostsStateReducer {
 
         case .toggleLike(let postId, let isLiked):
             if let index = newState.posts.firstIndex(where: { $0.id == postId }) {
-                newState.posts[index].isLikedByCurrentUser = isLiked
+                newState.posts[index].isLikedByMe = isLiked
                 newState.posts[index].likeCount += isLiked ? 1 : -1
             }
 

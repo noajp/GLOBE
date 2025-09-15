@@ -23,7 +23,7 @@ struct MapContentView: View {
     var body: some View {
         ZStack {
             // Map
-            Map(coordinateRegion: $mapManager.region, showsUserLocation: true, annotationItems: mapManager.posts) { post in
+            Map(coordinateRegion: $mapManager.region, interactionModes: [.pan, .zoom, .rotate], showsUserLocation: true, annotationItems: mapManager.posts) { post in
                 MapAnnotation(coordinate: post.location) {
                     PostPin(post: post) {
                         selectedPost = post
@@ -32,56 +32,18 @@ struct MapContentView: View {
                 }
             }
             .mapStyle(.hybrid(elevation: .realistic))
-            .onReceive(locationManager.$userLocation) { location in
+            .onReceive(locationManager.$location) { location in
                 if let location = location, shouldMoveToCurrentLocation {
-                    mapManager.moveToLocation(location.coordinate)
+                    mapManager.focusOnLocation(location.coordinate)
                     shouldMoveToCurrentLocation = false
                 }
             }
-            .onTapGesture(coordinateSpace: .local) { location in
+            .onTapGesture {
                 if authManager.isAuthenticated {
-                    handleMapTap(at: location)
+                    handleMapTap()
                 }
             }
 
-            // Floating controls overlay
-            VStack {
-                Spacer()
-
-                HStack {
-                    Spacer()
-
-                    VStack(spacing: 12) {
-                        // Current location button
-                        Button(action: {
-                            if let userLocation = locationManager.userLocation {
-                                mapManager.moveToLocation(userLocation.coordinate)
-                            }
-                        }) {
-                            Image(systemName: "location.fill")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.black.opacity(0.7))
-                                .clipShape(Circle())
-                        }
-
-                        // Zoom out to world view button
-                        Button(action: {
-                            mapManager.showWorldView()
-                        }) {
-                            Image(systemName: "globe")
-                                .font(.title2)
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
-                                .background(Color.black.opacity(0.7))
-                                .clipShape(Circle())
-                        }
-                    }
-                }
-                .padding(.trailing, 20)
-                .padding(.bottom, 100)
-            }
         }
         .sheet(item: $selectedPost) { post in
             PostDetailView(post: post, isPresented: .constant(true))
@@ -90,14 +52,12 @@ struct MapContentView: View {
 
     // MARK: - Private Methods
 
-    private func handleMapTap(at location: CGPoint) {
+    private func handleMapTap() {
         authManager.reportSecurityEvent(
             "map_interaction",
             severity: .low,
             details: ["action": "tap", "authenticated": "true"]
         )
-
-        let coordinate = mapManager.convertPointToCoordinate(location)
         showingCreatePost = true
     }
 }
