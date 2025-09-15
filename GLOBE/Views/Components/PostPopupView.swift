@@ -76,8 +76,26 @@ struct PostPopupView: View {
                 alignment: .bottom
             )
             .shadow(radius: 10)
+            // 吹き出しV先端のスクリーン座標をPreferenceで親に通知
+            .overlay(alignment: .bottom) {
+                GeometryReader { proxy in
+                    Color.clear
+                        .frame(width: 1, height: 1)
+                        // V先端はカードの下端から約15pt下
+                        .offset(y: 15)
+                        .preference(key: VTipPreferenceKey.self, value: {
+                            let f = proxy.frame(in: .global)
+                            // 吹き出し三角の高さ分（約15pt）を下に補正してV先端の画面座標に一致
+                            return CGPoint(x: f.midX, y: f.maxY + 15)
+                        }())
+                }
+                .frame(width: 1, height: 1)
+            }
         }
         .animation(.easeInOut(duration: 0.3), value: showPrivacySelection)
+        .onDisappear {
+            mapManager.draftPostCoordinate = nil
+        }
         .fullScreenCover(isPresented: $showingCamera) {
             ZStack {
                 // Fast custom camera preview
@@ -145,7 +163,7 @@ struct PostPopupView: View {
                 AVCaptureDevice.requestAccess(for: .video) { _ in }
             }
         }
-        // 投稿作成中は座標を固定（地図移動に追従しない）
+        // ここでは購読しない（無限再レンダリングを避ける）。投稿時に最新座標を参照する。
         .onChange(of: selectedImageData) { oldValue, newValue in
             print("📸 PostPopup - selectedImageData changed: \(newValue?.count ?? 0) bytes (was: \(oldValue?.count ?? 0) bytes)")
             print("📝 PostPopup - After change - text: '\(postText)', hasImage: \(newValue != nil)")
@@ -469,63 +487,85 @@ struct PostPopupView: View {
     private func createPost() {
         guard !isSubmitting else { return }
         isSubmitting = true
-        guard let location = postLocation else { 
-            print("❌ PostPopup - No location available")
-            isSubmitting = false
-            return 
-        }
+
+        // Capture values to avoid self reference issues
+        let currentText = postText
+        let currentImageData = selectedImageData
+        let currentPrivacyType = selectedPrivacyType
+
+        // 最新のV先端座標（Map側で算出）を採用。なければinitialLocation→region.centerの順でフォールバック
+        let location = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
         
-        print("🚀 PostPopup - Starting post creation. Content: '\(postText)', HasImage: \(selectedImageData != nil), Location: \(areaName.isEmpty ? "unknown" : areaName)")
-        if let imageData = selectedImageData {
+        print("🚀 PostPopup - Starting post creation. Content: '\(currentText)', HasImage: \(currentImageData != nil), Location: \(areaName.isEmpty ? "unknown" : areaName)")
+        if let imageData = currentImageData {
             print("📸 PostPopup - Image data size: \(imageData.count) bytes")
         }
         print("📍 PostPopup - Location details: latitude=\(location.latitude), longitude=\(location.longitude)")
         // Don't override user's explicit privacy selection
         // if appSettings.defaultAnonymousPosting { selectedPrivacyType = .anonymous }
-        let privacyDescription = switch selectedPrivacyType {
+        let privacyDescription = switch currentPrivacyType {
         case .followersOnly: "Followers Only"
         case .publicPost: "Public"
         case .anonymous: "Anonymous"
         }
         print("🔐 PostPopup - Privacy setting: \(privacyDescription)")
         
+        // Use working post location logic from git history
+        let postingLocation = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
+
         Task { @MainActor in
             do {
                 try await postManager.createPost(
-                    content: postText,
-                    imageData: selectedImageData,
-                    location: location,
+                    content: currentText,
+                    imageData: currentImageData,
+                    location: postingLocation,
                     locationName: appSettings.showLocationNameOnPost ? areaName : nil,
-                    isAnonymous: selectedPrivacyType == .anonymous
+                    isAnonymous: currentPrivacyType == .anonymous
                 )
-                
+
                 print("✅ PostPopup - Post created successfully")
 
-                // Refresh map posts to show the new post immediately
-                mapManager.refreshPosts()
-
-                // Also fetch latest posts from database to ensure consistency
-                Task {
-                    await postManager.fetchPosts()
-                }
-
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-
-                self.isPresented = false
+                // Simple state reset from working version
                 self.postText = ""
-                self.selectedImageData = Optional<Data>.none
+                self.selectedImageData = nil
                 self.showPrivacySelection = false
                 self.isSubmitting = false
+                self.isPresented = false
+
             } catch {
                 print("❌ PostPopup - Error creating post: \(error)")
                 self.errorMessage = "投稿の作成に失敗しました: \(error.localizedDescription)"
                 self.showError = true
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.showPrivacySelection = false
-                }
+                self.showPrivacySelection = false
                 self.isSubmitting = false
             }
         }
+    }
+
+    // 選択座標のエリア名を軽量に解決（投稿時のみ）
+    private func resolveAreaName(for coordinate: CLLocationCoordinate2D) async -> String? {
+        do {
+            let request = MKLocalSearch.Request()
+            request.naturalLanguageQuery = "\(coordinate.latitude),\(coordinate.longitude)"
+            request.resultTypes = [.address]
+            let search = MKLocalSearch(request: request)
+            let response = try await search.start()
+            if let mapItem = response.mapItems.first {
+                var components: [String] = []
+                if let name = mapItem.name {
+                    let cleaned = name
+                        .replacingOccurrences(of: #"[0-9]+-[0-9]+.*"#, with: "", options: .regularExpression)
+                        .replacingOccurrences(of: #"[0-9]+番地.*"#, with: "", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !cleaned.isEmpty { components.append(cleaned) }
+                }
+                if components.isEmpty { components.append("Near Current Location") }
+                return components.prefix(2).joined(separator: " ")
+            }
+        } catch {
+            return nil
+        }
+        return nil
     }
     
     private func checkCameraPermissionAndOpen() {
@@ -599,10 +639,9 @@ struct PostPopupView: View {
     private func updatePostLocation() {
         if let initialLocation = initialLocation {
             print("🗺️ PostPopup - Using provided initial location: \(initialLocation.latitude), \(initialLocation.longitude)")
-            // 投稿座標は指定の地点。地図の表示中心も同じ位置に合わせる
+            // 投稿座標は指定の地点。地図は動かさない（ユーザーの意図を優先）
             postLocation = initialLocation
             updateAreaLocation(for: initialLocation)
-            mapManager.focusOnLocation(initialLocation)
         } else {
             // 投稿座標は「地図の中心」
             let center = mapManager.region.center
@@ -756,6 +795,14 @@ struct Triangle: Shape {
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         path.closeSubpath()
         return path
+    }
+}
+
+// MARK: - V Tip Preference
+struct VTipPreferenceKey: PreferenceKey {
+    static var defaultValue: CGPoint? = nil
+    static func reduce(value: inout CGPoint?, nextValue: () -> CGPoint?) {
+        if let next = nextValue() { value = next }
     }
 }
 
