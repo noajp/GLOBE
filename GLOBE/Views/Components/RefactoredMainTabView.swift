@@ -23,6 +23,7 @@ struct RefactoredMainTabView: View {
     @State private var showingProfile = false
     @State private var shouldMoveToCurrentLocation = false
     @State private var selectedStory: Story?
+    @State private var tappedLocation: CLLocationCoordinate2D?
 
     var body: some View {
         ZStack {
@@ -47,7 +48,8 @@ struct RefactoredMainTabView: View {
                     postManager: postManager,
                     authManager: authManager,
                     showingCreatePost: $showingCreatePost,
-                    shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation
+                    shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
+                    tappedLocation: $tappedLocation
                 )
             }
             .background(MinimalDesign.Colors.background)
@@ -56,7 +58,8 @@ struct RefactoredMainTabView: View {
             if showingCreatePost {
                 PostPopupView(
                     isPresented: $showingCreatePost,
-                    mapManager: mapManager
+                    mapManager: mapManager,
+                    initialLocation: tappedLocation ?? locationManager.location?.coordinate
                 )
                 .transition(.scale.combined(with: .opacity))
                 .animation(.easeInOut(duration: 0.3), value: showingCreatePost)

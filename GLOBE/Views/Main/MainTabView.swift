@@ -16,51 +16,90 @@ struct MainTabView: View {
     @State private var showingProfile = false
     @State private var shouldMoveToCurrentLocation = false
     @State private var notificationObservers: [NSObjectProtocol] = []
+    @State private var shouldShowPostAfterDelay = false
+    @State private var tappedLocation: CLLocationCoordinate2D?
 
 
     // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
     
     var body: some View {
-        GlassEffectContainer {
-            ZStack {
-                // Full screen map
-                MapContentView(
-                    mapManager: mapManager,
-                    locationManager: locationManager,
-                    postManager: postManager,
-                    authManager: authManager,
-                    showingCreatePost: $showingCreatePost,
-                    shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation
-                )
-                    .environmentObject(appSettings)
-                    .ignoresSafeArea(.all)
+        ZStack {
+            // Full screen map
+            MapContentView(
+                mapManager: mapManager,
+                locationManager: locationManager,
+                postManager: postManager,
+                authManager: authManager,
+                showingCreatePost: $showingCreatePost,
+                shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
+                tappedLocation: $tappedLocation
+            )
+                .environmentObject(appSettings)
+                .ignoresSafeArea(.all)
 
-                // Glass Tab Bar at bottom
-                LiquidGlassBottomTabBar(
-                    onProfileTapped: {
-                        if authManager.isAuthenticated {
-                            self.showingProfile = true
-                        } else {
-                            self.showingAuth = true
+            // 右下にボタンを上下配置
+            VStack {
+                Spacer()
+
+                HStack {
+                    Spacer()
+
+                    VStack(spacing: 16) {
+                        // Profile Button (上)
+                        GlassCircleButton(
+                            id: "profile-button",
+                            size: 50,
+                            action: {
+                                if authManager.isAuthenticated {
+                                    self.showingProfile = true
+                                } else {
+                                    self.showingAuth = true
+                                }
+                            }
+                        ) {
+                            Image(systemName: "person.circle.fill")
+                                .font(.system(size: 24, weight: .medium))
+                                .foregroundStyle(.white)
+                                .shadow(color: .white.opacity(0.3), radius: 2, x: 0, y: 0)
                         }
-                    },
-                    onPostTapped: {
-                        if authManager.isAuthenticated {
-                            self.showingCreatePost = true
-                        } else {
-                            self.showingAuth = true
+
+                        // Post Button (下)
+                        GlassCircleButton(
+                            id: "post-button-main",
+                            size: 50,
+                            action: {
+                                if authManager.isAuthenticated {
+                                    // 現在の地図中心を固定して渡す（表示ズレ防止）
+                                    self.tappedLocation = mapManager.region.center
+                                    self.showingCreatePost = true
+                                } else {
+                                    self.showingAuth = true
+                                }
+                            }
+                        ) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .shadow(color: .white.opacity(0.4), radius: 2, x: 0, y: 0)
                         }
                     }
-                )
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 34) // Safe area bottom
+                }
             }
         }
+        .glassContainer()
         .ignoresSafeArea(.keyboard)
         .overlay(
             Group {
                 if showingCreatePost {
-                    PostPopupView(isPresented: $showingCreatePost, mapManager: mapManager)
-                        .offset(y: 50) // 位置マーカーが画面下部に来るので、投稿カードを画面下部寄りに配置
+                    PostPopupView(
+                        isPresented: $showingCreatePost,
+                        mapManager: mapManager,
+                        initialLocation: tappedLocation
+                    )
+                        // 中央表示（Vの先端を地図の中心に一致させる）
                         .transition(.opacity)
                         .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
                         .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
@@ -92,55 +131,63 @@ struct MainTabView: View {
             }
         }
         .onAppear {
-            // 通知の監視を開始
-            let postAtLocationObserver = NotificationCenter.default.addObserver(
-                forName: Notification.Name("PostAtCurrentLocation"),
-                object: nil,
-                queue: .main
-            ) { _ in
-                // 現在地に移動してから投稿画面を開く
-                moveToCurrentLocationAndPost()
-            }
+            // 位置情報サービスを開始
+            locationManager.startLocationServices()
 
-            notificationObservers = [postAtLocationObserver]
-
-            // セキュリティ初期化（メインスレッドで実行）
-            performSecurityChecks()
-
-            // アプリ起動時に認証状態をチェック
-            if !authManager.isAuthenticated {
-                showingAuth = true
-            } else {
-                // 認証済みユーザーのセッション検証
-                Task { @MainActor in
-                    do {
-                        let isValidSession = (try? await authManager.validateSession()) ?? false
-                        if !isValidSession {
-                            showingAuth = true
-                            return
-                        }
-                        // 最初の投稿取得はUI表示後に遅延して実行（起動体感を軽く）
-                        try await Task.sleep(nanoseconds: 200_000_000)
-                        await mapManager.fetchInitialPostsIfNeeded()
-                    } catch {
-                        SecureLogger.shared.error("Failed to initialize user session: \(error)")
-                    }
+            // アプリ起動時に認証状態をチェック - 次のレンダリングサイクルで実行
+            Task { @MainActor in
+                if !authManager.isAuthenticated {
+                    showingAuth = true
+                } else {
+                    // 認証済みの場合は投稿を読み込み
+                    await mapManager.fetchInitialPostsIfNeeded()
                 }
             }
         }
         .onChange(of: authManager.isAuthenticated) { _, authed in
             if authed {
-                Task {
+                Task { @MainActor in
                     await mapManager.fetchInitialPostsIfNeeded()
                 }
             }
         }
-        .task {
-            // 定期的なセキュリティチェック（バックグラウンドで実行）
-            do {
-                await performPeriodicSecurityChecks()
-            }
-        }
+        // TEMPORARILY DISABLED ALL ASYNC TASKS FOR CRASH DEBUGGING
+        // .task {
+        //     // 定期的なセキュリティチェック（バックグラウンドで実行）
+        //     await performPeriodicSecurityChecks()
+        // }
+        // .task {
+        //     // 認証済みユーザーのセッション検証
+        //     guard authManager.isAuthenticated else { return }
+        //
+        //     do {
+        //         let isValidSession = (try? await authManager.validateSession()) ?? false
+        //         if !isValidSession {
+        //             await MainActor.run {
+        //                 showingAuth = true
+        //             }
+        //             return
+        //         }
+        //         // 最初の投稿取得はUI表示後に遅延して実行（起動体感を軽く）
+        //         try await Task.sleep(nanoseconds: 200_000_000)
+        //         await mapManager.fetchInitialPostsIfNeeded()
+        //     } catch {
+        //         SecureLogger.shared.error("Failed to initialize user session: \(error)")
+        //     }
+        // }
+        // .task {
+        //     // Watch for delayed post creation trigger
+        //     while !Task.isCancelled {
+        //         if shouldShowPostAfterDelay {
+        //             try? await Task.sleep(nanoseconds: 500_000_000)
+        //             if !Task.isCancelled {
+        //                 showingCreatePost = true
+        //                 shouldShowPostAfterDelay = false
+        //             }
+        //         }
+        //         try? await Task.sleep(nanoseconds: 100_000_000) // Check every 0.1 seconds
+        //     }
+        // }
         .onDisappear {
             // NotificationCenter observersをクリーンアップ
             for observer in notificationObservers {
@@ -154,28 +201,27 @@ struct MainTabView: View {
 // MARK: - Security Methods
 
 extension MainTabView {
-    // MARK: - Post at Current Location
-    @MainActor
-    private func moveToCurrentLocationAndPost() {
-        let locationManager = CLLocationManager()
-        let status = locationManager.authorizationStatus
-
-        guard status == .authorizedWhenInUse || status == .authorizedAlways else {
-            if status == .notDetermined {
-                locationManager.requestWhenInUseAuthorization()
-            }
-            return
-        }
-
-        if let currentLocation = locationManager.location?.coordinate {
-            mapManager.focusOnLocation(currentLocation)
-
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                showingCreatePost = true
-            }
-        }
-    }
+    // TEMPORARILY DISABLED FOR CRASH DEBUGGING
+    // // MARK: - Post at Current Location
+    // @MainActor
+    // private func moveToCurrentLocationAndPost() {
+    //     let locationManager = CLLocationManager()
+    //     let status = locationManager.authorizationStatus
+    //
+    //     guard status == .authorizedWhenInUse || status == .authorizedAlways else {
+    //         if status == .notDetermined {
+    //             locationManager.requestWhenInUseAuthorization()
+    //         }
+    //         return
+    //     }
+    //
+    //     if let currentLocation = locationManager.location?.coordinate {
+    //         mapManager.focusOnLocation(currentLocation)
+    //
+    //         // Trigger delayed post creation via state change
+    //         shouldShowPostAfterDelay = true
+    //     }
+    // }
 
     // MARK: - Location Permission Check
     private func checkLocationPermission() {
@@ -194,88 +240,90 @@ extension MainTabView {
         }
     }
     
-    /// アプリ起動時のセキュリティチェック
-    private func performSecurityChecks() {
-        SecureLogger.shared.info("Performing app startup security checks")
-        
-        // デバイスセキュリティチェック
-        let deviceInfo = authManager.getDeviceSecurityInfo()
-        let deviceInfoStrings: [String: String] = deviceInfo.reduce(into: [:]) { dict, pair in
-            dict[pair.key] = String(describing: pair.value)
-        }
-        
-        // Jailbreak検出
-        if (deviceInfo["is_jailbroken"] as? Bool) == true {
-            authManager.reportSecurityEvent(
-                "jailbreak_detected",
-                severity: .critical,
-                details: deviceInfoStrings
-            )
-        }
-        
-        // シミュレータ検出（本番では警告）
-        #if !DEBUG
-        if (deviceInfo["is_simulator"] as? Bool) == true {
-            authManager.reportSecurityEvent(
-                "simulator_detected_in_production",
-                severity: .high,
-                details: deviceInfoStrings
-            )
-        }
-        #endif
-        
-        // アプリバージョンチェック
-        checkAppVersionSecurity()
-        
-        SecureLogger.shared.info("App startup security checks completed")
-    }
+    // TEMPORARILY DISABLED FOR CRASH DEBUGGING
+    // /// アプリ起動時のセキュリティチェック
+    // private func performSecurityChecks() {
+    //     SecureLogger.shared.info("Performing app startup security checks")
+    //
+    //     // デバイスセキュリティチェック
+    //     let deviceInfo = authManager.getDeviceSecurityInfo()
+    //     let deviceInfoStrings: [String: String] = deviceInfo.reduce(into: [:]) { dict, pair in
+    //         dict[pair.key] = String(describing: pair.value)
+    //     }
+    //
+    //     // Jailbreak検出
+    //     if (deviceInfo["is_jailbroken"] as? Bool) == true {
+    //         authManager.reportSecurityEvent(
+    //             "jailbreak_detected",
+    //             severity: .critical,
+    //             details: deviceInfoStrings
+    //         )
+    //     }
+    //
+    //     // シミュレータ検出（本番では警告）
+    //     #if !DEBUG
+    //     if (deviceInfo["is_simulator"] as? Bool) == true {
+    //         authManager.reportSecurityEvent(
+    //             "simulator_detected_in_production",
+    //             severity: .high,
+    //             details: deviceInfoStrings
+    //         )
+    //     }
+    //     #endif
+    //
+    //     // アプリバージョンチェック
+    //     checkAppVersionSecurity()
+    //
+    //     SecureLogger.shared.info("App startup security checks completed")
+    // }
     
-    /// 定期的なセキュリティチェック
-    private func performPeriodicSecurityChecks() async {
-        while !Task.isCancelled {
-            // 5分ごとにセキュリティチェックを実行
-            do {
-                try await Task.sleep(nanoseconds: 300_000_000_000) // 5分
-            } catch {
-                // Task was cancelled, exit gracefully
-                break
-            }
-
-            guard authManager.isAuthenticated && !Task.isCancelled else { continue }
-
-            SecureLogger.shared.debug("Performing periodic security checks")
-            
-            // Task cancellation check
-            guard !Task.isCancelled else { break }
-
-            // セッション妥当性チェック
-            let isValidSession = (try? await authManager.validateSession()) ?? false
-            if !isValidSession {
-                SecureLogger.shared.securityEvent("Periodic session validation failed")
-                await MainActor.run {
-                    showingAuth = true
-                }
-                break
-            }
-
-            // Task cancellation check
-            guard !Task.isCancelled else { break }
-
-            // デバイス状態チェック
-            let currentDeviceInfo = authManager.getDeviceSecurityInfo()
-            let currentDeviceInfoStrings: [String: String] = currentDeviceInfo.reduce(into: [:]) { dict, pair in
-                dict[pair.key] = String(describing: pair.value)
-            }
-            if (currentDeviceInfo["is_jailbroken"] as? Bool) == true {
-                authManager.reportSecurityEvent(
-                    "runtime_jailbreak_detected",
-                    severity: .critical,
-                    details: currentDeviceInfoStrings
-                )
-                break
-            }
-        }
-    }
+    // TEMPORARILY DISABLED FOR CRASH DEBUGGING
+    // /// 定期的なセキュリティチェック
+    // private func performPeriodicSecurityChecks() async {
+    //     while !Task.isCancelled {
+    //         // 5分ごとにセキュリティチェックを実行
+    //         do {
+    //             try await Task.sleep(nanoseconds: 300_000_000_000) // 5分
+    //         } catch {
+    //             // Task was cancelled, exit gracefully
+    //             break
+    //         }
+    //
+    //         guard authManager.isAuthenticated && !Task.isCancelled else { continue }
+    //
+    //         SecureLogger.shared.debug("Performing periodic security checks")
+    //
+    //         // Task cancellation check
+    //         guard !Task.isCancelled else { break }
+    //
+    //         // セッション妥当性チェック
+    //         let isValidSession = (try? await authManager.validateSession()) ?? false
+    //         if !isValidSession {
+    //             SecureLogger.shared.securityEvent("Periodic session validation failed")
+    //             await MainActor.run {
+    //                 showingAuth = true
+    //             }
+    //             break
+    //         }
+    //
+    //         // Task cancellation check
+    //         guard !Task.isCancelled else { break }
+    //
+    //         // デバイス状態チェック
+    //         let currentDeviceInfo = authManager.getDeviceSecurityInfo()
+    //         let currentDeviceInfoStrings: [String: String] = currentDeviceInfo.reduce(into: [:]) { dict, pair in
+    //             dict[pair.key] = String(describing: pair.value)
+    //         }
+    //         if (currentDeviceInfo["is_jailbroken"] as? Bool) == true {
+    //             authManager.reportSecurityEvent(
+    //                 "runtime_jailbreak_detected",
+    //                 severity: .critical,
+    //                 details: currentDeviceInfoStrings
+    //             )
+    //             break
+    //         }
+    //     }
+    // }
     
     /// アプリバージョンセキュリティチェック
     private func checkAppVersionSecurity() {

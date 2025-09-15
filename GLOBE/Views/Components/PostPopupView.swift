@@ -13,6 +13,7 @@ import Combine
 struct PostPopupView: View {
     @Binding var isPresented: Bool
     @ObservedObject var mapManager: MapManager
+    let initialLocation: CLLocationCoordinate2D? // Add parameter for exact post location
     @StateObject private var locationManager = PostLocationManager()
     @StateObject private var mapLocationService = MapLocationService()
     @ObservedObject private var authManager = AuthManager.shared
@@ -30,6 +31,7 @@ struct PostPopupView: View {
     @State private var showingLocationPermissionAlert = false
     @State private var capturedUIImage: UIImage?
     @State private var postLocation: CLLocationCoordinate2D?
+    // 位置決定は地図の中心に揃える（Vの先端=地図中心）。余計なオフセットは使わない。
     @State private var areaName: String = ""
     @State private var showPrivacySelection = false
     @State private var selectedPrivacyType: PostPrivacyType = .publicPost
@@ -131,15 +133,19 @@ struct PostPopupView: View {
             Text("Please allow location access in Settings to move to your current location.")
         }
         .onAppear {
-            // Do not jump to the user's location automatically.
+            // Start location services
+            mapLocationService.startLocationServices()
+
             // Initialize with current map center; user can press the direction icon to move to self location.
             updatePostLocation()
+
             // Pre-warm camera permission to reduce launch latency
             let status = AVCaptureDevice.authorizationStatus(for: .video)
             if status == .notDetermined {
                 AVCaptureDevice.requestAccess(for: .video) { _ in }
             }
         }
+        // 投稿作成中は座標を固定（地図移動に追従しない）
         .onChange(of: selectedImageData) { oldValue, newValue in
             print("📸 PostPopup - selectedImageData changed: \(newValue?.count ?? 0) bytes (was: \(oldValue?.count ?? 0) bytes)")
             print("📝 PostPopup - After change - text: '\(postText)', hasImage: \(newValue != nil)")
@@ -494,9 +500,17 @@ struct PostPopupView: View {
                 )
                 
                 print("✅ PostPopup - Post created successfully")
-                
+
+                // Refresh map posts to show the new post immediately
+                mapManager.refreshPosts()
+
+                // Also fetch latest posts from database to ensure consistency
+                Task {
+                    await postManager.fetchPosts()
+                }
+
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                
+
                 self.isPresented = false
                 self.postText = ""
                 self.selectedImageData = Optional<Data>.none
@@ -554,8 +568,9 @@ struct PostPopupView: View {
             print("✅ PostPopup - Got current location: \(currentLocation.latitude), \(currentLocation.longitude)")
             mapManager.focusOnLocation(currentLocation)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.postLocation = self.mapManager.region.center
-                self.updateAreaLocation(for: self.mapManager.region.center)
+                let center = self.mapManager.region.center
+                self.postLocation = center
+                self.updateAreaLocation(for: center)
             }
         } else {
             print("🔄 PostPopup - Requesting location update...")
@@ -582,9 +597,19 @@ struct PostPopupView: View {
     }
     
     private func updatePostLocation() {
-        print("🗺️ PostPopup - Using map center for post: \(mapManager.region.center.latitude), \(mapManager.region.center.longitude)")
-        postLocation = mapManager.region.center
-        updateAreaLocation(for: mapManager.region.center)
+        if let initialLocation = initialLocation {
+            print("🗺️ PostPopup - Using provided initial location: \(initialLocation.latitude), \(initialLocation.longitude)")
+            // 投稿座標は指定の地点。地図の表示中心も同じ位置に合わせる
+            postLocation = initialLocation
+            updateAreaLocation(for: initialLocation)
+            mapManager.focusOnLocation(initialLocation)
+        } else {
+            // 投稿座標は「地図の中心」
+            let center = mapManager.region.center
+            print("🗺️ PostPopup - Using map center for post: \(center.latitude), \(center.longitude)")
+            postLocation = center
+            updateAreaLocation(for: center)
+        }
     }
     
     private func updateAreaLocation(for coordinate: CLLocationCoordinate2D) {
@@ -634,24 +659,43 @@ struct PostPopupView: View {
     // MARK: - Move to current location
     private func moveToCurrentLocation() {
         print("📍🔥 PostPopup: Location button pressed - Moving to current location")
-        print("📍🔥 PostPopup: MapLocationService location: \(String(describing: mapLocationService.location))")
-        
-        // Use MapLocationService like the blue button did
+
+        // Start location services if not already started
+        mapLocationService.startLocationServices()
+
+        // Request immediate location update
         mapLocationService.requestLocation()
-        
-        if let location = mapLocationService.location {
-            print("📍🔥 PostPopup: Using MapLocationService cached location: \(location.coordinate)")
-            // postLocation は設定しない - 位置ボタンは地図移動のみ
-            
+
+        // Use CLLocationManager directly as a fallback
+        let locationManager = CLLocationManager()
+
+        if let location = locationManager.location {
+            print("📍🔥 PostPopup: Using CLLocationManager location: \(location.coordinate)")
+
             // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
             let offsetCoordinate = CLLocationCoordinate2D(
                 latitude: location.coordinate.latitude + 0.003, // 北に約300m移動
                 longitude: location.coordinate.longitude
             )
             mapManager.focusOnLocation(offsetCoordinate)
-            // updateAreaLocation も呼ばない - 投稿位置とは切り離し
+
+            // DON'T update post location - keep it at speech bubble tip position
+            print("📍🔥 PostPopup: Map moved to current location, but post location remains unchanged")
+        } else if let mapLocation = mapLocationService.location {
+            print("📍🔥 PostPopup: Using MapLocationService location: \(mapLocation.coordinate)")
+
+            // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
+            let offsetCoordinate = CLLocationCoordinate2D(
+                latitude: mapLocation.coordinate.latitude + 0.003, // 北に約300m移動
+                longitude: mapLocation.coordinate.longitude
+            )
+            mapManager.focusOnLocation(offsetCoordinate)
+
+            // DON'T update post location - keep it at speech bubble tip position
+            print("📍🔥 PostPopup: Map moved to current location, but post location remains unchanged")
         } else {
-            print("📍🔥 PostPopup: No cached location, waiting for update...")
+            print("📍🔥 PostPopup: No location available, requesting permission...")
+            locationManager.requestWhenInUseAuthorization()
         }
     }
     

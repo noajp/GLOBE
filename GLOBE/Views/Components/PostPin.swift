@@ -6,9 +6,10 @@
 
 import SwiftUI
 import Foundation
+import CoreLocation
 
 struct PostPin: View {
-    private let customBlack = MinimalDesign.Colors.background
+    private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
     let post: Post
     let onTap: () -> Void
     @StateObject private var commentService = CommentService.shared
@@ -372,6 +373,7 @@ struct PostPin: View {
         }
         .shadow(color: customBlack.opacity(0.3), radius: 4, x: 0, y: 2)
         .onAppear {
+            print("🔥 PostPin appeared for post: \(post.id) at (\(post.location.latitude), \(post.location.longitude)) - '\(post.text)'")
             commentService.loadComments(for: post.id)
             likeService.initializePost(post)
         }
@@ -401,7 +403,7 @@ struct PostPin: View {
 
 // Scalable PostPin that adjusts size based on map zoom level
 struct ScalablePostPin: View {
-    private let customBlack = MinimalDesign.Colors.background
+    private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
     let post: Post
     let mapSpan: Double
     @StateObject private var commentService = CommentService.shared
