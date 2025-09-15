@@ -10,8 +10,7 @@ struct PostDetailView: View {
     @State private var likesCount = 0
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
                 // ヘッダー
                 HStack {
                     Button("✕") {
@@ -34,8 +33,9 @@ struct PostDetailView: View {
                         }
                     }
                 }
-                .padding()
-                
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+
                 // 投稿画像（フルサイズ表示）
                 if let imageData = post.imageData,
                    let uiImage = UIImage(data: imageData) {
@@ -44,24 +44,9 @@ struct PostDetailView: View {
                         .scaledToFit()
                         .frame(maxWidth: .infinity)
                         .cornerRadius(0)
-                } else {
-                    // 画像がない場合のプレースホルダー
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 300)
-                        .overlay(
-                            VStack {
-                                Image(systemName: "text.bubble")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.gray)
-                                Text("テキスト投稿")
-                                    .font(.title3)
-                                    .foregroundColor(.gray)
-                            }
-                        )
                 }
                 
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
                     // ユーザー情報とアクション
                     HStack {
                         // ユーザー情報
@@ -131,11 +116,11 @@ struct PostDetailView: View {
                         }
                     }
                     
-                    Spacer(minLength: 50)
                 }
-                .padding()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
             }
-        }
+        .frame(maxWidth: 350)
         .background(
             LinearGradient(
                 gradient: Gradient(colors: [
@@ -147,6 +132,7 @@ struct PostDetailView: View {
                 endPoint: .bottomTrailing
             )
         )
+        .cornerRadius(12)
         .onAppear {
             loadPostStats()
         }

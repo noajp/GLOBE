@@ -24,8 +24,8 @@ final class AdvancedLogger: ObservableObject {
         static let maxRecentLogs = 1000
         static let maxPerformanceMetrics = 500
         static let logRetentionDays = 7
-        static let enableFileLogging = true
-        static let enablePerformanceTracking = true
+        static let enableFileLogging = false // TEMPORARILY DISABLED FOR CRASH DEBUGGING
+        static let enablePerformanceTracking = false // TEMPORARILY DISABLED FOR CRASH DEBUGGING
     }
 
     // MARK: - Core Properties

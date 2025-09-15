@@ -23,31 +23,25 @@ struct Post: Identifiable, Equatable, Codable {
     var longitude: Double { location.longitude }
     var userId: String { authorId } // Alias for compatibility
     
-    // 1時間後に期限切れかチェック
+    // 24時間後に期限切れかチェック（仕様に合わせる）
     var isExpired: Bool {
-        let oneHourLater = createdAt.addingTimeInterval(1 * 60 * 60)
-        return Date() > oneHourLater
+        let oneDayLater = createdAt.addingTimeInterval(24 * 60 * 60)
+        return Date() > oneDayLater
     }
 
     // 残り時間を取得
     var timeRemaining: TimeInterval {
-        let oneHourLater = createdAt.addingTimeInterval(1 * 60 * 60)
-        return max(0, oneHourLater.timeIntervalSince(Date()))
+        let oneDayLater = createdAt.addingTimeInterval(24 * 60 * 60)
+        return max(0, oneDayLater.timeIntervalSince(Date()))
     }
-    
+
     // 残り時間の文字列表示
     var timeRemainingText: String {
         let remaining = timeRemaining
         if remaining <= 0 { return "期限切れ" }
-        
         let hours = Int(remaining / 3600)
         let minutes = Int((remaining.truncatingRemainder(dividingBy: 3600)) / 60)
-        
-        if hours > 0 {
-            return "\(hours)時間\(minutes)分"
-        } else {
-            return "\(minutes)分"
-        }
+        return "\(hours)時間\(minutes)分"
     }
     
     init(id: UUID = UUID(), createdAt: Date = Date(), location: CLLocationCoordinate2D, locationName: String? = nil, imageData: Data? = nil, imageUrl: String? = nil, text: String, authorName: String, authorId: String, likeCount: Int = 0, commentCount: Int = 0, isPublic: Bool = true, isAnonymous: Bool = false, authorAvatarUrl: String? = nil) {

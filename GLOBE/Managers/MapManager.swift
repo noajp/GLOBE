@@ -32,8 +32,36 @@ class MapManager: ObservableObject {
         // PostManager からの投稿データを監視
         postManager.$posts
             .receive(on: DispatchQueue.main)
-            .assign(to: \.posts, on: self)
+            .sink { [weak self] newPosts in
+                print("🗺️ MapManager: Received \(newPosts.count) posts from PostManager")
+                for (index, post) in newPosts.enumerated() {
+                    print("🗺️ MapManager Post \(index): \(post.id) at (\(post.location.latitude), \(post.location.longitude)) - '\(post.text)'")
+                }
+                self?.posts = newPosts
+                self?.objectWillChange.send()
+                print("🗺️ MapManager: Updated posts and sent objectWillChange")
+            }
             .store(in: &cancellables)
+    }
+
+    func refreshPosts() {
+        print("🗺️ MapManager: Manually refreshing posts")
+        posts = postManager.posts
+        objectWillChange.send()
+    }
+
+    func addTestPost() {
+        print("🗺️ MapManager: Adding test post")
+        let testPost = Post(
+            location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+            locationName: "テスト位置",
+            text: "テスト投稿",
+            authorName: "Test User",
+            authorId: "test-user-id"
+        )
+        posts.append(testPost)
+        objectWillChange.send()
+        print("🗺️ MapManager: Test post added, total posts: \(posts.count)")
     }
     
     func focusOnLocation(_ coordinate: CLLocationCoordinate2D) {

@@ -105,11 +105,6 @@ extension View {
         }
     }
 
-    func glassEffect(id: String? = nil) -> some View {
-        modifier(GlassEffectModifier(id: id, namespace: nil))
-            .environment(\.glassNamespace, nil)
-    }
-
     func coordinatedGlassEffect(id: String) -> some View {
         modifier(CoordinatedGlassModifier(id: id))
     }
@@ -170,6 +165,5 @@ struct GlassCircleButton<Content: View>: View {
         }
         .buttonStyle(PlainButtonStyle())
         .scaleEffect(1.0)
-        .animation(.easeInOut(duration: 0.15), value: true)
     }
 }
