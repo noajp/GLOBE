@@ -19,6 +19,8 @@ class MapManager: ObservableObject {
     @Published var draftPostCoordinate: CLLocationCoordinate2D?
     
     init() {
+        // Reset draft coordinate to prevent stale 3D corrections
+        draftPostCoordinate = nil
         startCleanupTimer()
         setupPostSubscription()
     }
