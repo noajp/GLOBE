@@ -492,54 +492,32 @@ struct PostPopupView: View {
         let currentText = postText
         let currentImageData = selectedImageData
         let currentPrivacyType = selectedPrivacyType
-
-        // 最新のV先端座標（Map側で算出）を採用。なければinitialLocation→region.centerの順でフォールバック
+        // Use speech bubble tip position (V先端) if available, otherwise use map center
         let location = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
-        
-        print("🚀 PostPopup - Starting post creation. Content: '\(currentText)', HasImage: \(currentImageData != nil), Location: \(areaName.isEmpty ? "unknown" : areaName)")
-        if let imageData = currentImageData {
-            print("📸 PostPopup - Image data size: \(imageData.count) bytes")
-        }
-        print("📍 PostPopup - Location details: latitude=\(location.latitude), longitude=\(location.longitude)")
-        // Don't override user's explicit privacy selection
-        // if appSettings.defaultAnonymousPosting { selectedPrivacyType = .anonymous }
-        let privacyDescription = switch currentPrivacyType {
-        case .followersOnly: "Followers Only"
-        case .publicPost: "Public"
-        case .anonymous: "Anonymous"
-        }
-        print("🔐 PostPopup - Privacy setting: \(privacyDescription)")
-        
-        // Use working post location logic from git history
-        let postingLocation = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
 
-        Task { @MainActor in
+        print("📍 PostPopupView: Creating post at location: (\(location.latitude), \(location.longitude))")
+
+        // Create post in background without waiting for result
+        Task.detached {
             do {
                 try await postManager.createPost(
                     content: currentText,
                     imageData: currentImageData,
-                    location: postingLocation,
-                    locationName: appSettings.showLocationNameOnPost ? areaName : nil,
+                    location: location,
+                    locationName: nil,
                     isAnonymous: currentPrivacyType == .anonymous
                 )
-
-                print("✅ PostPopup - Post created successfully")
-
-                // Simple state reset from working version
-                self.postText = ""
-                self.selectedImageData = nil
-                self.showPrivacySelection = false
-                self.isSubmitting = false
-                self.isPresented = false
-
             } catch {
-                print("❌ PostPopup - Error creating post: \(error)")
-                self.errorMessage = "投稿の作成に失敗しました: \(error.localizedDescription)"
-                self.showError = true
-                self.showPrivacySelection = false
-                self.isSubmitting = false
+                // Silently handle errors in background
             }
         }
+
+        // Close immediately
+        postText = ""
+        selectedImageData = nil
+        showPrivacySelection = false
+        isSubmitting = false
+        isPresented = false
     }
 
     // 選択座標のエリア名を軽量に解決（投稿時のみ）

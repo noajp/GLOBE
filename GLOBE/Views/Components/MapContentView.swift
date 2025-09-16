@@ -63,6 +63,25 @@ struct MapContentView: View {
             }
         }
         .mapStyle(.hybrid(elevation: .realistic))
+        .onMapCameraChange(frequency: .onEnd) { context in
+            // Update MapManager's region when map camera changes
+            let newRegion = MKCoordinateRegion(
+                center: context.camera.centerCoordinate,
+                span: MKCoordinateSpan(
+                    latitudeDelta: context.region.span.latitudeDelta,
+                    longitudeDelta: context.region.span.longitudeDelta
+                )
+            )
+            mapManager.region = newRegion
+
+            // Temporarily disable 3D correction to prevent crashes
+            // TODO: Re-implement with safer approach
+            // let perspectiveCorrectedCenter = calculatePerspectiveCorrectedCenter(
+            //     camera: context.camera,
+            //     region: context.region
+            // )
+            // mapManager.draftPostCoordinate = perspectiveCorrectedCenter
+        }
         .onAppear {
             locationManager.startLocationServices()
 
@@ -80,6 +99,35 @@ struct MapContentView: View {
         .sheet(item: $selectedPost) { post in
             PostDetailView(post: post, isPresented: .constant(true))
         }
+    }
+
+    // MARK: - 3D Perspective Correction
+
+    private func calculatePerspectiveCorrectedCenter(camera: MapCamera, region: MKCoordinateRegion) -> CLLocationCoordinate2D {
+        let pitch = camera.pitch
+        let distance = camera.distance
+
+        // If pitch is 0 (top-down view), no correction needed
+        guard pitch > 0 else {
+            return camera.centerCoordinate
+        }
+
+        // Calculate the offset caused by pitch
+        // The visible center appears shifted towards the viewer due to perspective
+        let pitchRadians = pitch * .pi / 180.0
+        let offsetFactor = tan(pitchRadians) * 0.3 // Empirical factor for perspective correction
+
+        // Calculate latitude offset (negative because we shift towards viewer)
+        let latitudeOffset = region.span.latitudeDelta * offsetFactor
+
+        // Apply the correction
+        let correctedLatitude = camera.centerCoordinate.latitude - latitudeOffset
+        let correctedCoordinate = CLLocationCoordinate2D(
+            latitude: correctedLatitude,
+            longitude: camera.centerCoordinate.longitude
+        )
+
+        return correctedCoordinate
     }
 }
 
