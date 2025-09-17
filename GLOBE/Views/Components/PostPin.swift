@@ -10,7 +10,6 @@ import CoreLocation
 import UIKit
 
 struct PostPin: View {
-    private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
     private let tailHeight: CGFloat = 12
     private let tailWidth: CGFloat = 16
     private let iconExtraOffset: CGFloat = 12
@@ -87,7 +86,13 @@ struct PostPin: View {
         let hasText = !post.text.isEmpty
         let isPhotoOnly = hasImage && !hasText
         
-        VStack(spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
+        GlassEffectContainer {
+            ZStack {
+                if !hasImage {
+                    mapBubbleBackground(hasImage: false)
+                }
+
+                VStack(spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
@@ -136,12 +141,13 @@ struct PostPin: View {
             
             // コンテンツエリア - 写真があれば写真＋（あれば）テキスト、なければテキストのみ
             if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
+                let inset: CGFloat = isPhotoOnly ? 2 : 6
                 Image(uiImage: uiImage)
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
-                    .clipped()
-                    .padding(.horizontal, isPhotoOnly ? 0 : 4)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .padding(.horizontal, inset)
                     .onTapGesture { showingImageViewer = true }
 
                 if !post.isAnonymous && !post.isPublic {
@@ -185,31 +191,25 @@ struct PostPin: View {
 
                 if !post.text.isEmpty {
                     let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                    Text(post.text)
-                        .font(.system(size: 7))
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: contentWidth, alignment: .center)
-                        .padding(.top, max(4, verticalPadding)) // 画像と文章の間隔（匿名投稿は余裕を持たせる）
+                    captionText(post.text)
+                        .padding(.top, max(4, verticalPadding))
                         .padding(.bottom, verticalPadding)
                 }
             } else if let imageUrl = post.imageUrl {
+                let inset: CGFloat = isPhotoOnly ? 2 : 6
                 AsyncImage(url: URL(string: imageUrl)) { image in
                     image
                         .resizable()
-                        .scaledToFill()
-                        .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
-                        .clipped()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
-                        .overlay(ProgressView().scaleEffect(0.5))
+                        .overlay(ProgressView().scaleEffect(0.45))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .padding(.horizontal, isPhotoOnly ? 0 : 4)
+                .padding(.horizontal, inset)
                 .onTapGesture { showingImageViewer = true }
 
                 if !post.isAnonymous && !post.isPublic {
@@ -253,28 +253,14 @@ struct PostPin: View {
 
                 if !post.text.isEmpty {
                     let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                    Text(post.text)
-                        .font(.system(size: 7))
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(nil)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: contentWidth, alignment: .center)
-                        .padding(.top, max(4, verticalPadding)) // 画像と文章の間隔（匿名投稿は余裕を持たせる）
+                    captionText(post.text)
+                        .padding(.top, max(4, verticalPadding))
                         .padding(.bottom, verticalPadding)
                 }
             } else if !post.text.isEmpty {
                 // 文字領域を最大化
                 let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                Text(post.text)
-                    .font(.system(size: 7))
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: contentWidth, alignment: .center)
+                captionText(post.text)
                     .padding(.top, verticalPadding)
                     .padding(.bottom, verticalPadding)
             }
@@ -341,21 +327,27 @@ struct PostPin: View {
                 .zIndex(1)
             }
         }
+    }
+}
         .frame(width: cardWidth, height: cardHeight, alignment: .top)
         .padding(.bottom, bottomPadding)
-        // Unified bubble fill (rounded rect + V-tail)
-        .background(
-            SpeechBubbleShape(cornerRadius: 8, tailWidth: tailWidth, tailHeight: tailHeight)
-                .fill(customBlack)
-        )
-        // Clip inner content to bubble shape to avoid overflow beyond border
-        .clipShape(SpeechBubbleShape(cornerRadius: 8, tailWidth: tailWidth, tailHeight: tailHeight))
-        // Unified bubble border with consistent width
+        .clipShape(hasImage ? AnyShape(RoundedRectangle(cornerRadius: 12, style: .continuous)) : AnyShape(bubbleShape))
         .overlay(
-            SpeechBubbleShape(cornerRadius: 8, tailWidth: tailWidth, tailHeight: tailHeight)
-                .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
+            bubbleShape
+                .strokeBorder(Color.white.opacity(0.45), lineWidth: borderWidth)
+                .blendMode(.screen)
                 .allowsHitTesting(false)
+                .opacity(hasImage ? 0 : 1)
         )
+        .overlay(alignment: .bottom) {
+            if hasImage {
+                PostPinTriangle()
+                    .fill(Color.white.opacity(0.35))
+                    .frame(width: tailWidth * 2.2, height: tailHeight)
+                    .blendMode(.screen)
+                    .allowsHitTesting(false)
+            }
+        }
         // Profile icon at V-tip for non-anonymous posts (small-pin variant)
         .overlay(alignment: .bottom) {
             if !post.isAnonymous {
@@ -394,7 +386,7 @@ struct PostPin: View {
                 .allowsHitTesting(false)
             }
         }
-        .shadow(color: customBlack.opacity(0.3), radius: 4, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.25), radius: 4, x: 0, y: 2)
         .onAppear {
             commentService.loadComments(for: post.id)
             likeService.initializePost(post)
@@ -420,6 +412,71 @@ struct PostPin: View {
                 PhotoViewerView(imageUrl: url) { showingImageViewer = false }
             }
         }
+    }
+}
+
+// MARK: - Shape Eraser
+struct AnyShape: Shape {
+    private let pathBuilder: (CGRect) -> Path
+
+    init<S: Shape>(_ shape: S) {
+        self.pathBuilder = { rect in
+            shape.path(in: rect)
+        }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        pathBuilder(rect)
+    }
+}
+
+// MARK: - Bubble Helpers
+private extension PostPin {
+    var bubbleShape: SpeechBubbleShape {
+        SpeechBubbleShape(cornerRadius: 10, tailWidth: tailWidth, tailHeight: tailHeight)
+    }
+
+    @ViewBuilder
+    func mapBubbleBackground(hasImage: Bool) -> some View {
+        if #available(iOS 26.0, *) {
+            bubbleShape
+                .fill(Color.white.opacity(hasImage ? 0.12 : 0.18))
+                .glassEffect(.clear.interactive())
+                .overlay(
+                    bubbleShape
+                        .fill(Color.black.opacity(hasImage ? 0.08 : 0.12))
+                        .blendMode(.plusDarker)
+                )
+        } else {
+            bubbleShape
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(hasImage ? 0.28 : 0.35),
+                            Color.black.opacity(hasImage ? 0.18 : 0.25)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(
+                    bubbleShape
+                        .stroke(Color.white.opacity(0.3), lineWidth: 0.7)
+                )
+        }
+    }
+
+    func captionText(_ text: String, fontSize: CGFloat = 7) -> some View {
+        Text(text)
+            .font(.system(size: fontSize))
+            .fontWeight(.medium)
+            .foregroundColor(.white)
+            .multilineTextAlignment(.center)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: contentWidth - 8)
+            .padding(.horizontal, 4)
+            .shadow(color: Color.black.opacity(0.55), radius: 2, x: 0, y: 1)
     }
 }
 

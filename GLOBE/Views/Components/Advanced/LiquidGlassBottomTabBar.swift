@@ -10,105 +10,39 @@ struct LiquidGlassBottomTabBar: View {
     let onProfileTapped: () -> Void
     let onPostTapped: () -> Void
 
-    @State private var isPressed = false
+    private let profileButtonSize: CGFloat = 40
+    private let postButtonSize: CGFloat = 40
 
     var body: some View {
-        VStack {
-            Spacer()
-
-            HStack(spacing: 0) {
-                // Profile Section
-                HStack {
-                    Spacer()
-
-                    GlassCircleButton(
-                        id: "profile-button",
-                        size: 50,
-                        action: onProfileTapped
-                    ) {
-                        Image(systemName: "person.circle.fill")
-                            .font(.system(size: 24, weight: .medium))
-                            .foregroundStyle(.white)
-                            .shadow(color: .white.opacity(0.3), radius: 2, x: 0, y: 0)
-                    }
-
-                    Spacer()
+        GlassEffectContainer {
+            VStack(spacing: 12) {
+                GlassCircleButton(
+                    id: "profile-button",
+                    size: profileButtonSize,
+                    action: onProfileTapped
+                ) {
+                    Image(systemName: "person.circle.fill")
+                        .font(.system(size: 21, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .shadow(color: .white.opacity(0.25), radius: 1, x: 0, y: 0)
                 }
-                .frame(maxWidth: .infinity)
 
-                // Center Post Button
                 GlassCircleButton(
                     id: "post-button-main",
-                    size: 60,
+                    size: postButtonSize,
                     action: onPostTapped
                 ) {
                     Image(systemName: "plus")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .shadow(color: .white.opacity(0.4), radius: 2, x: 0, y: 0)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .shadow(color: .white.opacity(0.25), radius: 1, x: 0, y: 0)
                 }
-
-                // Right spacer (for future buttons or balance)
-                HStack {
-                    Spacer()
-
-                    // Placeholder for future button
-                    Color.clear
-                        .frame(width: 50, height: 50)
-
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .background(
-                // Glass tab bar background
-                RoundedRectangle(cornerRadius: 30)
-                    .fill(Color.white.opacity(0.03))
-                    .background(
-                        RoundedRectangle(cornerRadius: 30)
-                            .fill(.ultraThinMaterial)
-                            .opacity(0.15)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 30)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.white.opacity(0.12),
-                                        Color.white.opacity(0.04),
-                                        Color.clear
-                                    ]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 30)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        .white.opacity(0.4),
-                                        .white.opacity(0.2),
-                                        .white.opacity(0.1)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 0.5
-                            )
-                    )
-                    .shadow(
-                        color: .black.opacity(0.1),
-                        radius: 20,
-                        x: 0,
-                        y: 10
-                    )
-            )
-            .padding(.horizontal, 16)
-            .padding(.bottom, 34) // Safe area bottom
+            .padding(.vertical, 14)
+            .padding(.horizontal, 10)
+            .frame(width: 72)
+            .coordinatedGlassEffect(id: "floating-action-tab", cornerRadius: 22)
+            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
         }
     }
 }
@@ -135,6 +69,8 @@ struct LiquidGlassBottomTabBar: View {
                 print("Post tapped")
             }
         )
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .centerTrailing)
+        .padding(.trailing, 20)
     }
     .glassContainer()
 }

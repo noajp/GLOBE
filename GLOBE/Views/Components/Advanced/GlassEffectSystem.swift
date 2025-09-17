@@ -37,17 +37,17 @@ extension EnvironmentValues {
 struct GlassEffectModifier: ViewModifier {
     let id: String?
     let namespace: Namespace.ID?
+    let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             // Use native glass effect for iOS 26+
             content
-                .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
-                .modifier(NativeGlassEffect(id: id, namespace: namespace))
+                .modifier(NativeGlassEffect(id: id, namespace: namespace, cornerRadius: cornerRadius))
         } else {
             // Fallback for older iOS versions
             content
-                .modifier(LegacyGlassEffect())
+                .modifier(LegacyGlassEffect(cornerRadius: cornerRadius))
         }
     }
 }
@@ -57,33 +57,39 @@ struct GlassEffectModifier: ViewModifier {
 struct NativeGlassEffect: ViewModifier {
     let id: String?
     let namespace: Namespace.ID?
+    let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         if let id = id, let namespace = namespace {
             content
-                .glassEffect()
+                .glassEffect(.clear.interactive())
                 .glassEffectID(id, in: namespace)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         } else {
             content
-                .glassEffect()
+                .glassEffect(.clear.interactive())
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
     }
 }
 
 // MARK: - Legacy Glass Effect (iOS 25 and below)
 struct LegacyGlassEffect: ViewModifier {
+    let cornerRadius: CGFloat
+
     func body(content: Content) -> some View {
         content
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(.ultraThinMaterial)
+                    .opacity(0.08)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .stroke(
                                 LinearGradient(
                                     colors: [
-                                        .white.opacity(0.3),
-                                        .white.opacity(0.1),
+                                        .white.opacity(0.08),
+                                        .white.opacity(0.03),
                                         .clear
                                     ],
                                     startPoint: .topLeading,
@@ -93,7 +99,8 @@ struct LegacyGlassEffect: ViewModifier {
                             )
                     )
             )
-            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 5)
     }
 }
 
@@ -105,19 +112,20 @@ extension View {
         }
     }
 
-    func coordinatedGlassEffect(id: String) -> some View {
-        modifier(CoordinatedGlassModifier(id: id))
+    func coordinatedGlassEffect(id: String, cornerRadius: CGFloat = 16) -> some View {
+        modifier(CoordinatedGlassModifier(id: id, cornerRadius: cornerRadius))
     }
 }
 
 // MARK: - Coordinated Glass Modifier
 struct CoordinatedGlassModifier: ViewModifier {
     let id: String
+    let cornerRadius: CGFloat
     @Environment(\.glassNamespace) private var namespace
 
     func body(content: Content) -> some View {
         content
-            .modifier(GlassEffectModifier(id: id, namespace: namespace))
+            .modifier(GlassEffectModifier(id: id, namespace: namespace, cornerRadius: cornerRadius))
     }
 }
 
@@ -160,10 +168,11 @@ struct GlassCircleButton<Content: View>: View {
         Button(action: action) {
             content
                 .frame(width: size, height: size)
-                .coordinatedGlassEffect(id: id)
+                .contentShape(Circle())
+                .coordinatedGlassEffect(id: id, cornerRadius: size / 2)
                 .clipShape(Circle())
         }
         .buttonStyle(PlainButtonStyle())
-        .scaleEffect(1.0)
+        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
     }
 }
