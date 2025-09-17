@@ -25,69 +25,47 @@ struct MainTabView: View {
     private let customBlack = MinimalDesign.Colors.background
     
     var body: some View {
-        ZStack {
-            // Full screen map
-            MapContentView(
-                mapManager: mapManager,
-                locationManager: locationManager,
-                postManager: postManager,
-                authManager: authManager,
-                showingCreatePost: $showingCreatePost,
-                shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
-                tappedLocation: $tappedLocation,
-                vTipPoint: $vTipPoint
-            )
-                .environmentObject(appSettings)
-                .ignoresSafeArea(.all)
+        GeometryReader { proxy in
+            let safeInsets = proxy.safeAreaInsets
 
-            // 右下にボタンを上下配置
-            VStack {
-                Spacer()
+            ZStack {
+                // Full screen map
+                MapContentView(
+                    mapManager: mapManager,
+                    locationManager: locationManager,
+                    postManager: postManager,
+                    authManager: authManager,
+                    showingCreatePost: $showingCreatePost,
+                    shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
+                    tappedLocation: $tappedLocation,
+                    vTipPoint: $vTipPoint
+                )
+                    .environmentObject(appSettings)
+                    .ignoresSafeArea(.all)
 
-                HStack {
-                    Spacer()
-
-                    VStack(spacing: 16) {
-                        // Profile Button (上)
-                        Button(action: {
-                            if authManager.isAuthenticated {
-                                self.showingProfile = true
-                            } else {
-                                self.showingAuth = true
-                            }
-                        }) {
-                            Image(systemName: "person.circle.fill")
-                                .font(.system(size: 24, weight: .medium))
-                                .foregroundStyle(.white)
-                                .frame(width: 50, height: 50)
-                                .background(Color.black.opacity(0.7))
-                                .clipShape(Circle())
+                LiquidGlassBottomTabBar(
+                    onProfileTapped: {
+                        if authManager.isAuthenticated {
+                            showingProfile = true
+                        } else {
+                            showingAuth = true
                         }
-
-                        // Post Button (下)
-                        Button(action: {
-                            if authManager.isAuthenticated {
-                                // 現在の地図中心を固定して渡す（表示ズレ防止）
-                                self.tappedLocation = mapManager.region.center
-                                self.showingCreatePost = true
-                            } else {
-                                self.showingAuth = true
-                            }
-                        }) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 50, height: 50)
-                                .background(Color.black.opacity(0.7))
-                                .clipShape(Circle())
+                    },
+                    onPostTapped: {
+                        print("➕ LiquidGlassBottomTabBar: post tapped")
+                        if authManager.isAuthenticated {
+                            tappedLocation = mapManager.region.center
+                            showingCreatePost = true
+                        } else {
+                            showingAuth = true
                         }
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 34) // Safe area bottom
-                }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .centerTrailing)
+                .padding(.trailing, safeInsets.trailing + 16)
             }
+            .ignoresSafeArea(.keyboard)
         }
-        .ignoresSafeArea(.keyboard)
         .overlay(
             Group {
                 if showingCreatePost {

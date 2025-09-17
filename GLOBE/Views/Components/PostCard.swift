@@ -16,35 +16,37 @@ struct PostCard: View {
     @State private var showingDetailedView = false
     @State private var showingUserProfile = false
     
-    // カスタムデザイン用の色定義
-    private let customBlack = MinimalDesign.Colors.background
-    
+    private let cardCornerRadius: CGFloat = 18
+
     var body: some View {
-        GeometryReader { geometry in
-            let cardWidth = geometry.size.width
-            // Increase height further to ensure action buttons never clip
-            let heightRatio: CGFloat = 1.45 // was: 1.4 (4/3 ≈ 1.333)
-            let baseCardHeight = cardWidth * heightRatio
-            let isTextOnlyPost = post.imageData == nil
-            let primaryTextFont = UIFont.systemFont(ofSize: 16)
-            let hasBodyText = !post.text.isEmpty
-            let textLineCount = isTextOnlyPost
-                ? lineCountForText(
-                    post.text,
-                    font: primaryTextFont,
-                    availableWidth: cardWidth - 32 // 16pt padding on each side
-                )
-                : 0
-            let resolvedCardHeight = isTextOnlyPost
-                ? textCardHeight(
-                    lineCount: textLineCount,
-                    font: primaryTextFont,
-                    hasText: hasBodyText
-                )
-                : baseCardHeight
-            
-            // Card content with a small bottom inset so controls avoid the rounded mask
-            VStack(spacing: 0) {
+        let glassId = "post-card-\(post.id.uuidString)"
+
+        GlassEffectContainer {
+            GeometryReader { geometry in
+                let cardWidth = geometry.size.width
+                // Increase height further to ensure action buttons never clip
+                let heightRatio: CGFloat = 1.45 // was: 1.4 (4/3 ≈ 1.333)
+                let baseCardHeight = cardWidth * heightRatio
+                let isTextOnlyPost = post.imageData == nil
+                let primaryTextFont = UIFont.systemFont(ofSize: 16)
+                let hasBodyText = !post.text.isEmpty
+                let textLineCount = isTextOnlyPost
+                    ? lineCountForText(
+                        post.text,
+                        font: primaryTextFont,
+                        availableWidth: cardWidth - 32 // 16pt padding on each side
+                    )
+                    : 0
+                let resolvedCardHeight = isTextOnlyPost
+                    ? textCardHeight(
+                        lineCount: textLineCount,
+                        font: primaryTextFont,
+                        hasText: hasBodyText
+                    )
+                    : baseCardHeight
+                
+                // Card content with a small bottom inset so controls avoid the rounded mask
+                VStack(spacing: 0) {
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                     // Photo layout: Full-width square image at top, content below
                     
@@ -307,10 +309,21 @@ struct PostCard: View {
                 height: isTextOnlyPost ? resolvedCardHeight : baseCardHeight,
                 alignment: .top
             )
+                .coordinatedGlassEffect(id: glassId, cornerRadius: cardCornerRadius)
+                .background(
+                    RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                        .fill(Color.white.opacity(0.12))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.28), lineWidth: 0.65)
+                        .blendMode(.screen)
+                        .allowsHitTesting(false)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+            }
         }
-        .background(customBlack)
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.3), radius: 5, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
         .padding(.horizontal)
         .padding(.vertical, 8)
         .onTapGesture {
