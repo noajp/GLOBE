@@ -6,6 +6,7 @@
 
 import SwiftUI
 import MapKit
+import UIKit
 
 struct PostCard: View {
     let post: Post
@@ -23,7 +24,24 @@ struct PostCard: View {
             let cardWidth = geometry.size.width
             // Increase height further to ensure action buttons never clip
             let heightRatio: CGFloat = 1.45 // was: 1.4 (4/3 ≈ 1.333)
-            let cardHeight = cardWidth * heightRatio
+            let baseCardHeight = cardWidth * heightRatio
+            let isTextOnlyPost = post.imageData == nil
+            let primaryTextFont = UIFont.systemFont(ofSize: 16)
+            let hasBodyText = !post.text.isEmpty
+            let textLineCount = isTextOnlyPost
+                ? lineCountForText(
+                    post.text,
+                    font: primaryTextFont,
+                    availableWidth: cardWidth - 32 // 16pt padding on each side
+                )
+                : 0
+            let resolvedCardHeight = isTextOnlyPost
+                ? textCardHeight(
+                    lineCount: textLineCount,
+                    font: primaryTextFont,
+                    hasText: hasBodyText
+                )
+                : baseCardHeight
             
             // Card content with a small bottom inset so controls avoid the rounded mask
             VStack(spacing: 0) {
@@ -204,8 +222,6 @@ struct PostCard: View {
                                 .lineLimit(8)
                         }
                         
-                        Spacer()
-                        
                         // Bottom row: Location and Action buttons
                         HStack {
                             // Location info
@@ -281,15 +297,17 @@ struct PostCard: View {
                         }
                     }
                     .padding(16)
-                    .frame(height: cardHeight)
+                    .frame(height: resolvedCardHeight, alignment: .topLeading)
                 }
             }
             // Add inner bottom padding to keep like/comment above the rounded corner clip
             .padding(.bottom, 12)
-            .frame(width: cardWidth, height: cardHeight)
+            .frame(
+                width: cardWidth,
+                height: isTextOnlyPost ? resolvedCardHeight : baseCardHeight,
+                alignment: .top
+            )
         }
-        // Match the new height ratio so the card lays out correctly
-        .aspectRatio(1/1.45, contentMode: .fit)
         .background(customBlack)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.3), radius: 5, x: 0, y: 2)
@@ -321,5 +339,39 @@ struct PostCard: View {
         } else {
             return "たった今"
         }
+    }
+
+    /// 指定した幅とフォントでテキストが占める行数を推定する
+    private func lineCountForText(_ text: String, font: UIFont, availableWidth: CGFloat) -> Int {
+        guard !text.isEmpty else { return 0 }
+
+        let constraintRect = CGSize(width: availableWidth, height: .greatestFiniteMagnitude)
+        let boundingBox = text.boundingRect(
+            with: constraintRect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        )
+
+        return max(1, Int(ceil(boundingBox.height / font.lineHeight)))
+    }
+
+    /// テキスト投稿全体の高さを、本文の行数に合わせて算出する
+    private func textCardHeight(lineCount: Int, font: UIFont, hasText: Bool) -> CGFloat {
+        let topBottomPadding: CGFloat = 32 // VStack padding(.vertical, 16)
+        let headerHeight: CGFloat = 40
+        let spacingAboveText: CGFloat = hasText ? 12 : 0
+        let textHeight = hasText ? CGFloat(max(lineCount, 1)) * font.lineHeight : 0
+        let spacingBelowText: CGFloat = hasText ? 12 : 0
+        let actionRowHeight: CGFloat = 32
+        let bottomSafePadding: CGFloat = 12 // outer padding(.bottom, 12)
+
+        return topBottomPadding
+            + headerHeight
+            + spacingAboveText
+            + textHeight
+            + spacingBelowText
+            + actionRowHeight
+            + bottomSafePadding
     }
 }

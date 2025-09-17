@@ -7,9 +7,14 @@
 import SwiftUI
 import Foundation
 import CoreLocation
+import UIKit
 
 struct PostPin: View {
     private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
+    private let tailHeight: CGFloat = 12
+    private let tailWidth: CGFloat = 16
+    private let iconExtraOffset: CGFloat = 12
+    private let bottomPadding: CGFloat = 0
     let post: Post
     let onTap: () -> Void
     @StateObject private var commentService = CommentService.shared
@@ -24,33 +29,57 @@ struct PostPin: View {
     private var cardHeight: CGFloat {
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let hasText = !post.text.isEmpty
-        
+
         if hasImage && !hasText {
             return cardWidth
         }
-        
-        let headerHeight: CGFloat = post.isAnonymous ? 18 : 10
-        let footerHeight: CGFloat = 6
-        let lineHeight: CGFloat = 9
-        let padding: CGFloat = 6
-        
-        let imageHeight: CGFloat = hasImage ? (cardWidth - 8) : 0
-        let textHeight: CGFloat = hasText ? CGFloat(actualTextLines) * lineHeight : 0
-        let contentHeight = imageHeight + textHeight
 
-        let extraMetaPadding: CGFloat = post.isAnonymous ? 0 : 8
-        return headerHeight + contentHeight + footerHeight + padding + extraMetaPadding
+        let textFont = UIFont.systemFont(ofSize: 7, weight: .medium)
+        let textWidth = contentWidth
+        let textHeight = hasText ? measuredTextHeight(for: post.text, width: textWidth, font: textFont) : 0
+
+        if hasImage {
+            let imageHeight = cardWidth - 8
+            let imageTopPadding: CGFloat = 4
+            let textInset: CGFloat = post.isAnonymous ? 8 : 4
+            let textTopPadding: CGFloat = hasText ? max(4, textInset) : 0
+            let textBottomPadding: CGFloat = hasText ? textInset : 0
+            let actionHeight: CGFloat = (!post.isAnonymous && !post.isPublic) ? (8 + 1 + 6) : 0
+            return imageHeight + imageTopPadding + textTopPadding + textHeight + textBottomPadding + actionHeight
+        }
+
+        if hasText {
+            let textInset: CGFloat = post.isAnonymous ? 8 : 4
+            let topPadding: CGFloat = textInset
+            let bottomPadding: CGFloat = textInset
+            let headerHeight: CGFloat = (!post.isAnonymous && !post.isPublic && !hasImage) ? (8 + 6) : 0
+            let actionHeight: CGFloat = (!post.isAnonymous && !post.isPublic) ? (8 + 1 + 6) : 0
+            let computedHeight = headerHeight + topPadding + textHeight + bottomPadding + actionHeight
+            return computedHeight
+        }
+
+        return 28
     }
     
     private var cardWidth: CGFloat {
         return 112
     }
+
+    private var contentWidth: CGFloat {
+        cardWidth - 12
+    }
     
-    private var actualTextLines: Int {
-        if post.text.isEmpty { return 0 }
-        let charactersPerLine = 13
-        let lineCount = Int(ceil(Double(post.text.count) / Double(charactersPerLine)))
-        return max(1, lineCount)
+    private func measuredTextHeight(for text: String, width: CGFloat, font: UIFont) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+
+        let constraint = CGSize(width: width, height: .greatestFiniteMagnitude)
+        let boundingBox = text.boundingRect(
+            with: constraint,
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        )
+        return ceil(boundingBox.height)
     }
     
     var body: some View {
@@ -98,7 +127,7 @@ struct PostPin: View {
                 .padding(.top, 6)
                 .contentShape(Rectangle())
                 .zIndex(1)
-            } else if !isPhotoOnly {
+            } else if hasImage {
                 // 写真のみの場合は上部パディングを削除
                 // 匿名投稿時は上部パディングを追加（より余裕を持たせる）
                 Spacer()
@@ -155,18 +184,17 @@ struct PostPin: View {
                 }
 
                 if !post.text.isEmpty {
+                    let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
                     Text(post.text)
                         .font(.system(size: 7))
                         .fontWeight(.medium)
                         .foregroundColor(.white)
-                        .multilineTextAlignment(.leading)
+                        .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: cardWidth - 8, alignment: .leading)
-                        // Start text one character to the right
-                        .padding(.leading, 11)
-                        .padding(.trailing, 4)
-                        .padding(.top, 4) // 画像と文章の間に間隔
+                        .frame(width: contentWidth, alignment: .center)
+                        .padding(.top, max(4, verticalPadding)) // 画像と文章の間隔（匿名投稿は余裕を持たせる）
+                        .padding(.bottom, verticalPadding)
                 }
             } else if let imageUrl = post.imageUrl {
                 AsyncImage(url: URL(string: imageUrl)) { image in
@@ -224,32 +252,31 @@ struct PostPin: View {
                 }
 
                 if !post.text.isEmpty {
+                    let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
                     Text(post.text)
                         .font(.system(size: 7))
                         .fontWeight(.medium)
                         .foregroundColor(.white)
-                        .multilineTextAlignment(.leading)
+                        .multilineTextAlignment(.center)
                         .lineLimit(nil)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: cardWidth - 8, alignment: .leading)
-                        .padding(.leading, 4)
-                        .padding(.trailing, 4)
-                        .padding(.top, 4)
+                        .frame(width: contentWidth, alignment: .center)
+                        .padding(.top, max(4, verticalPadding)) // 画像と文章の間隔（匿名投稿は余裕を持たせる）
+                        .padding(.bottom, verticalPadding)
                 }
             } else if !post.text.isEmpty {
                 // 文字領域を最大化
+                let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
                 Text(post.text)
                     .font(.system(size: 7))
                     .fontWeight(.medium)
                     .foregroundColor(.white)
-                    .multilineTextAlignment(.leading)
+                    .multilineTextAlignment(.center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: cardWidth - 8, alignment: .leading)
-                    // Start text one character to the right
-                    .padding(.leading, 11)
-                    .padding(.trailing, 4)
-                    .padding(.top, post.isAnonymous ? 8 : 0) // 匿名投稿時は上部パディング追加
+                    .frame(width: contentWidth, alignment: .center)
+                    .padding(.top, verticalPadding)
+                    .padding(.bottom, verticalPadding)
             }
             
             // フッター - 匿名投稿では非表示だがスペースは確保
@@ -312,24 +339,20 @@ struct PostPin: View {
                 .padding(.bottom, 6)
                 .contentShape(Rectangle())
                 .zIndex(1)
-            } else {
-                // 匿名投稿時は下部パディングを追加
-                Spacer()
-                    .frame(height: 6)
             }
         }
-        .frame(width: cardWidth, height: cardHeight)
-        .padding(.bottom, 14)
+        .frame(width: cardWidth, height: cardHeight, alignment: .top)
+        .padding(.bottom, bottomPadding)
         // Unified bubble fill (rounded rect + V-tail)
         .background(
-            SpeechBubbleShape(cornerRadius: 8, tailWidth: 16, tailHeight: 12)
+            SpeechBubbleShape(cornerRadius: 8, tailWidth: tailWidth, tailHeight: tailHeight)
                 .fill(customBlack)
         )
         // Clip inner content to bubble shape to avoid overflow beyond border
-        .clipShape(SpeechBubbleShape(cornerRadius: 8, tailWidth: 16, tailHeight: 12))
+        .clipShape(SpeechBubbleShape(cornerRadius: 8, tailWidth: tailWidth, tailHeight: tailHeight))
         // Unified bubble border with consistent width
         .overlay(
-            SpeechBubbleShape(cornerRadius: 8, tailWidth: 16, tailHeight: 12)
+            SpeechBubbleShape(cornerRadius: 8, tailWidth: tailWidth, tailHeight: tailHeight)
                 .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
                 .allowsHitTesting(false)
         )
@@ -366,7 +389,7 @@ struct PostPin: View {
                     }
                 }
                 // V字の先端にアイコンの上端が来るように配置
-                .offset(y: 12 + diameter/2) // 三角形の高さ12px + アイコン半径
+                .offset(y: tailHeight + diameter/2 + iconExtraOffset)
                 .zIndex(10)
                 .allowsHitTesting(false)
             }
