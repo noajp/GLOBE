@@ -34,6 +34,7 @@ class PostRepository: PostRepositoryProtocol {
                     location_name,
                     is_anonymous,
                     created_at,
+                    expires_at,
                     like_count,
                     comment_count,
                     profiles!inner(id, username, display_name, avatar_url)
@@ -67,6 +68,7 @@ class PostRepository: PostRepositoryProtocol {
                     location_name,
                     is_anonymous,
                     created_at,
+                    expires_at,
                     like_count,
                     comment_count,
                     profiles!inner(id, username, display_name, avatar_url)

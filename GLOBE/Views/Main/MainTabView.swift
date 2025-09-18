@@ -61,8 +61,9 @@ struct MainTabView: View {
                         }
                     }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .centerTrailing)
-                .padding(.trailing, safeInsets.trailing + 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .trailing, vertical: .bottom))
+                .padding(.trailing, max(safeInsets.trailing, 0) + 16)
+                .padding(.bottom, 60)
             }
             .ignoresSafeArea(.keyboard)
         }

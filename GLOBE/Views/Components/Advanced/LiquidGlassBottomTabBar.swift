@@ -69,7 +69,7 @@ struct LiquidGlassBottomTabBar: View {
                 print("Post tapped")
             }
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .centerTrailing)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .trailing, vertical: .center))
         .padding(.trailing, 20)
     }
     .glassContainer()

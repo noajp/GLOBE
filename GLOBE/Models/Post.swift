@@ -5,6 +5,7 @@ import SwiftUI
 struct Post: Identifiable, Equatable, Codable {
     let id: UUID
     let createdAt: Date
+    let expiresAt: Date?
     let location: CLLocationCoordinate2D
     let locationName: String?
     let imageData: Data?
@@ -23,16 +24,18 @@ struct Post: Identifiable, Equatable, Codable {
     var longitude: Double { location.longitude }
     var userId: String { authorId } // Alias for compatibility
     
-    // 24時間後に期限切れかチェック（仕様に合わせる）
+    private var defaultLifetime: TimeInterval { 24 * 60 * 60 }
+
+    // 期限切れ判定（expiresAt を優先）
     var isExpired: Bool {
-        let oneDayLater = createdAt.addingTimeInterval(24 * 60 * 60)
-        return Date() > oneDayLater
+        let cutoff = expiresAt ?? createdAt.addingTimeInterval(defaultLifetime)
+        return Date() > cutoff
     }
 
     // 残り時間を取得
     var timeRemaining: TimeInterval {
-        let oneDayLater = createdAt.addingTimeInterval(24 * 60 * 60)
-        return max(0, oneDayLater.timeIntervalSince(Date()))
+        let cutoff = expiresAt ?? createdAt.addingTimeInterval(defaultLifetime)
+        return max(0, cutoff.timeIntervalSince(Date()))
     }
 
     // 残り時間の文字列表示
@@ -44,9 +47,26 @@ struct Post: Identifiable, Equatable, Codable {
         return "\(hours)時間\(minutes)分"
     }
     
-    init(id: UUID = UUID(), createdAt: Date = Date(), location: CLLocationCoordinate2D, locationName: String? = nil, imageData: Data? = nil, imageUrl: String? = nil, text: String, authorName: String, authorId: String, likeCount: Int = 0, commentCount: Int = 0, isPublic: Bool = true, isAnonymous: Bool = false, authorAvatarUrl: String? = nil) {
+    init(
+        id: UUID = UUID(),
+        createdAt: Date = Date(),
+        expiresAt: Date? = nil,
+        location: CLLocationCoordinate2D,
+        locationName: String? = nil,
+        imageData: Data? = nil,
+        imageUrl: String? = nil,
+        text: String,
+        authorName: String,
+        authorId: String,
+        likeCount: Int = 0,
+        commentCount: Int = 0,
+        isPublic: Bool = true,
+        isAnonymous: Bool = false,
+        authorAvatarUrl: String? = nil
+    ) {
         self.id = id
         self.createdAt = createdAt
+        self.expiresAt = expiresAt
         self.location = location
         self.locationName = locationName
         self.imageData = imageData
@@ -63,13 +83,26 @@ struct Post: Identifiable, Equatable, Codable {
     
     // Codable準拠のため
     enum CodingKeys: String, CodingKey {
-        case id, createdAt = "created_at", locationName = "location_name", imageUrl = "image_url", text = "content", authorId = "user_id", likeCount = "like_count", commentCount = "comment_count", isPublic = "is_public", isAnonymous = "is_anonymous", latitude, longitude
+        case id
+        case createdAt = "created_at"
+        case expiresAt = "expires_at"
+        case locationName = "location_name"
+        case imageUrl = "image_url"
+        case text = "content"
+        case authorId = "user_id"
+        case likeCount = "like_count"
+        case commentCount = "comment_count"
+        case isPublic = "is_public"
+        case isAnonymous = "is_anonymous"
+        case latitude
+        case longitude
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
+        expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
         locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
         imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
         text = try container.decode(String.self, forKey: .text)
@@ -93,6 +126,7 @@ struct Post: Identifiable, Equatable, Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(expiresAt, forKey: .expiresAt)
         try container.encodeIfPresent(locationName, forKey: .locationName)
         try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
         try container.encode(text, forKey: .text)
@@ -112,6 +146,7 @@ struct Post: Identifiable, Equatable, Codable {
                lhs.location.latitude == rhs.location.latitude &&
                lhs.location.longitude == rhs.location.longitude &&
                lhs.locationName == rhs.locationName &&
+               lhs.expiresAt == rhs.expiresAt &&
                lhs.imageData == rhs.imageData &&
                lhs.text == rhs.text &&
                lhs.authorName == rhs.authorName &&
