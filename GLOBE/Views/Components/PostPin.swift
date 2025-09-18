@@ -416,8 +416,8 @@ struct PostPin: View {
 }
 
 // MARK: - Shape Eraser
-struct AnyShape: Shape {
-    private let pathBuilder: (CGRect) -> Path
+struct AnyShape: Shape, @unchecked Sendable {
+    private let pathBuilder: @Sendable (CGRect) -> Path
 
     init<S: Shape>(_ shape: S) {
         self.pathBuilder = { rect in

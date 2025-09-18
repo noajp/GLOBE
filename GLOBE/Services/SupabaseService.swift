@@ -48,7 +48,7 @@ private init() {
                 // Degrade payload on retries to improve reliability on poor networks
                 let liteMode = attempt > 1
                 let selectColumns = liteMode
-                    ? "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at"
+                    ? "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at"
                     : "*, profiles(*)"
                 let limit = liteMode ? 20 : 50
 
@@ -79,6 +79,8 @@ private init() {
                         }
                         return Post(
                             id: dbPost.id,
+                            createdAt: dbPost.created_at,
+                            expiresAt: dbPost.expires_at,
                             location: CLLocationCoordinate2D(
                                 latitude: dbPost.latitude,
                                 longitude: dbPost.longitude
@@ -170,6 +172,10 @@ private init() {
                 }
             }
             
+            let expiryInterval: TimeInterval = (imageData == nil ? 3 * 60 * 60 : 24 * 60 * 60)
+            let expiresAtDate = Date().addingTimeInterval(expiryInterval)
+            let expiresAtString = ISO8601DateFormatter().string(from: expiresAtDate)
+
             var postData: [String: AnyJSON] = [
                 "user_id": .string(userUUID.uuidString),
                 "content": .string(content),
@@ -178,7 +184,7 @@ private init() {
                 "latitude": .double(latitude),
                 "longitude": .double(longitude),
                 "is_public": .bool(!isAnonymous),  // 匿名でない場合は公開
-                "expires_at": .string(ISO8601DateFormatter().string(from: Date().addingTimeInterval(24 * 60 * 60)))
+                "expires_at": .string(expiresAtString)
             ]
             
             postData["is_anonymous"] = .bool(isAnonymous)
@@ -214,6 +220,8 @@ private init() {
             }
             
             let newPost = Post(
+                createdAt: Date(),
+                expiresAt: expiresAtDate,
                 location: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
                 locationName: locationName,
                 imageData: imageData,
