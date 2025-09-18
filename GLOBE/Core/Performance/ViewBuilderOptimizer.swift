@@ -134,6 +134,9 @@ struct OptimizedPostCard: View {
     let post: Post
     let onTap: () -> Void
 
+    private let cardCornerRadius: CGFloat = 18
+    private let imageHeight: CGFloat = 220
+
     // Memoized computed properties
     private var authorDisplayName: String {
         post.authorName
@@ -144,29 +147,50 @@ struct OptimizedPostCard: View {
     }
 
     var body: some View {
-        OptimizedVStack(alignment: .leading, spacing: 12) {
-            // Header
-            headerView
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                if let imageUrl = post.imageUrl {
+                    imageView(url: imageUrl)
+                }
 
-            // Content
-            if !post.text.isEmpty {
-                contentView
+                VStack(alignment: .leading, spacing: 12) {
+                    headerView
+
+                    if !post.text.isEmpty {
+                        Text(post.text)
+                            .font(.system(size: post.imageUrl == nil ? 16 : 13))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    footerView
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, post.imageUrl == nil ? 16 : 12)
+                .padding(.bottom, 24)
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
 
-            // Image (if available)
-            if let imageUrl = post.imageUrl {
-                imageView(url: imageUrl)
-            }
-
-            // Footer
-            footerView
+            Spacer(minLength: 0)
         }
-        .padding()
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black)
-                .shadow(radius: 2)
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .fill(Color.white.opacity(0.12))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.28), lineWidth: 0.65)
+                .blendMode(.screen)
+                .allowsHitTesting(false)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+        .aspectRatio(1.0 / 3.0, contentMode: .fit)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .onTapGesture(perform: onTap)
     }
 
@@ -199,53 +223,81 @@ struct OptimizedPostCard: View {
     }
 
     @ViewBuilder
-    private var contentView: some View {
-        Text(post.text)
-            .font(.body)
-            .foregroundColor(.white)
-            .multilineTextAlignment(.leading)
-    }
-
-    @ViewBuilder
     private func imageView(url: String) -> some View {
         AsyncImage(url: URL(string: url)) { image in
             image
                 .resizable()
-                .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: imageHeight)
+                .clipped()
         } placeholder: {
-            RoundedRectangle(cornerRadius: 8)
+            Rectangle()
                 .fill(Color.gray.opacity(0.3))
-                .frame(height: 200)
+                .frame(maxWidth: .infinity)
+                .frame(height: imageHeight)
                 .overlay {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                 }
         }
-        .frame(maxHeight: 300)
     }
 
     @ViewBuilder
     private var footerView: some View {
-        OptimizedHStack {
-            Button(action: {}) {
-                Label("\(post.likeCount)", systemImage: post.isLikedByMe ? "heart.fill" : "heart")
-                    .foregroundColor(post.isLikedByMe ? .red : .gray)
-            }
-
-            Button(action: {}) {
-                Label("\(post.commentCount)", systemImage: "message")
-                    .foregroundColor(.gray)
+        HStack(alignment: .center) {
+            if let locationName = post.locationName {
+                HStack(spacing: 6) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text(locationName)
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
 
-            if let locationName = post.locationName {
-                Label(locationName, systemImage: "location")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+            HStack(spacing: 20) {
+                Button(action: {}) {
+                    HStack(spacing: 4) {
+                        Image(systemName: post.isLikedByMe ? "heart.fill" : "heart")
+                            .font(.system(size: 16))
+                            .foregroundColor(post.isLikedByMe ? .red : .white)
+                        if post.likeCount > 0 {
+                            Text("\(post.likeCount)")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Button(action: {}) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bubble.left")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white)
+                        if post.commentCount > 0 {
+                            Text("\(post.commentCount)")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
+
+                Button(action: {}) {
+                    Image(systemName: "map")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

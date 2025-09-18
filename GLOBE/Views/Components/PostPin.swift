@@ -10,10 +10,9 @@ import CoreLocation
 import UIKit
 
 struct PostPin: View {
-    private let tailHeight: CGFloat = 12
-    private let tailWidth: CGFloat = 16
-    private let iconExtraOffset: CGFloat = 12
+    private let iconExtraOffset: CGFloat = 8
     private let bottomPadding: CGFloat = 0
+    private let cardCornerRadius: CGFloat = 18
     let post: Post
     let onTap: () -> Void
     @StateObject private var commentService = CommentService.shared
@@ -23,17 +22,21 @@ struct PostPin: View {
     @State private var showingDetailedPost = false
     @State private var showingImageViewer = false
     private var borderWidth: CGFloat { 1.2 }
+
+    private var hasImageContent: Bool {
+        (post.imageData != nil) || (post.imageUrl != nil)
+    }
     
     // Calculate dynamic height based on content
     private var cardHeight: CGFloat {
-        let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
+        let hasImage = hasImageContent
         let hasText = !post.text.isEmpty
 
         if hasImage && !hasText {
-            return cardWidth
+            return max(cardWidth * 0.68, 110)
         }
 
-        let textFont = UIFont.systemFont(ofSize: 7, weight: .medium)
+        let textFont = UIFont.systemFont(ofSize: 9, weight: .medium)
         let textWidth = contentWidth
         let textHeight = hasText ? measuredTextHeight(for: post.text, width: textWidth, font: textFont) : 0
 
@@ -44,7 +47,8 @@ struct PostPin: View {
             let textTopPadding: CGFloat = hasText ? max(4, textInset) : 0
             let textBottomPadding: CGFloat = hasText ? textInset : 0
             let actionHeight: CGFloat = (!post.isAnonymous && !post.isPublic) ? (8 + 1 + 6) : 0
-            return imageHeight + imageTopPadding + textTopPadding + textHeight + textBottomPadding + actionHeight
+            let computedHeight = imageHeight + imageTopPadding + textTopPadding + textHeight + textBottomPadding + actionHeight
+            return max(computedHeight, cardWidth * 0.78)
         }
 
         if hasText {
@@ -54,18 +58,18 @@ struct PostPin: View {
             let headerHeight: CGFloat = (!post.isAnonymous && !post.isPublic && !hasImage) ? (8 + 6) : 0
             let actionHeight: CGFloat = (!post.isAnonymous && !post.isPublic) ? (8 + 1 + 6) : 0
             let computedHeight = headerHeight + topPadding + textHeight + bottomPadding + actionHeight
-            return computedHeight
+            return max(computedHeight, 54)
         }
 
-        return 28
+        return 38
     }
     
     private var cardWidth: CGFloat {
-        return 112
+        return hasImageContent ? 140 : 180
     }
 
     private var contentWidth: CGFloat {
-        cardWidth - 12
+        cardWidth - 24
     }
     
     private func measuredTextHeight(for text: String, width: CGFloat, font: UIFont) -> CGFloat {
@@ -85,14 +89,10 @@ struct PostPin: View {
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let hasText = !post.text.isEmpty
         let isPhotoOnly = hasImage && !hasText
-        
-        GlassEffectContainer {
-            ZStack {
-                if !hasImage {
-                    mapBubbleBackground(hasImage: false)
-                }
+        let glassId = "post-pin-\(post.id.uuidString)"
 
-                VStack(spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
+        GlassEffectContainer {
+            VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
@@ -147,7 +147,7 @@ struct PostPin: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, inset)
+                    .padding(.horizontal, max(2, inset - 2))
                     .onTapGesture { showingImageViewer = true }
 
                 if !post.isAnonymous && !post.isPublic {
@@ -191,9 +191,9 @@ struct PostPin: View {
 
                 if !post.text.isEmpty {
                     let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                    captionText(post.text)
-                        .padding(.top, max(4, verticalPadding))
-                        .padding(.bottom, verticalPadding)
+                captionText(post.text)
+                    .padding(.top, max(4, verticalPadding))
+                    .padding(.bottom, verticalPadding)
                 }
             } else if let imageUrl = post.imageUrl {
                 let inset: CGFloat = isPhotoOnly ? 2 : 6
@@ -209,7 +209,7 @@ struct PostPin: View {
                         .overlay(ProgressView().scaleEffect(0.45))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
-                .padding(.horizontal, inset)
+                .padding(.horizontal, max(2, inset - 2))
                 .onTapGesture { showingImageViewer = true }
 
                 if !post.isAnonymous && !post.isPublic {
@@ -327,27 +327,24 @@ struct PostPin: View {
                 .zIndex(1)
             }
         }
-    }
-}
+        }
         .frame(width: cardWidth, height: cardHeight, alignment: .top)
         .padding(.bottom, bottomPadding)
-        .clipShape(hasImage ? AnyShape(RoundedRectangle(cornerRadius: 12, style: .continuous)) : AnyShape(bubbleShape))
+        .background(
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .fill(Color.clear)
+                .background(.thinMaterial) // ガラス感を少し強めるため thinMaterial を使用
+                .coordinatedGlassEffect(id: glassId, cornerRadius: cardCornerRadius)
+        )
         .overlay(
-            bubbleShape
-                .strokeBorder(Color.white.opacity(0.45), lineWidth: borderWidth)
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: borderWidth)
                 .blendMode(.screen)
                 .allowsHitTesting(false)
-                .opacity(hasImage ? 0 : 1)
         )
-        .overlay(alignment: .bottom) {
-            if hasImage {
-                PostPinTriangle()
-                    .fill(Color.white.opacity(0.35))
-                    .frame(width: tailWidth * 2.2, height: tailHeight)
-                    .blendMode(.screen)
-                    .allowsHitTesting(false)
-            }
-        }
+        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+        .onTapGesture(perform: onTap)
         // Profile icon at V-tip for non-anonymous posts (small-pin variant)
         .overlay(alignment: .bottom) {
             if !post.isAnonymous {
@@ -368,7 +365,6 @@ struct PostPin: View {
                         }
                         .frame(width: diameter, height: diameter)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
                     } else {
                         Circle().fill(Color.blue.opacity(0.7))
                             .overlay(
@@ -377,11 +373,10 @@ struct PostPin: View {
                                     .font(.system(size: diameter * 0.4))
                             )
                             .frame(width: diameter, height: diameter)
-                            .overlay(Circle().stroke(Color.white, lineWidth: 2))
                     }
                 }
-                // V字の先端にアイコンの上端が来るように配置
-                .offset(y: tailHeight + diameter/2 + iconExtraOffset)
+                // カード下にアバターを浮かせて位置を示す
+                .offset(y: diameter / 2 + iconExtraOffset)
                 .zIndex(10)
                 .allowsHitTesting(false)
             }
@@ -415,74 +410,25 @@ struct PostPin: View {
     }
 }
 
-// MARK: - Shape Eraser
-struct AnyShape: Shape, @unchecked Sendable {
-    private let pathBuilder: @Sendable (CGRect) -> Path
-
-    init<S: Shape>(_ shape: S) {
-        self.pathBuilder = { rect in
-            shape.path(in: rect)
-        }
-    }
-
-    func path(in rect: CGRect) -> Path {
-        pathBuilder(rect)
-    }
-}
-
 // MARK: - Bubble Helpers
 private extension PostPin {
-    var bubbleShape: SpeechBubbleShape {
-        SpeechBubbleShape(cornerRadius: 10, tailWidth: tailWidth, tailHeight: tailHeight)
-    }
-
-    @ViewBuilder
-    func mapBubbleBackground(hasImage: Bool) -> some View {
-        if #available(iOS 26.0, *) {
-            bubbleShape
-                .fill(Color.white.opacity(hasImage ? 0.12 : 0.18))
-                .glassEffect(.clear.interactive())
-                .overlay(
-                    bubbleShape
-                        .fill(Color.black.opacity(hasImage ? 0.08 : 0.12))
-                        .blendMode(.plusDarker)
-                )
-        } else {
-            bubbleShape
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(hasImage ? 0.28 : 0.35),
-                            Color.black.opacity(hasImage ? 0.18 : 0.25)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    bubbleShape
-                        .stroke(Color.white.opacity(0.3), lineWidth: 0.7)
-                )
-        }
-    }
-
-    func captionText(_ text: String, fontSize: CGFloat = 7) -> some View {
+    func captionText(_ text: String, fontSize: CGFloat = 9) -> some View {
         Text(text)
-            .font(.system(size: fontSize))
-            .fontWeight(.medium)
+            .font(.system(size: fontSize, weight: .medium))
             .foregroundColor(.white)
-            .multilineTextAlignment(.center)
+            .multilineTextAlignment(.leading)
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: contentWidth - 8)
-            .padding(.horizontal, 4)
-            .shadow(color: Color.black.opacity(0.55), radius: 2, x: 0, y: 1)
+            .frame(maxWidth: contentWidth, alignment: .leading)
+            .padding(.horizontal, 8)
+            .shadow(color: Color.black.opacity(0.45), radius: 2, x: 0, y: 1)
     }
 }
 
 // Scalable PostPin that adjusts size based on map zoom level
 struct ScalablePostPin: View {
     private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
+    private let cardCornerRadius: CGFloat = 18
     let post: Post
     let mapSpan: Double
     @StateObject private var commentService = CommentService.shared
@@ -514,20 +460,13 @@ struct ScalablePostPin: View {
         return mapSpan > 5.0
     }
     
-    private let baseCardSize: CGFloat = 112
-    private let baseTriangleWidth: CGFloat = 16
-    private let baseTriangleHeight: CGFloat = 12
-    
-    private var cardWidth: CGFloat {
-        // Use standard width regardless of photo presence
-        return baseCardSize * scaleFactor
+    private var baseCardSize: CGFloat {
+        hasImage ? 130 : 190
     }
     
-    private var triangleSize: CGSize {
-        CGSize(
-            width: baseTriangleWidth * scaleFactor,
-            height: baseTriangleHeight * scaleFactor
-        )
+    private var cardWidth: CGFloat {
+        // Use wider width for text-only posts to create rectangular bubble
+        return baseCardSize * scaleFactor
     }
     
     private var fontScale: CGFloat {
@@ -550,7 +489,7 @@ struct ScalablePostPin: View {
     private var estimatedTextLines: Int {
         guard !post.text.isEmpty else { return 0 }
         // Approximate characters per line for current width/font
-        let charsPerLine = 12
+        let charsPerLine = hasImage ? 14 : 22
         return max(1, Int(ceil(Double(post.text.count) / Double(charsPerLine))))
     }
 
@@ -558,7 +497,7 @@ struct ScalablePostPin: View {
 
     // Dynamic height: shrink when anonymous text-only and single line
     private var dynamicHeight: CGFloat {
-        let base = cardWidth * 0.75
+        let base: CGFloat = 78 * scaleFactor
         if hasImage {
             let isPhotoOnly = hasImage && post.text.isEmpty
             // Square photo height equals inner card width (minus horizontal padding)
@@ -597,16 +536,16 @@ struct ScalablePostPin: View {
         }
 
         // Lower absolute minimums more when meta is hidden (zoomed out)
-        let absMin = showMeta ? 52.0 : 32.0
+        let absMin = showMeta ? 60.0 : 48.0
 
         var h: CGFloat
         if isSingleLine {
             // Make the card clearly slim for one-line text
-            h = max(absMin, base * (showMeta ? 0.45 : 0.40))
+            h = max(absMin, base)
         } else if estimatedTextLines == 2 {
-            h = max(absMin + 1, base * (showMeta ? 0.58 : 0.52))
+            h = max(absMin + 4, base + 10)
         } else {
-            h = max(absMin + 4, base * (showMeta ? 0.70 : 0.65))
+            h = max(absMin + 6, base + 16)
         }
         // メタ情報がある場合のみ余白を追加
         return showMeta ? h + topInset + bottomInset : h
@@ -619,12 +558,46 @@ struct ScalablePostPin: View {
     }
     
     var body: some View {
-        // ズームアウトしすぎた場合は非表示
         if shouldHide {
             EmptyView()
         } else {
-            VStack(spacing: 0) {
-            VStack(spacing: stackSpacing) {
+            cardView
+                .padding(.bottom, 32 * fontScale)
+                .shadow(color: customBlack.opacity(0.3), radius: 4 * fontScale, x: 0, y: 2 * fontScale)
+                .onAppear {
+                    commentService.loadComments(for: post.id)
+                    likeService.initializePost(post)
+                }
+                .fullScreenCover(isPresented: $showingUserProfile) {
+                    UserProfileView(
+                        userName: post.authorName,
+                        userId: post.authorId,
+                        isPresented: $showingUserProfile
+                    )
+                    .transition(.move(edge: .trailing))
+                }
+                .sheet(isPresented: $showingDetailedPost) {
+                    DetailedPostView(
+                        post: post,
+                        isPresented: $showingDetailedPost
+                    )
+                }
+                .fullScreenCover(isPresented: $showingImageViewer) {
+                    if let data = post.imageData, let ui = UIImage(data: data) {
+                        PhotoViewerView(image: ui) { showingImageViewer = false }
+                    } else if let urlString = post.imageUrl, let url = URL(string: urlString) {
+                        PhotoViewerView(imageUrl: url) { showingImageViewer = false }
+                    }
+                }
+        }
+    }
+
+    private var cardView: some View {
+        let glassId = "scalable-post-\(post.id.uuidString)"
+        let dynamicCornerRadius: CGFloat = max(12, cardCornerRadius * fontScale)
+
+        return GlassEffectContainer {
+            VStack(alignment: .leading, spacing: stackSpacing) {
                 if showHeaderMeta && !hasImage {
                     HStack(spacing: 3 * fontScale) {
                         Button(action: {
@@ -641,7 +614,7 @@ struct ScalablePostPin: View {
                                 )
                         }
                         .buttonStyle(PlainButtonStyle())
-                        
+
                         Button(action: {
                             print("🆔 ScalablePostPin - ID tapped user: \(post.authorId)")
                             showingUserProfile = true
@@ -654,23 +627,21 @@ struct ScalablePostPin: View {
                             }
                         }
                         .buttonStyle(PlainButtonStyle())
-                        
+
                         Spacer()
                     }
-                    // Shift a bit more to the left (smaller leading, larger trailing)
                     .padding(.leading, (isSingleLine ? 6 : 4) * fontScale)
                     .padding(.trailing, (isSingleLine ? 12 : 10) * fontScale)
-                    // Top spacing: at least 6pt regardless of zoom
                     .padding(.top, topInset)
                     .contentShape(Rectangle())
                 }
-                
+
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                     let isPhotoOnly = post.text.isEmpty
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
+                        .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                         .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
                         .onTapGesture { showingImageViewer = true }
@@ -680,81 +651,35 @@ struct ScalablePostPin: View {
                         image
                             .resizable()
                             .scaledToFill()
-                            .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
+                            .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
                             .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                     } placeholder: {
                         Rectangle()
                             .fill(Color.gray.opacity(0.3))
-                            .frame(width: isPhotoOnly ? cardWidth - 4 : cardWidth - 8, height: isPhotoOnly ? cardWidth - 8 : cardWidth - 8)
+                            .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
                             .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                            .overlay(
-                                ProgressView()
-                                    .scaleEffect(0.5 * fontScale)
-                            )
+                            .overlay(ProgressView().scaleEffect(0.5 * fontScale))
                     }
                     .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
                     .onTapGesture { showingImageViewer = true }
                 }
-                
-                // 画像がある場合はヘッダーを写真の下に表示
-                if showMeta && hasImage {
-                    HStack(spacing: 3 * fontScale) {
-                        Button(action: {
-                            print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
-                            showingUserProfile = true
-                        }) {
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 20 * fontScale, height: 20 * fontScale)
-                                .overlay(
-                                    Text(post.authorName.prefix(1).uppercased())
-                                        .font(.system(size: 10 * fontScale, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Button(action: {
-                            print("🆔 ScalablePostPin - ID tapped user: \(post.authorId)")
-                            showingUserProfile = true
-                        }) {
-                            VStack(alignment: .leading, spacing: 1 * fontScale) {
-                                Text("\(post.authorId.prefix(8))")
-                                    .font(.system(size: 9 * fontScale, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.9))
-                                    .lineLimit(1)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Spacer()
-                    }
-                    .padding(.leading, (isSingleLine ? 6 : 4) * fontScale)
-                    .padding(.trailing, (isSingleLine ? 12 : 10) * fontScale)
-                    .padding(.top, 4 * fontScale)
-                }
 
                 if !post.text.isEmpty {
                     Text(post.text)
-                        .font(.system(size: 9 * fontScale))
-                        .fontWeight(.medium)
+                        .font(.system(size: 9 * fontScale, weight: .medium))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.leading)
                         .lineLimit(scaleFactor < 0.9 ? 2 : nil)
                         .truncationMode(.tail)
-                        .frame(maxWidth: cardWidth - 8, alignment: .leading)
-                        // Start text one character to the right
-                        .padding(.leading, (4 + 9) * fontScale)
+                        .frame(maxWidth: cardWidth - 24, alignment: .leading)
+                        .padding(.leading, 16 * fontScale)
                         .padding(.trailing, 4 * fontScale)
-                        // 画像がある場合は画像との間を少し空ける
-                        .padding(.top, hasImage ? (4 * fontScale) : (showMeta ? (post.isAnonymous ? 6 * fontScale : 2 * fontScale) : 2 * fontScale))
-                        .padding(.bottom, showMeta ? ((isSingleLine ? 2 : 4) * fontScale) : ((isSingleLine ? 1 : 2) * fontScale))
+                        .padding(.top, hasImage ? (4 * fontScale) : 2 * fontScale)
+                        .padding(.bottom, (isSingleLine ? 2 : 4) * fontScale)
                 }
-                // Remove Spacer to avoid extra vertical whitespace
-                
+
                 if showHeaderMeta {
                     HStack(spacing: 2 * fontScale) {
-                        // Like (left) then Comment (right)
                         Button(action: {
                             print("❤️ ScalablePostPin - Like tapped post: \(post.id)")
                             if let userId = authManager.currentUser?.id {
@@ -771,7 +696,7 @@ struct ScalablePostPin: View {
                                 Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
                                     .font(.system(size: 10 * fontScale))
                                     .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
-                                
+
                                 let likeCount = likeService.getLikeCount(for: post.id)
                                 Text("\(max(likeCount, 0))")
                                     .font(.system(size: 8 * fontScale))
@@ -790,7 +715,7 @@ struct ScalablePostPin: View {
                                 Image(systemName: "bubble.left")
                                     .font(.system(size: 10 * fontScale))
                                     .foregroundColor(.white.opacity(0.8))
-                                
+
                                 let count = commentService.getCommentCount(for: post.id)
                                 Text("\(max(count, 0))")
                                     .font(.system(size: 8 * fontScale))
@@ -802,252 +727,70 @@ struct ScalablePostPin: View {
                         .buttonStyle(PlainButtonStyle())
                     }
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.leading, 0)
                     .padding(.trailing, 4 * fontScale)
-                    // Bring actions closer to the bottom but keep a small safety gap
-                    .padding(.top, 1 * fontScale)
                     .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
                     .contentShape(Rectangle())
                 }
             }
             .frame(width: cardWidth, height: dynamicHeight)
-            // Unified bubble fill (rounded rect + V-tail)
-            .background(
-                SpeechBubbleShape(
-                    cornerRadius: 8 * fontScale,
-                    tailWidth: triangleSize.width,
-                    tailHeight: triangleSize.height
-                )
-                .fill(customBlack)
-            )
-            // Clip inner content to bubble shape to avoid overflow beyond border
-            .clipShape(
-                SpeechBubbleShape(
-                    cornerRadius: 8 * fontScale,
-                    tailWidth: triangleSize.width,
-                    tailHeight: triangleSize.height
-                )
-            )
-            // Unified bubble border with consistent width
-            .overlay(
-                SpeechBubbleShape(
-                    cornerRadius: 8 * fontScale,
-                    tailWidth: triangleSize.width,
-                    tailHeight: triangleSize.height
-                )
-                .strokeBorder(Color.white.opacity(0.9), lineWidth: borderWidth)
+        }
+        .frame(width: cardWidth, height: dynamicHeight)
+        .background(
+            RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
+                .fill(Color.clear)
+                .background(.thinMaterial)
+                .coordinatedGlassEffect(id: glassId, cornerRadius: dynamicCornerRadius)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: borderWidth)
+                .blendMode(.screen)
                 .allowsHitTesting(false)
-            )
-            // Profile icon at V-tip for non-anonymous posts
-            .overlay(alignment: .bottom) {
-                // ズームレベルが一定以上の時のみアイコンを表示（縮小時は完全に非表示）
-                if !post.isAnonymous && scaleFactor >= 0.9 {
-                    // ズームレベルに応じてアイコンサイズを調整（最初は小さく、拡大時に大きく）
-                    let minDiameter: CGFloat = 16
-                    let maxDiameter: CGFloat = 40
-                    // scaleFactorが0.9の時は16px、1.5の時は40pxになるように計算
-                    let diameter = min(maxDiameter, minDiameter + (scaleFactor - 0.9) * 40)
-                    
-                    Button(action: {
-                        print("🎯 ScalablePostPin - Profile icon tapped for user: \(post.authorId)")
-                        showingUserProfile = true
-                    }) {
-                        Group {
-                            if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
-                                AsyncImage(url: url) { image in
-                                    image
-                                        .resizable()
-                                        .scaledToFill()
-                                } placeholder: {
-                                    Circle().fill(Color.gray.opacity(0.3))
-                                        .overlay(Image(systemName: "person.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: diameter * 0.4)))
-                                }
-                                .frame(width: diameter, height: diameter)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                            } else {
-                                Circle().fill(Color.gray.opacity(0.3))
-                                    .overlay(Image(systemName: "person.fill")
+        )
+        .clipShape(RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous))
+        .overlay(alignment: .bottom) {
+            if !post.isAnonymous && scaleFactor >= 0.9 {
+                let minDiameter: CGFloat = 16
+                let maxDiameter: CGFloat = 40
+                let diameter = min(maxDiameter, minDiameter + (scaleFactor - 0.9) * 40)
+
+                Button(action: {
+                    print("🎯 ScalablePostPin - Profile icon tapped for user: \(post.authorId)")
+                    showingUserProfile = true
+                }) {
+                    if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } placeholder: {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    Image(systemName: "person.fill")
                                         .foregroundColor(.white)
-                                        .font(.system(size: diameter * 0.4)))
-                                    .frame(width: diameter, height: diameter)
-                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
-                            }
+                                        .font(.system(size: diameter * 0.4))
+                                )
                         }
+                        .frame(width: diameter, height: diameter)
+                        .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.white)
+                                    .font(.system(size: diameter * 0.4))
+                            )
+                            .frame(width: diameter, height: diameter)
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    // V字の先端から下にアイコンを配置
-                    .offset(y: triangleSize.height + diameter)
-                    .zIndex(10)
                 }
-            }
-            // Extra bottom inset so the outside avatar is not clipped by parent bounds
-            .padding(.bottom, 40 * fontScale)
-            .shadow(color: customBlack.opacity(0.3), radius: 4 * fontScale, x: 0, y: 2 * fontScale)
-        }
-        .onAppear {
-            commentService.loadComments(for: post.id)
-            likeService.initializePost(post)
-        }
-        .fullScreenCover(isPresented: $showingUserProfile) {
-            UserProfileView(
-                userName: post.authorName,
-                userId: post.authorId,
-                isPresented: $showingUserProfile
-            )
-            .transition(.move(edge: .trailing))
-        }
-        .sheet(isPresented: $showingDetailedPost) {
-            DetailedPostView(
-                post: post,
-                isPresented: $showingDetailedPost
-            )
-        }
-        .fullScreenCover(isPresented: $showingImageViewer) {
-            if let data = post.imageData, let ui = UIImage(data: data) {
-                PhotoViewerView(image: ui) { showingImageViewer = false }
-            } else if let urlString = post.imageUrl, let url = URL(string: urlString) {
-                PhotoViewerView(imageUrl: url) { showingImageViewer = false }
+                .buttonStyle(PlainButtonStyle())
+                .offset(y: diameter / 2 + 12)
+                .zIndex(10)
             }
         }
-        }
-    }
-}
-
-// Triangle shape for post pin speech bubble
-struct PostPinTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        
-        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.closeSubpath()
-        
-        return path
-    }
-}
-
-// Outline-only shape for the triangle's two sides (no base line)
-struct PostPinTriangleOutline: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let apex = CGPoint(x: rect.midX, y: rect.minY)
-        let left = CGPoint(x: rect.minX, y: rect.maxY)
-        let right = CGPoint(x: rect.maxX, y: rect.maxY)
-        path.move(to: apex)
-        path.addLine(to: left)
-        path.move(to: apex)
-        path.addLine(to: right)
-        return path
-    }
-}
-
-// Mask shape to hide a bottom-center segment of the card border
-// Creates a rectangular hole (gap) on the bottom edge so the horizontal base line
-// doesn't appear behind the V-tail.
-struct BottomEdgeGapMask: Shape {
-    let gapWidth: CGFloat
-    let gapHeight: CGFloat
-    func path(in rect: CGRect) -> Path {
-        var p = Path()
-        // Full rect
-        p.addRect(rect)
-        // Gap rect at bottom center
-        let gapRect = CGRect(
-            x: rect.midX - gapWidth / 2,
-            y: rect.maxY - gapHeight,
-            width: gapWidth,
-            height: gapHeight
-        )
-        p.addRect(gapRect)
-        return p
     }
 }
 
 //======================================================================
-// MARK: - SpeechBubbleShape
-// Purpose: Single shape combining rounded rect body and V-tail for crisp fill/stroke
-//======================================================================
-struct SpeechBubbleShape: InsettableShape {
-    var cornerRadius: CGFloat
-    var tailWidth: CGFloat
-    var tailHeight: CGFloat
-    var insetAmount: CGFloat = 0
-
-    func inset(by amount: CGFloat) -> some InsettableShape {
-        var s = self
-        s.insetAmount += amount
-        return s
-    }
-
-    func path(in rect: CGRect) -> Path {
-        let rectInset = rect.insetBy(dx: insetAmount, dy: insetAmount)
-        let r = max(0, min(cornerRadius - insetAmount, min(rectInset.width, rectInset.height) / 2))
-        let minX = rectInset.minX
-        let maxX = rectInset.maxX
-        let minY = rectInset.minY
-        let maxY = rectInset.maxY
-        let midX = rectInset.midX
-
-        let adjustedTailWidth = max(0, tailWidth - insetAmount * 2)
-        let adjustedTailHeight = max(0, tailHeight - insetAmount)
-        let halfTail = max(0, min(adjustedTailWidth / 2, (rectInset.width / 2) - r))
-        let leftJoin = CGPoint(x: midX - halfTail, y: maxY)
-        let rightJoin = CGPoint(x: midX + halfTail, y: maxY)
-        let apex = CGPoint(x: midX, y: maxY + adjustedTailHeight)
-
-        var p = Path()
-        // Start at top-left horizontal start
-        p.move(to: CGPoint(x: minX + r, y: minY))
-        // Top edge to top-right
-        p.addLine(to: CGPoint(x: maxX - r, y: minY))
-        // Top-right corner arc
-        p.addArc(
-            center: CGPoint(x: maxX - r, y: minY + r),
-            radius: r,
-            startAngle: Angle(degrees: -90),
-            endAngle: Angle(degrees: 0),
-            clockwise: false
-        )
-        // Right edge down
-        p.addLine(to: CGPoint(x: maxX, y: maxY - r))
-        // Bottom-right corner arc
-        p.addArc(
-            center: CGPoint(x: maxX - r, y: maxY - r),
-            radius: r,
-            startAngle: Angle(degrees: 0),
-            endAngle: Angle(degrees: 90),
-            clockwise: false
-        )
-        // Bottom edge to tail start
-        p.addLine(to: rightJoin)
-        // Tail V
-        p.addLine(to: apex)
-        p.addLine(to: leftJoin)
-        // Bottom edge continue to bottom-left arc start
-        p.addLine(to: CGPoint(x: minX + r, y: maxY))
-        // Bottom-left corner arc
-        p.addArc(
-            center: CGPoint(x: minX + r, y: maxY - r),
-            radius: r,
-            startAngle: Angle(degrees: 90),
-            endAngle: Angle(degrees: 180),
-            clockwise: false
-        )
-        // Left edge up
-        p.addLine(to: CGPoint(x: minX, y: minY + r))
-        // Top-left corner arc
-        p.addArc(
-            center: CGPoint(x: minX + r, y: minY + r),
-            radius: r,
-            startAngle: Angle(degrees: 180),
-            endAngle: Angle(degrees: 270),
-            clockwise: false
-        )
-        p.closeSubpath()
-        return p
-    }
-}
