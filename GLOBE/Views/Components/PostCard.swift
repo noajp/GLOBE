@@ -25,7 +25,7 @@ struct PostCard: View {
             GeometryReader { geometry in
                 let cardWidth = geometry.size.width
                 // Increase height further to ensure action buttons never clip
-                let heightRatio: CGFloat = 1.45 // was: 1.4 (4/3 ≈ 1.333)
+                let heightRatio: CGFloat = 3.0 // was: 1.6
                 let baseCardHeight = cardWidth * heightRatio
                 let isTextOnlyPost = post.imageData == nil
                 let primaryTextFont = UIFont.systemFont(ofSize: 16)
@@ -38,15 +38,18 @@ struct PostCard: View {
                     )
                     : 0
                 let resolvedCardHeight = isTextOnlyPost
-                    ? textCardHeight(
-                        lineCount: textLineCount,
-                        font: primaryTextFont,
-                        hasText: hasBodyText
+                    ? max(
+                        textCardHeight(
+                            lineCount: textLineCount,
+                            font: primaryTextFont,
+                            hasText: hasBodyText
+                        ),
+                        baseCardHeight
                     )
                     : baseCardHeight
                 
                 // Card content with a small bottom inset so controls avoid the rounded mask
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                 if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                     // Photo layout: Full-width square image at top, content below
                     
@@ -178,7 +181,7 @@ struct PostCard: View {
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                     }
-                    .frame(maxHeight: .infinity) // Fill remaining space in 3:4 card
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     
                 } else {
                     // Text-only layout: 3:4 vertical layout with larger text area
@@ -298,10 +301,12 @@ struct PostCard: View {
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     .padding(16)
                     .frame(height: resolvedCardHeight, alignment: .topLeading)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             // Add inner bottom padding to keep like/comment above the rounded corner clip
             .padding(.bottom, 12)
             .frame(
