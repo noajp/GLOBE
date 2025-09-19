@@ -5,6 +5,7 @@
 //======================================================================
 
 import SwiftUI
+import UIKit
 
 // MARK: - Optimized ViewBuilder Extensions
 
@@ -135,7 +136,14 @@ struct OptimizedPostCard: View {
     let onTap: () -> Void
 
     private let cardCornerRadius: CGFloat = 18
-    private let imageHeight: CGFloat = 220
+    private let mediaAspectRatio: CGFloat = 3.0 / 4.0
+
+    private var hasMediaAttachment: Bool {
+        if let urlString = post.imageUrl {
+            return !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        return false
+    }
 
     // Memoized computed properties
     private var authorDisplayName: String {
@@ -147,47 +155,32 @@ struct OptimizedPostCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                if let imageUrl = post.imageUrl {
-                    imageView(url: imageUrl)
+        LiquidGlassCard(
+            id: "optimized-post-card-\(post.id.uuidString)",
+            cornerRadius: cardCornerRadius,
+            tint: Color.white.opacity(0.12),
+            strokeColor: Color.white.opacity(0.34),
+            highlightColor: Color.white.opacity(0.9),
+            contentPadding: EdgeInsets(),
+            contentBackdropOpacity: 0.2,
+            shadowColor: Color.black.opacity(0.3),
+            shadowRadius: 16,
+            shadowOffsetY: 10
+        ) {
+            GeometryReader { proxy in
+                let cardWidth = proxy.size.width
+                let imageHeight = cardWidth * mediaAspectRatio
+
+                VStack(spacing: 0) {
+                    mediaSection(width: cardWidth, height: imageHeight)
+
+                    contentSection(hasMedia: hasMediaAttachment)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    headerView
-
-                    if !post.text.isEmpty {
-                        Text(post.text)
-                            .font(.system(size: post.imageUrl == nil ? 16 : 13))
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    footerView
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, post.imageUrl == nil ? 16 : 12)
-                .padding(.bottom, 24)
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(Color.white.opacity(0.12))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.28), lineWidth: 0.65)
-                .blendMode(.screen)
-                .allowsHitTesting(false)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
-        .aspectRatio(1.0 / 3.0, contentMode: .fit)
+        .aspectRatio(3.0 / 4.0, contentMode: .fit)
         .padding(.horizontal)
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -195,109 +188,215 @@ struct OptimizedPostCard: View {
     }
 
     @ViewBuilder
-    private var headerView: some View {
-        OptimizedHStack {
-            AsyncImage(url: URL(string: post.authorAvatarUrl ?? "")) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                Circle()
-                    .fill(Color.gray.opacity(0.3))
+    private func mediaSection(width: CGFloat, height: CGFloat) -> some View {
+        if hasMediaAttachment,
+           let urlString = post.imageUrl,
+           let url = URL(string: urlString) {
+            AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.25))) { phase in
+                switch phase {
+                case .success(let image):
+                    mediaImageView(image, width: width, height: height)
+                case .failure:
+                    mediaPlaceholder(width: width, height: height)
+                case .empty:
+                    mediaPlaceholder(width: width, height: height, showProgress: true)
+                @unknown default:
+                    mediaPlaceholder(width: width, height: height)
+                }
             }
-            .frame(width: 40, height: 40)
-            .clipShape(Circle())
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func mediaImageView(_ image: Image, width: CGFloat, height: CGFloat) -> some View {
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+
+        return image
+            .resizable()
+            .scaledToFill()
+            .frame(width: width, height: height)
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.0),
+                        Color.black.opacity(0.45)
+                    ],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+                .frame(height: height * 0.6),
+                alignment: .bottom
+            )
+            .clipShape(imageShape)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+
+    private func mediaPlaceholder(width: CGFloat, height: CGFloat, showProgress: Bool = false) -> some View {
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+
+        return ZStack {
+            LinearGradient(
+                colors: [
+                    MinimalDesign.Colors.secondary.opacity(0.25),
+                    MinimalDesign.Colors.secondary.opacity(0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if showProgress {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+            } else {
+                Image(systemName: "photo")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white.opacity(0.65))
+            }
+        }
+        .frame(width: width, height: height)
+        .clipShape(imageShape)
+        .accessibilityHidden(true)
+    }
+
+    private func contentSection(hasMedia: Bool) -> some View {
+        let corners: UIRectCorner = hasMedia ? [.bottomLeft, .bottomRight] : [.allCorners]
+        let contentShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: corners)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            headerView
+
+            if !post.text.isEmpty {
+                Text(post.text)
+                    .font(.system(size: hasMedia ? 14 : 16, weight: .regular))
+                    .foregroundColor(.white)
+                    .lineLimit(hasMedia ? 4 : 8)
+                    .multilineTextAlignment(.leading)
+                    .shadow(color: .black.opacity(0.85), radius: 8, x: 0, y: 1)
+                    .padding(.trailing, 4)
+            }
+
+            footerView
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, hasMedia ? 16 : 22)
+        .padding(.bottom, 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(contentBackdrop(hasMedia: hasMedia, shape: contentShape))
+        .clipShape(contentShape)
+    }
+
+    private func contentBackdrop(hasMedia: Bool, shape: RoundedCornerShape) -> some View {
+        Group {
+            if hasMedia {
+                shape
+                    .fill(.ultraThinMaterial)
+                    .overlay(shape.fill(Color.black.opacity(0.42)))
+                    .overlay(shape.stroke(Color.white.opacity(0.06), lineWidth: 0.6))
+                    .compositingGroup()
+                    .blur(radius: 14)
+            } else {
+                shape
+                    .fill(Color.black.opacity(0.22))
+                    .overlay(shape.stroke(Color.white.opacity(0.06), lineWidth: 0.5))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var headerView: some View {
+        HStack(spacing: 12) {
+            MemoryEfficientImage(url: post.authorAvatarUrl, size: CGSize(width: 40, height: 40))
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(authorDisplayName)
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
+                    .lineLimit(1)
 
                 Text(timeAgo)
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.7))
             }
 
             Spacer()
         }
     }
 
-    @ViewBuilder
-    private func imageView(url: String) -> some View {
-        AsyncImage(url: URL(string: url)) { image in
-            image
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: imageHeight)
-                .clipped()
-        } placeholder: {
-            Rectangle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(maxWidth: .infinity)
-                .frame(height: imageHeight)
-                .overlay {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                }
-        }
-    }
-
-    @ViewBuilder
     private var footerView: some View {
-        HStack(alignment: .center) {
+        HStack(spacing: 16) {
             if let locationName = post.locationName {
                 HStack(spacing: 6) {
                     Image(systemName: "location.fill")
                         .font(.system(size: 14))
-                        .foregroundColor(.gray)
+                        .foregroundColor(MinimalDesign.Colors.accentRed)
                     Text(locationName)
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.75))
                         .lineLimit(1)
                 }
             }
 
             Spacer()
 
-            HStack(spacing: 20) {
+            HStack(spacing: 18) {
                 Button(action: {}) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Image(systemName: post.isLikedByMe ? "heart.fill" : "heart")
-                            .font(.system(size: 16))
-                            .foregroundColor(post.isLikedByMe ? .red : .white)
+                            .font(.system(size: 18))
+                            .foregroundColor(post.isLikedByMe ? MinimalDesign.Colors.accentRed : .white)
                         if post.likeCount > 0 {
                             Text("\(post.likeCount)")
-                                .font(.system(size: 14))
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white)
                         }
                     }
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(.plain)
 
                 Button(action: {}) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
                         Image(systemName: "bubble.left")
-                            .font(.system(size: 16))
+                            .font(.system(size: 18))
                             .foregroundColor(.white)
                         if post.commentCount > 0 {
                             Text("\(post.commentCount)")
-                                .font(.system(size: 14))
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white)
                         }
                     }
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(.plain)
 
                 Button(action: {}) {
                     Image(systemName: "map")
-                        .font(.system(size: 16))
+                        .font(.system(size: 18))
                         .foregroundColor(.white)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(.plain)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Optimized Rounded Corner Helper
+private struct RoundedCornerShape: Shape {
+    var radius: CGFloat
+    var corners: UIRectCorner
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 

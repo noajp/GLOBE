@@ -90,8 +90,7 @@ struct PostPin: View {
         let hasText = !post.text.isEmpty
         let isPhotoOnly = hasImage && !hasText
 
-        GlassEffectContainer {
-            VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
+        VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
@@ -324,11 +323,10 @@ struct PostPin: View {
                 .contentShape(Rectangle())
                 .zIndex(1)
             }
-            }
-            .frame(width: cardWidth, height: cardHeight, alignment: .top)
-            .padding(.bottom, bottomPadding)
-            .coordinatedGlassEffect(id: "post-\(post.id.uuidString)", cornerRadius: cardCornerRadius)
         }
+        .frame(width: cardWidth, height: cardHeight, alignment: .top)
+        .padding(.bottom, bottomPadding)
+        .liquidGlassEffect(cornerRadius: cardCornerRadius)
         .overlay(
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(0.16), lineWidth: borderWidth)
@@ -337,7 +335,6 @@ struct PostPin: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
-        .onTapGesture(perform: onTap)
         // Profile icon at V-tip for non-anonymous posts (small-pin variant)
         .overlay(alignment: .bottom) {
             if !post.isAnonymous {
@@ -576,8 +573,7 @@ struct ScalablePostPin: View {
     private var cardView: some View {
         let dynamicCornerRadius: CGFloat = max(12, cardCornerRadius * fontScale)
 
-        GlassEffectContainer {
-            VStack(alignment: .leading, spacing: stackSpacing) {
+        VStack(alignment: .leading, spacing: stackSpacing) {
             if showHeaderMeta && !hasImage {
                 HStack(spacing: 3 * fontScale) {
                     Button(action: {
@@ -710,10 +706,9 @@ struct ScalablePostPin: View {
                 .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
                 .contentShape(Rectangle())
             }
-            }  // Close VStack
-            .frame(width: cardWidth, height: dynamicHeight)
-            .coordinatedGlassEffect(id: "scalable-post-\(post.id.uuidString)", cornerRadius: dynamicCornerRadius)
-        }  // Close GlassEffectContainer
+        }  // Close VStack
+        .frame(width: cardWidth, height: dynamicHeight)
+        .liquidGlassEffect(cornerRadius: dynamicCornerRadius)
         .overlay(
             RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(0.16), lineWidth: borderWidth)
