@@ -10,6 +10,7 @@ import CoreLocation
 import UIKit
 
 struct PostPin: View {
+    private let customBlack = Color.black
     private let iconExtraOffset: CGFloat = 8
     private let bottomPadding: CGFloat = 0
     private let cardCornerRadius: CGFloat = 14
@@ -89,7 +90,8 @@ struct PostPin: View {
         let hasText = !post.text.isEmpty
         let isPhotoOnly = hasImage && !hasText
 
-        VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
+        GlassEffectContainer {
+            VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
@@ -188,9 +190,9 @@ struct PostPin: View {
 
                 if !post.text.isEmpty {
                     let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                captionText(post.text)
-                    .padding(.top, max(4, verticalPadding))
-                    .padding(.bottom, verticalPadding)
+                    captionText(post.text)
+                        .padding(.top, max(4, verticalPadding))
+                        .padding(.bottom, verticalPadding)
                 }
             } else if let imageUrl = post.imageUrl {
                 let inset: CGFloat = isPhotoOnly ? 2 : 6
@@ -322,16 +324,14 @@ struct PostPin: View {
                 .contentShape(Rectangle())
                 .zIndex(1)
             }
+            }
+            .frame(width: cardWidth, height: cardHeight, alignment: .top)
+            .padding(.bottom, bottomPadding)
+            .coordinatedGlassEffect(id: "post-\(post.id.uuidString)", cornerRadius: cardCornerRadius)
         }
-        .frame(width: cardWidth, height: cardHeight, alignment: .top)
-        .padding(.bottom, bottomPadding)
-        .background(
-            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.65))
-        )
         .overlay(
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: borderWidth)
+                .stroke(Color.white.opacity(0.16), lineWidth: borderWidth)
                 .blendMode(.screen)
                 .allowsHitTesting(false)
         )
@@ -397,7 +397,7 @@ struct PostPin: View {
     }
 }
 
-// MARK: - Bubble Helpers
+// MARK: - Helper extension for PostPin
 private extension PostPin {
     func captionText(_ text: String, fontSize: CGFloat = 9) -> some View {
         Text(text)
@@ -572,10 +572,12 @@ struct ScalablePostPin: View {
         }
     }
 
+    @ViewBuilder
     private var cardView: some View {
         let dynamicCornerRadius: CGFloat = max(12, cardCornerRadius * fontScale)
 
-        return VStack(alignment: .leading, spacing: stackSpacing) {
+        GlassEffectContainer {
+            VStack(alignment: .leading, spacing: stackSpacing) {
             if showHeaderMeta && !hasImage {
                 HStack(spacing: 3 * fontScale) {
                     Button(action: {
@@ -708,15 +710,13 @@ struct ScalablePostPin: View {
                 .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
                 .contentShape(Rectangle())
             }
-        }
-        .frame(width: cardWidth, height: dynamicHeight)
-        .background(
-            RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
-                .fill(Color.black.opacity(hasImage ? 0.65 : 0.55))
-        )
+            }  // Close VStack
+            .frame(width: cardWidth, height: dynamicHeight)
+            .coordinatedGlassEffect(id: "scalable-post-\(post.id.uuidString)", cornerRadius: dynamicCornerRadius)
+        }  // Close GlassEffectContainer
         .overlay(
             RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: borderWidth)
+                .stroke(Color.white.opacity(0.16), lineWidth: borderWidth)
                 .blendMode(.screen)
                 .allowsHitTesting(false)
         )

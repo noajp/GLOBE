@@ -104,6 +104,12 @@ struct LegacyGlassEffect: ViewModifier {
     }
 }
 
+// MARK: - Glass Variation Enum
+enum GlassVariation {
+    case regular
+    case clear
+}
+
 // MARK: - View Extensions
 extension View {
     func glassContainer() -> some View {
@@ -114,6 +120,83 @@ extension View {
 
     func coordinatedGlassEffect(id: String, cornerRadius: CGFloat = 16) -> some View {
         modifier(CoordinatedGlassModifier(id: id, cornerRadius: cornerRadius))
+    }
+
+    // Standard glassEffect modifier based on Liquid Glass documentation
+    func glassEffect(_ variation: GlassVariation, in shape: some Shape) -> some View {
+        self
+            .background {
+                ZStack {
+                    // Ultra thin material base - very transparent
+                    shape
+                        .fill(.ultraThinMaterial)
+                        .opacity(variation == .regular ? 0.08 : 0.05)
+
+                    // Glass shine gradient
+                    shape
+                        .fill(
+                            LinearGradient(
+                                gradient: Gradient(stops: [
+                                    .init(color: .white.opacity(0.5), location: 0),
+                                    .init(color: .white.opacity(0.2), location: 0.3),
+                                    .init(color: .clear, location: 0.7),
+                                    .init(color: .black.opacity(0.05), location: 1)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .blendMode(BlendMode.plusLighter)
+
+                    // Specular highlight at top
+                    shape
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.4),
+                                    .clear
+                                ],
+                                startPoint: .top,
+                                endPoint: UnitPoint(x: 0.5, y: 0.3)
+                            )
+                        )
+                        .blendMode(BlendMode.screen)
+                }
+            }
+            .overlay {
+                // Strong edge highlight for glass feel
+                shape
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: .white.opacity(0.8), location: 0),
+                                .init(color: .white.opacity(0.4), location: 0.5),
+                                .init(color: .white.opacity(0.1), location: 1)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1.5
+                    )
+                    .blendMode(BlendMode.plusLighter)
+            }
+            .overlay {
+                // Inner glow
+                shape
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.2),
+                                .clear
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .center
+                        ),
+                        lineWidth: 0.5
+                    )
+                    .blur(radius: 0.5)
+                    .blendMode(BlendMode.screen)
+            }
     }
 }
 
@@ -171,6 +254,41 @@ struct GlassCircleButton<Content: View>: View {
                 .contentShape(Circle())
                 .coordinatedGlassEffect(id: id, cornerRadius: size / 2)
                 .clipShape(Circle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
+    }
+}
+
+// MARK: - Glass Rectangle Button
+struct GlassRectangleButton<Content: View>: View {
+    let id: String
+    let width: CGFloat
+    let height: CGFloat
+    let action: () -> Void
+    let content: Content
+
+    init(
+        id: String,
+        width: CGFloat = 60,
+        height: CGFloat = 60,
+        action: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.id = id
+        self.width = width
+        self.height = height
+        self.action = action
+        self.content = content()
+    }
+
+    var body: some View {
+        Button(action: action) {
+            content
+                .frame(width: width, height: height)
+                .contentShape(RoundedRectangle(cornerRadius: 12))
+                .coordinatedGlassEffect(id: id, cornerRadius: 12)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(PlainButtonStyle())
         .shadow(color: .black.opacity(0.08), radius: 6, x: 0, y: 3)
