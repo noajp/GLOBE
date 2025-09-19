@@ -14,330 +14,289 @@ struct PostCard: View {
     @StateObject private var commentService = CommentService.shared
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showingUserProfile = false
-    
+
     private let cardCornerRadius: CGFloat = 18
+    private let mediaAspectRatio: CGFloat = 3.0 / 4.0
+
+    private var hasMediaAttachment: Bool {
+        post.imageData != nil || post.imageUrl != nil
+    }
 
     var body: some View {
         let glassId = "post-card-\(post.id.uuidString)"
 
-        GlassEffectContainer {
-            GeometryReader { geometry in
-                let cardWidth = geometry.size.width
-                // Increase height further to ensure action buttons never clip
-                let heightRatio: CGFloat = 3.0 // was: 1.6
-                let baseCardHeight = cardWidth * heightRatio
-                let isTextOnlyPost = post.imageData == nil
-                let primaryTextFont = UIFont.systemFont(ofSize: 16)
-                let hasBodyText = !post.text.isEmpty
-                let textLineCount = isTextOnlyPost
-                    ? lineCountForText(
-                        post.text,
-                        font: primaryTextFont,
-                        availableWidth: cardWidth - 32 // 16pt padding on each side
-                    )
-                    : 0
-                let resolvedCardHeight = isTextOnlyPost
-                    ? max(
-                        textCardHeight(
-                            lineCount: textLineCount,
-                            font: primaryTextFont,
-                            hasText: hasBodyText
-                        ),
-                        baseCardHeight
-                    )
-                    : baseCardHeight
-                
-                // Card content with a small bottom inset so controls avoid the rounded mask
-                VStack(alignment: .leading, spacing: 0) {
-                if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
-                    // Photo layout: Full-width square image at top, content below
-                    
-                    // Square image - full card width with no horizontal padding
-                    Image(uiImage: uiImage.fixOrientation())
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: cardWidth, height: cardWidth) // Perfect square, full width
-                        .clipped()
-                        .padding(.top, 0) // No top padding for maximum size
-                    
-                    // Content area - fills remaining space after square image
-                    VStack(alignment: .leading, spacing: 6) {
-                        // Post Header
-                        HStack(spacing: 8) {
-                            // Profile icon - tappable
-                            Button(action: {
-                                showingUserProfile = true
-                            }) {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 28, height: 28)
-                                    .overlay(
-                                        Text(post.authorName.prefix(1).uppercased())
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.white)
-                                    )
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(post.authorName)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                
-                                Text(timeAgoText(from: post.createdAt))
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        
-                        // Post text (compact)
-                        if !post.text.isEmpty {
-                            Text(post.text)
-                                .font(.system(size: 12))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(2)
-                                .padding(.horizontal, 16)
-                        }
-                        
-                        // Bottom row: Location and Action buttons
-                        HStack {
-                            // Location info
-                            if let locationName = post.locationName {
-                                HStack(spacing: 3) {
-                                    Image(systemName: "location.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.gray)
-                                    Text(locationName)
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.gray)
-                                        .lineLimit(1)
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            // Action buttons
-                            HStack(spacing: 12) {
-                                // Like button
-                                Button(action: {
-                                    if let userId = authManager.currentUser?.id {
-                                        let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                                        if newLikeState {
-                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                            impactFeedback.impactOccurred()
-                                        }
-                                    }
-                                }) {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(likeService.isLiked(post.id) ? .red : .white)
-                                        
-                                        let likeCount = likeService.getLikeCount(for: post.id)
-                                        if likeCount > 0 {
-                                            Text("\(likeCount)")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                // Comment button
-                                Button(action: {
-                                }) {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "bubble.left")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white)
-                                        
-                                        let commentCount = commentService.getCommentCount(for: post.id)
-                                        if commentCount > 0 {
-                                            Text("\(commentCount)")
-                                                .font(.system(size: 12))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                // Map icon
-                                Button(action: {
-                                }) {
-                                    Image(systemName: "map")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.white)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 24)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    
-                } else {
-                    // Text-only layout: 3:4 vertical layout with larger text area
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Post Header
-                        HStack(spacing: 12) {
-                            // Profile icon - tappable
-                            Button(action: {
-                                showingUserProfile = true
-                            }) {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Text(post.authorName.prefix(1).uppercased())
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundColor(.white)
-                                    )
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(post.authorName)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                                
-                                Text(timeAgoText(from: post.createdAt))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            Spacer()
-                        }
-                        
-                        // Post text (larger area for text-only posts)
-                        if !post.text.isEmpty {
-                            Text(post.text)
-                                .font(.system(size: 16))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(8)
-                        }
-                        
-                        // Bottom row: Location and Action buttons
-                        HStack {
-                            // Location info
-                            if let locationName = post.locationName {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "location.fill")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray)
-                                    Text(locationName)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray)
-                                        .lineLimit(1)
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            // Action buttons
-                            HStack(spacing: 20) {
-                                // Like button
-                                Button(action: {
-                                    if let userId = authManager.currentUser?.id {
-                                        let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                                        if newLikeState {
-                                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                            impactFeedback.impactOccurred()
-                                        }
-                                    }
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(likeService.isLiked(post.id) ? .red : .white)
-                                        
-                                        let likeCount = likeService.getLikeCount(for: post.id)
-                                        if likeCount > 0 {
-                                            Text("\(likeCount)")
-                                                .font(.system(size: 15))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                // Comment button
-                                Button(action: {
-                                }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: "bubble.left")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(.white)
-                                        
-                                        let commentCount = commentService.getCommentCount(for: post.id)
-                                        if commentCount > 0 {
-                                            Text("\(commentCount)")
-                                                .font(.system(size: 15))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                                
-                                // Map icon
-                                Button(action: {
-                                }) {
-                                    Image(systemName: "map")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.white)
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(16)
-                    .frame(height: resolvedCardHeight, alignment: .topLeading)
+        LiquidGlassCard(
+            id: glassId,
+            cornerRadius: cardCornerRadius,
+            tint: Color.white.opacity(0.12),
+            strokeColor: Color.white.opacity(0.34),
+            highlightColor: Color.white.opacity(0.9),
+            contentPadding: EdgeInsets(),
+            contentBackdropOpacity: 0.2,
+            shadowColor: Color.black.opacity(0.35),
+            shadowRadius: 18,
+            shadowOffsetY: 12
+        ) {
+            GeometryReader { proxy in
+                let cardWidth = proxy.size.width
+                let imageHeight = cardWidth * mediaAspectRatio
+
+                VStack(spacing: 0) {
+                    mediaSection(width: cardWidth, height: imageHeight)
+
+                    contentSection(hasMedia: hasMediaAttachment)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            // Add inner bottom padding to keep like/comment above the rounded corner clip
-            .padding(.bottom, 12)
-            .frame(
-                width: cardWidth,
-                height: isTextOnlyPost ? resolvedCardHeight : baseCardHeight,
-                alignment: .top
-            )
-                .coordinatedGlassEffect(id: glassId, cornerRadius: cardCornerRadius)
-                .background(
-                    RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                        .fill(Color.white.opacity(0.12))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.28), lineWidth: 0.65)
-                        .blendMode(.screen)
-                        .allowsHitTesting(false)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
             }
         }
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
-        .padding(.horizontal)
-        .padding(.vertical, 8)
+        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
         .sheet(isPresented: $showingUserProfile) {
             Text("User Profile: \(post.authorName)")
         }
     }
-    
+
+    @ViewBuilder
+    private func mediaSection(width: CGFloat, height: CGFloat) -> some View {
+        if let imageData = post.imageData,
+           let uiImage = UIImage(data: imageData)?.fixOrientation() {
+            mediaImageView(Image(uiImage: uiImage), width: width, height: height)
+        } else if let urlString = post.imageUrl,
+                  let url = URL(string: urlString) {
+            AsyncImage(url: url, transaction: Transaction(animation: .easeInOut(duration: 0.25))) { phase in
+                switch phase {
+                case .success(let image):
+                    mediaImageView(image, width: width, height: height)
+                case .failure:
+                    mediaPlaceholder(width: width, height: height)
+                case .empty:
+                    mediaPlaceholder(width: width, height: height, showProgress: true)
+                @unknown default:
+                    mediaPlaceholder(width: width, height: height)
+                }
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func mediaImageView(_ image: Image, width: CGFloat, height: CGFloat) -> some View {
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+
+        return image
+            .resizable()
+            .scaledToFill()
+            .frame(width: width, height: height)
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.0),
+                        Color.black.opacity(0.45)
+                    ],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+                .frame(height: height * 0.6),
+                alignment: .bottom
+            )
+            .clipShape(imageShape)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+
+    private func mediaPlaceholder(width: CGFloat, height: CGFloat, showProgress: Bool = false) -> some View {
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+
+        return ZStack {
+            LinearGradient(
+                colors: [
+                    MinimalDesign.Colors.secondary.opacity(0.25),
+                    MinimalDesign.Colors.secondary.opacity(0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if showProgress {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+            } else {
+                Image(systemName: "photo")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white.opacity(0.65))
+            }
+        }
+        .frame(width: width, height: height)
+        .clipShape(imageShape)
+        .accessibilityHidden(true)
+    }
+
+    private func contentSection(hasMedia: Bool) -> some View {
+        let corners: UIRectCorner = hasMedia ? [.bottomLeft, .bottomRight] : [.allCorners]
+        let contentShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: corners)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            headerCompact
+
+            if !post.text.isEmpty {
+                Text(post.text)
+                    .font(.system(size: hasMedia ? 14 : 16, weight: .regular))
+                    .foregroundColor(.white)
+                    .lineLimit(hasMedia ? 4 : 8)
+                    .multilineTextAlignment(.leading)
+                    .shadow(color: .black.opacity(0.85), radius: 8, x: 0, y: 1)
+                    .padding(.trailing, 4)
+            }
+
+            interactionRowCompact
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, hasMedia ? 16 : 22)
+        .padding(.bottom, 22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(contentBackdrop(hasMedia: hasMedia, shape: contentShape))
+        .clipShape(contentShape)
+    }
+
+    private func contentBackdrop(hasMedia: Bool, shape: RoundedCornerShape) -> some View {
+        Group {
+            if hasMedia {
+                shape
+                    .fill(.ultraThinMaterial)
+                    .overlay(shape.fill(Color.black.opacity(0.42)))
+                    .overlay(shape.stroke(Color.white.opacity(0.06), lineWidth: 0.6))
+                    .compositingGroup()
+                    .blur(radius: 14)
+            } else {
+                shape
+                    .fill(Color.black.opacity(0.22))
+                    .overlay(shape.stroke(Color.white.opacity(0.06), lineWidth: 0.5))
+            }
+        }
+    }
+
+    private var headerCompact: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                showingUserProfile = true
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.18))
+                    if let avatarUrl = post.authorAvatarUrl, let url = URL(string: avatarUrl) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            default:
+                                Text(String(post.authorName.prefix(1)).uppercased())
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .clipShape(Circle())
+                    } else {
+                        Text(String(post.authorName.prefix(1)).uppercased())
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .frame(width: 40, height: 40)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(post.authorName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+
+                Text(timeAgoText(from: post.createdAt))
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+
+            Spacer()
+        }
+    }
+
+    private var interactionRowCompact: some View {
+        HStack(spacing: 16) {
+            if let locationName = post.locationName {
+                HStack(spacing: 6) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(MinimalDesign.Colors.accentRed)
+                    Text(locationName)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.75))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: 18) {
+                Button(action: handleLikeTap) {
+                    HStack(spacing: 6) {
+                        Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
+                            .font(.system(size: 18))
+                            .foregroundColor(likeService.isLiked(post.id) ? MinimalDesign.Colors.accentRed : .white)
+
+                        let likeCount = likeService.getLikeCount(for: post.id)
+                        if likeCount > 0 {
+                            Text("\(likeCount)")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button(action: {}) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bubble.left")
+                            .font(.system(size: 18))
+                            .foregroundColor(.white)
+
+                        let commentCount = commentService.getCommentCount(for: post.id)
+                        if commentCount > 0 {
+                            Text("\(commentCount)")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Button(action: {}) {
+                    Image(systemName: "map")
+                        .font(.system(size: 18))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func handleLikeTap() {
+        guard let userId = authManager.currentUser?.id else { return }
+        let newState = likeService.toggleLike(for: post, userId: userId)
+        if newState {
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+        }
+    }
+
     private func timeAgoText(from date: Date) -> String {
         let calendar = Calendar.current
         let now = Date()
         let components = calendar.dateComponents([.hour, .minute], from: date, to: now)
-        
+
         if let hours = components.hour, hours > 0 {
             if hours >= 24 {
                 return "期限切れ"
@@ -349,38 +308,19 @@ struct PostCard: View {
             return "たった今"
         }
     }
+}
 
-    /// 指定した幅とフォントでテキストが占める行数を推定する
-    private func lineCountForText(_ text: String, font: UIFont, availableWidth: CGFloat) -> Int {
-        guard !text.isEmpty else { return 0 }
+// MARK: - Rounded Corner Helper
+private struct RoundedCornerShape: Shape {
+    var radius: CGFloat
+    var corners: UIRectCorner
 
-        let constraintRect = CGSize(width: availableWidth, height: .greatestFiniteMagnitude)
-        let boundingBox = text.boundingRect(
-            with: constraintRect,
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: font],
-            context: nil
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
         )
-
-        return max(1, Int(ceil(boundingBox.height / font.lineHeight)))
-    }
-
-    /// テキスト投稿全体の高さを、本文の行数に合わせて算出する
-    private func textCardHeight(lineCount: Int, font: UIFont, hasText: Bool) -> CGFloat {
-        let topBottomPadding: CGFloat = 32 // VStack padding(.vertical, 16)
-        let headerHeight: CGFloat = 40
-        let spacingAboveText: CGFloat = hasText ? 12 : 0
-        let textHeight = hasText ? CGFloat(max(lineCount, 1)) * font.lineHeight : 0
-        let spacingBelowText: CGFloat = hasText ? 12 : 0
-        let actionRowHeight: CGFloat = 32
-        let bottomSafePadding: CGFloat = 12 // outer padding(.bottom, 12)
-
-        return topBottomPadding
-            + headerHeight
-            + spacingAboveText
-            + textHeight
-            + spacingBelowText
-            + actionRowHeight
-            + bottomSafePadding
+        return Path(path.cgPath)
     }
 }

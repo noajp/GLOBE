@@ -122,81 +122,108 @@ extension View {
         modifier(CoordinatedGlassModifier(id: id, cornerRadius: cornerRadius))
     }
 
-    // Standard glassEffect modifier based on Liquid Glass documentation
-    func glassEffect(_ variation: GlassVariation, in shape: some Shape) -> some View {
-        self
-            .background {
+    // Interactive liquid glass effect for post cards
+    func liquidGlassEffect(cornerRadius: CGFloat = 14) -> some View {
+        modifier(LiquidGlassModifier(cornerRadius: cornerRadius))
+    }
+}
+
+// MARK: - Liquid Glass Modifier (Interactive)
+struct LiquidGlassModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    @State private var isPressed = false
+    @State private var scale: CGFloat = 1.0
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(scale)
+            .background(
                 ZStack {
-                    // Ultra thin material base - very transparent
-                    shape
+                    // Base glass material - responds to interaction
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(.ultraThinMaterial)
-                        .opacity(variation == .regular ? 0.08 : 0.05)
+                        .opacity(isPressed ? 0.15 : 0.08)
+                        .animation(.easeInOut(duration: 0.2), value: isPressed)
 
-                    // Glass shine gradient
-                    shape
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: .white.opacity(0.5), location: 0),
-                                    .init(color: .white.opacity(0.2), location: 0.3),
-                                    .init(color: .clear, location: 0.7),
-                                    .init(color: .black.opacity(0.05), location: 1)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .blendMode(BlendMode.plusLighter)
-
-                    // Specular highlight at top
-                    shape
+                    // Dynamic top glossy highlight - intensifies on press
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    .white.opacity(0.4),
+                                    .white.opacity(isPressed ? 0.5 : 0.3),
+                                    .white.opacity(isPressed ? 0.2 : 0.1),
                                     .clear
                                 ],
                                 startPoint: .top,
                                 endPoint: UnitPoint(x: 0.5, y: 0.3)
                             )
                         )
-                        .blendMode(BlendMode.screen)
+                        .blendMode(.plusLighter)
+                        .animation(.easeInOut(duration: 0.15), value: isPressed)
+
+                    // Adaptive diagonal shine - shifts with interaction
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(isPressed ? 0.3 : 0.2),
+                                    .clear,
+                                    .clear,
+                                    .white.opacity(isPressed ? 0.1 : 0.05)
+                                ],
+                                startPoint: isPressed ? .topTrailing : .topLeading,
+                                endPoint: isPressed ? .bottomLeading : .bottomTrailing
+                            )
+                        )
+                        .blendMode(.screen)
+                        .animation(.easeInOut(duration: 0.2), value: isPressed)
+
+                    // Dynamic edge highlight - gets brighter on press
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(isPressed ? 0.6 : 0.4),
+                                    .white.opacity(isPressed ? 0.4 : 0.2),
+                                    .white.opacity(isPressed ? 0.1 : 0.05),
+                                    .clear
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: isPressed ? 1.5 : 1
+                        )
+                        .blendMode(.plusLighter)
+                        .animation(.easeInOut(duration: 0.15), value: isPressed)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(isPressed ? 0.12 : 0.08), radius: isPressed ? 15 : 10, x: 0, y: isPressed ? 8 : 5)
+            .shadow(color: .white.opacity(isPressed ? 0.2 : 0.1), radius: isPressed ? 4 : 2, x: 0, y: -1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: scale)
+            .animation(.easeInOut(duration: 0.2), value: isPressed)
+            .onTapGesture {
+                // Liquid ripple effect on tap
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) {
+                    scale = 0.98
+                }
+
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.1)) {
+                    scale = 1.0
                 }
             }
-            .overlay {
-                // Strong edge highlight for glass feel
-                shape
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(stops: [
-                                .init(color: .white.opacity(0.8), location: 0),
-                                .init(color: .white.opacity(0.4), location: 0.5),
-                                .init(color: .white.opacity(0.1), location: 1)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
-                    .blendMode(BlendMode.plusLighter)
-            }
-            .overlay {
-                // Inner glow
-                shape
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.2),
-                                .clear
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .center
-                        ),
-                        lineWidth: 0.5
-                    )
-                    .blur(radius: 0.5)
-                    .blendMode(BlendMode.screen)
-            }
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { isPressing in
+                isPressed = isPressing
+                if isPressing {
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        scale = 0.95
+                    }
+                } else {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        scale = 1.0
+                    }
+                }
+            }, perform: {})
     }
 }
 

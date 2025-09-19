@@ -21,6 +21,9 @@ struct PostPopupView: View {
     
     // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
+    private let cardCornerRadius: CGFloat = 28
+    private let sectionCornerRadius: CGFloat = 20
+    private let mediaAspectRatio: CGFloat = 3.0 / 4.0
     
     @State private var postText = ""
     @State private var selectedImageData: Data?
@@ -55,27 +58,40 @@ struct PostPopupView: View {
     private var maxTextLength: Int {
         selectedImageData != nil ? 30 : 60
     }
+
+    private var hasSelectedImage: Bool {
+        selectedImageData != nil
+    }
     
     var body: some View {
         ZStack {
             // Popup content with speech bubble tail
-            VStack(spacing: 0) {
+            LiquidGlassCard(
+                id: "create-post-card",
+                cornerRadius: cardCornerRadius,
+                tint: Color.white.opacity(0.12),
+                strokeColor: Color.white.opacity(0.38),
+                highlightColor: Color.white.opacity(0.92),
+                contentPadding: EdgeInsets(),
+                contentBackdropOpacity: 0.22,
+                shadowColor: Color.black.opacity(0.4),
+                shadowRadius: 26,
+                shadowOffsetY: 18
+            ) {
                 if !showPrivacySelection {
                     postCreationView
                 } else {
                     privacySelectionView
                 }
             }
-            .frame(width: 240, height: 350)
-            .background(customBlack)
-            .cornerRadius(12)
+            .frame(width: 260)
+            .aspectRatio(3.0 / 4.0, contentMode: .fit)
             // Note: Do not add a parent onTapGesture here; it can interfere with inner Buttons
             .overlay(
                 speechBubbleTail
                     .allowsHitTesting(false),
                 alignment: .bottom
             )
-            .shadow(radius: 10)
             // 吹き出しV先端のスクリーン座標をPreferenceで親に通知
             .overlay(alignment: .bottom) {
                 GeometryReader { proxy in
@@ -178,13 +194,22 @@ struct PostPopupView: View {
     
     // MARK: - Post Creation View
     private var postCreationView: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: 18) {
             headerView
-            photoPreviewView
-            textInputView
-            Spacer()
-            bottomSectionView
+
+            VStack(spacing: 0) {
+                mediaSection
+                textComposerSection
+            }
+
+            Spacer(minLength: 0)
+
+            bottomActionRow
         }
+        .padding(.horizontal, 18)
+        .padding(.top, 20)
+        .padding(.bottom, 24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .transition(.move(edge: .leading).combined(with: .opacity))
     }
     
@@ -217,44 +242,78 @@ struct PostPopupView: View {
         .zIndex(1) // ensure header stays above other layers for hit testing
     }
     
-    // MARK: - Photo Preview View
-    @ViewBuilder
-    private var photoPreviewView: some View {
-        if let selectedImageData {
-            let _ = print("📸 PostPopup - Displaying image preview: \(selectedImageData.count) bytes")
-            if let uiImage = UIImage(data: selectedImageData) {
-                ZStack(alignment: .topTrailing) {
+    // MARK: - Media Section
+    private var mediaSection: some View {
+        let clipShape = RoundedCornerShape(radius: sectionCornerRadius, corners: [.topLeft, .topRight])
+
+        return ZStack(alignment: .topTrailing) {
+            Group {
+                if let imageData = selectedImageData,
+                   let uiImage = UIImage(data: imageData)?.fixOrientation() {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 240, height: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(mediaAspectRatio, contentMode: .fill)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1.0)
+                            LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0.0),
+                                    Color.black.opacity(0.55)
+                                ],
+                                startPoint: .center,
+                                endPoint: .bottom
+                            )
                         )
-                    
-                    // Remove photo button
-                    Button(action: {
-                        self.selectedImageData = Optional<Data>.none
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
+                } else {
+                    ZStack(spacing: 10) {
+                        clipShape
+                            .fill(.ultraThinMaterial)
+                            .overlay(clipShape.fill(Color.black.opacity(0.28)))
+                            .overlay(clipShape.stroke(Color.white.opacity(0.08), lineWidth: 0.6))
+                            .compositingGroup()
+                            .blur(radius: 12)
+
+                        VStack(spacing: 6) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 20, weight: .medium))
+                            Text("写真を追加")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundColor(.white.opacity(0.85))
                     }
-                    .padding(8)
+                    .frame(maxWidth: .infinity)
+                    .aspectRatio(mediaAspectRatio, contentMode: .fit)
                 }
-                .frame(width: 240, height: 180)
-            } else {
-                let _ = print("❌ PostPopup - Failed to create UIImage from data")
-                EmptyView()
+            }
+            .frame(maxWidth: .infinity)
+            .clipShape(clipShape)
+            .overlay(clipShape.stroke(Color.white.opacity(0.08), lineWidth: 0.6))
+            .shadow(color: Color.black.opacity(hasSelectedImage ? 0.25 : 0.18), radius: hasSelectedImage ? 18 : 12, x: 0, y: 6)
+
+            if hasSelectedImage {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedImageData = nil
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white)
+                        .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 2)
+                }
+                .padding(12)
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: hasSelectedImage)
     }
-    
-    // MARK: - Text Input View
-    private var textInputView: some View {
-        VStack(alignment: .trailing, spacing: 4) {
+
+    // MARK: - Text Composer View
+    private var textComposerSection: some View {
+        let corners: UIRectCorner = hasSelectedImage ? [.bottomLeft, .bottomRight] : [.allCorners]
+        let shape = RoundedCornerShape(radius: sectionCornerRadius, corners: corners)
+
+        return VStack(alignment: .trailing, spacing: 6) {
             TextField("何を投稿しますか？", text: Binding(
                 get: { postText },
                 set: { newValue in
@@ -263,61 +322,101 @@ struct PostPopupView: View {
             ), axis: .vertical)
             .font(.system(size: 16))
             .foregroundColor(postText.count > maxTextLength ? .red : .white)
-            .lineLimit(10)
+            .lineLimit(8)
             .textFieldStyle(PlainTextFieldStyle())
             .scrollContentBackground(.hidden)
-            
-            // 文字数カウンター
+
             Text("\(postText.count)/\(maxTextLength)")
                 .font(.system(size: 12))
-                .foregroundColor(postText.count > maxTextLength ? .red : (postText.count >= maxTextLength ? .orange : .gray))
-                .padding(.trailing, 4)
+                .foregroundColor(
+                    postText.count > maxTextLength
+                        ? .red
+                        : (postText.count >= maxTextLength ? .orange : .white.opacity(0.7))
+                )
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            glassSectionBackground(
+                corners: corners,
+                radius: sectionCornerRadius,
+                opacity: hasSelectedImage ? 0.45 : 0.32
+            )
+        )
+        .clipShape(shape)
+        .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
     }
 
-    
-    // MARK: - Bottom Section View
-    private var bottomSectionView: some View {
-        HStack {
-            // Location info button - move to current location
+    // MARK: - Bottom Action Row
+    private var bottomActionRow: some View {
+        let shape = RoundedCornerShape(radius: sectionCornerRadius, corners: [.allCorners])
+
+        return HStack(spacing: 14) {
             Button(action: {
                 print("📍🔥 PostPopup: Location button ACTION TRIGGERED!")
                 moveToCurrentLocation()
             }) {
                 HStack(spacing: 8) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.black.opacity(0.6))
-                            .frame(width: 28, height: 28)
-                        
-                        Image(systemName: postLocation != nil ? "location.fill" : "location")
-                            .foregroundColor(postLocation != nil ? .white : .gray)
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    
+                    Image(systemName: postLocation != nil ? "location.fill" : "location")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(MinimalDesign.Colors.accentRed)
 
+                    Text("現在地")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
                 }
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(16)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(Color.black.opacity(0.35))
+                )
             }
-            
+            .buttonStyle(.plain)
+            .accessibilityLabel("現在地に移動")
+
             Spacer()
-            
+
             Button(action: checkCameraPermissionAndOpen) {
                 Image(systemName: "camera.fill")
                     .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Circle())
+                    .padding(12)
+                    .background(
+                        Circle()
+                            .fill(Color.black.opacity(0.45))
+                    )
             }
+            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 10)
+        .background(
+            glassSectionBackground(
+                corners: [.allCorners],
+                radius: sectionCornerRadius,
+                opacity: 0.26
+            )
+        )
+        .clipShape(shape)
+    }
+
+    private func glassSectionBackground(
+        corners: UIRectCorner,
+        radius: CGFloat,
+        opacity: Double,
+        blurRadius: CGFloat = 14
+    ) -> some View {
+        let shape = RoundedCornerShape(radius: radius, corners: corners)
+
+        return shape
+            .fill(.ultraThinMaterial)
+            .overlay(shape.fill(Color.black.opacity(opacity)))
+            .overlay(shape.stroke(Color.white.opacity(0.08), lineWidth: 0.6))
+            .compositingGroup()
+            .blur(radius: blurRadius)
     }
     
     // MARK: - Privacy Selection View
@@ -465,7 +564,7 @@ struct PostPopupView: View {
     // MARK: - Speech Bubble Tail
     private var speechBubbleTail: some View {
         Triangle()
-            .fill(selectedImageData != nil ? Color.black.opacity(0.8) : customBlack)
+            .fill(hasSelectedImage ? Color.black.opacity(0.85) : customBlack.opacity(0.9))
             .frame(width: 20, height: 15)
             .rotationEffect(.degrees(180))
             .offset(y: 15)
@@ -761,6 +860,21 @@ struct PostPopupView: View {
                 self.updatePostLocation()
             }
         }
+    }
+}
+
+// MARK: - Rounded Corner Helper
+private struct RoundedCornerShape: Shape {
+    var radius: CGFloat
+    var corners: UIRectCorner
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 
