@@ -12,7 +12,7 @@ import UIKit
 struct PostPin: View {
     private let iconExtraOffset: CGFloat = 8
     private let bottomPadding: CGFloat = 0
-    private let cardCornerRadius: CGFloat = 18
+    private let cardCornerRadius: CGFloat = 14
     let post: Post
     let onTap: () -> Void
     @StateObject private var commentService = CommentService.shared
@@ -415,7 +415,7 @@ private extension PostPin {
 // Scalable PostPin that adjusts size based on map zoom level
 struct ScalablePostPin: View {
     private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
-    private let cardCornerRadius: CGFloat = 18
+    private let cardCornerRadius: CGFloat = 14
     let post: Post
     let mapSpan: Double
     @StateObject private var commentService = CommentService.shared
