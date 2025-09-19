@@ -19,7 +19,6 @@ struct PostPin: View {
     @StateObject private var likeService = LikeService.shared
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showingUserProfile = false
-    @State private var showingDetailedPost = false
     @State private var showingImageViewer = false
     private var borderWidth: CGFloat { 1.2 }
 
@@ -89,10 +88,8 @@ struct PostPin: View {
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let hasText = !post.text.isEmpty
         let isPhotoOnly = hasImage && !hasText
-        let glassId = "post-pin-\(post.id.uuidString)"
 
-        GlassEffectContainer {
-            VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
+        VStack(alignment: .leading, spacing: isPhotoOnly ? 0 : (post.isAnonymous ? 4 : 0)) {
             if !post.isAnonymous && !post.isPublic && post.imageData == nil && post.imageUrl == nil {
                 HStack(spacing: 3) {
                     Button(action: {
@@ -299,7 +296,6 @@ struct PostPin: View {
                     
                     Button(action: {
                         print("💬 PostPin - Comment tapped for post: \(post.id)")
-                        showingDetailedPost = true
                     }) {
                         HStack(spacing: 1) {
                             Image(systemName: "bubble.left")
@@ -327,14 +323,11 @@ struct PostPin: View {
                 .zIndex(1)
             }
         }
-        }
         .frame(width: cardWidth, height: cardHeight, alignment: .top)
         .padding(.bottom, bottomPadding)
         .background(
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
-                .fill(Color.clear)
-                .background(.thinMaterial) // ガラス感を少し強めるため thinMaterial を使用
-                .coordinatedGlassEffect(id: glassId, cornerRadius: cardCornerRadius)
+                .fill(Color.black.opacity(0.65))
         )
         .overlay(
             RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
@@ -394,12 +387,6 @@ struct PostPin: View {
             )
             .transition(.move(edge: .trailing))
         }
-        .sheet(isPresented: $showingDetailedPost) {
-            DetailedPostView(
-                post: post,
-                isPresented: $showingDetailedPost
-            )
-        }
         .fullScreenCover(isPresented: $showingImageViewer) {
             if let data = post.imageData, let ui = UIImage(data: data) {
                 PhotoViewerView(image: ui) { showingImageViewer = false }
@@ -435,7 +422,6 @@ struct ScalablePostPin: View {
     @StateObject private var likeService = LikeService.shared
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showingUserProfile = false
-    @State private var showingDetailedPost = false
     @State private var showingImageViewer = false
     private var borderWidth: CGFloat { 1.2 }
     
@@ -576,12 +562,6 @@ struct ScalablePostPin: View {
                     )
                     .transition(.move(edge: .trailing))
                 }
-                .sheet(isPresented: $showingDetailedPost) {
-                    DetailedPostView(
-                        post: post,
-                        isPresented: $showingDetailedPost
-                    )
-                }
                 .fullScreenCover(isPresented: $showingImageViewer) {
                     if let data = post.imageData, let ui = UIImage(data: data) {
                         PhotoViewerView(image: ui) { showingImageViewer = false }
@@ -593,153 +573,146 @@ struct ScalablePostPin: View {
     }
 
     private var cardView: some View {
-        let glassId = "scalable-post-\(post.id.uuidString)"
         let dynamicCornerRadius: CGFloat = max(12, cardCornerRadius * fontScale)
 
-        return GlassEffectContainer {
-            VStack(alignment: .leading, spacing: stackSpacing) {
-                if showHeaderMeta && !hasImage {
-                    HStack(spacing: 3 * fontScale) {
-                        Button(action: {
-                            print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
-                            showingUserProfile = true
-                        }) {
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 20 * fontScale, height: 20 * fontScale)
-                                .overlay(
-                                    Text(post.authorName.prefix(1).uppercased())
-                                        .font(.system(size: 10 * fontScale, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        Button(action: {
-                            print("🆔 ScalablePostPin - ID tapped user: \(post.authorId)")
-                            showingUserProfile = true
-                        }) {
-                            VStack(alignment: .leading, spacing: 1 * fontScale) {
-                                Text("\(post.authorId.prefix(8))")
-                                    .font(.system(size: 9 * fontScale, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.9))
-                                    .lineLimit(1)
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        Spacer()
+        return VStack(alignment: .leading, spacing: stackSpacing) {
+            if showHeaderMeta && !hasImage {
+                HStack(spacing: 3 * fontScale) {
+                    Button(action: {
+                        print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
+                        showingUserProfile = true
+                    }) {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 20 * fontScale, height: 20 * fontScale)
+                            .overlay(
+                                Text(post.authorName.prefix(1).uppercased())
+                                    .font(.system(size: 10 * fontScale, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
                     }
-                    .padding(.leading, (isSingleLine ? 6 : 4) * fontScale)
-                    .padding(.trailing, (isSingleLine ? 12 : 10) * fontScale)
-                    .padding(.top, topInset)
-                    .contentShape(Rectangle())
-                }
+                    .buttonStyle(PlainButtonStyle())
 
-                if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
-                    let isPhotoOnly = post.text.isEmpty
-                    Image(uiImage: uiImage)
+                    Button(action: {
+                        print("🆔 ScalablePostPin - ID tapped user: \(post.authorId)")
+                        showingUserProfile = true
+                    }) {
+                        VStack(alignment: .leading, spacing: 1 * fontScale) {
+                            Text("\(post.authorId.prefix(8))")
+                                .font(.system(size: 9 * fontScale, weight: .medium))
+                                .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(1)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    Spacer()
+                }
+                .padding(.leading, (isSingleLine ? 6 : 4) * fontScale)
+                .padding(.trailing, (isSingleLine ? 12 : 10) * fontScale)
+                .padding(.top, topInset)
+                .contentShape(Rectangle())
+            }
+
+            if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
+                let isPhotoOnly = post.text.isEmpty
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
+                    .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
+                    .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
+                    .onTapGesture { showingImageViewer = true }
+            } else if let imageUrl = post.imageUrl {
+                let isPhotoOnly = post.text.isEmpty
+                AsyncImage(url: URL(string: imageUrl)) { image in
+                    image
                         .resizable()
                         .scaledToFill()
                         .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                        .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
-                        .onTapGesture { showingImageViewer = true }
-                } else if let imageUrl = post.imageUrl {
-                    let isPhotoOnly = post.text.isEmpty
-                    AsyncImage(url: URL(string: imageUrl)) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
-                            .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                    } placeholder: {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
-                            .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                            .overlay(ProgressView().scaleEffect(0.5 * fontScale))
-                    }
-                    .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
-                    .onTapGesture { showingImageViewer = true }
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
+                        .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
+                        .overlay(ProgressView().scaleEffect(0.5 * fontScale))
                 }
+                .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
+                .onTapGesture { showingImageViewer = true }
+            }
 
-                if !post.text.isEmpty {
-                    Text(post.text)
-                        .font(.system(size: 9 * fontScale, weight: .medium))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(scaleFactor < 0.9 ? 2 : nil)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: cardWidth - 24, alignment: .leading)
-                        .padding(.leading, 16 * fontScale)
-                        .padding(.trailing, 4 * fontScale)
-                        .padding(.top, hasImage ? (4 * fontScale) : 2 * fontScale)
-                        .padding(.bottom, (isSingleLine ? 2 : 4) * fontScale)
-                }
+            if !post.text.isEmpty {
+                Text(post.text)
+                    .font(.system(size: 9 * fontScale, weight: .medium))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(scaleFactor < 0.9 ? 2 : nil)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: cardWidth - 24, alignment: .leading)
+                    .padding(.leading, 16 * fontScale)
+                    .padding(.trailing, 4 * fontScale)
+                    .padding(.top, hasImage ? (4 * fontScale) : 2 * fontScale)
+                    .padding(.bottom, (isSingleLine ? 2 : 4) * fontScale)
+            }
 
-                if showHeaderMeta {
-                    HStack(spacing: 2 * fontScale) {
-                        Button(action: {
-                            print("❤️ ScalablePostPin - Like tapped post: \(post.id)")
-                            if let userId = authManager.currentUser?.id {
-                                let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                                if newLikeState {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                }
-                            } else {
-                                print("⚠️ ScalablePostPin - Like ignored (no current user)")
+            if showHeaderMeta {
+                HStack(spacing: 2 * fontScale) {
+                    Button(action: {
+                        print("❤️ ScalablePostPin - Like tapped post: \(post.id)")
+                        if let userId = authManager.currentUser?.id {
+                            let newLikeState = likeService.toggleLike(for: post, userId: userId)
+                            if newLikeState {
+                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                impactFeedback.impactOccurred()
                             }
-                        }) {
-                            HStack(spacing: 1 * fontScale) {
-                                Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                    .font(.system(size: 10 * fontScale))
-                                    .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
-
-                                let likeCount = likeService.getLikeCount(for: post.id)
-                                Text("\(max(likeCount, 0))")
-                                    .font(.system(size: 8 * fontScale))
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .opacity(likeCount > 0 ? 1 : 0)
-                                    .frame(width: 12 * fontScale, alignment: .leading)
-                            }
+                        } else {
+                            print("⚠️ ScalablePostPin - Like ignored (no current user)")
                         }
-                        .buttonStyle(PlainButtonStyle())
+                    }) {
+                        HStack(spacing: 1 * fontScale) {
+                            Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
+                                .font(.system(size: 10 * fontScale))
+                                .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
+
+                            let likeCount = likeService.getLikeCount(for: post.id)
+                            Text("\(max(likeCount, 0))")
+                                .font(.system(size: 8 * fontScale))
+                                .foregroundColor(.white.opacity(0.8))
+                                .opacity(likeCount > 0 ? 1 : 0)
+                                .frame(width: 12 * fontScale, alignment: .leading)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
 
                         Button(action: {
                             print("💬 ScalablePostPin - Comment tapped post: \(post.id)")
-                            showingDetailedPost = true
                         }) {
-                            HStack(spacing: 1 * fontScale) {
-                                Image(systemName: "bubble.left")
-                                    .font(.system(size: 10 * fontScale))
-                                    .foregroundColor(.white.opacity(0.8))
+                        HStack(spacing: 1 * fontScale) {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 10 * fontScale))
+                                .foregroundColor(.white.opacity(0.8))
 
-                                let count = commentService.getCommentCount(for: post.id)
-                                Text("\(max(count, 0))")
-                                    .font(.system(size: 8 * fontScale))
-                                    .foregroundColor(.white.opacity(0.8))
-                                    .opacity(count > 0 ? 1 : 0)
-                                    .frame(width: 12 * fontScale, alignment: .leading)
-                            }
+                            let count = commentService.getCommentCount(for: post.id)
+                            Text("\(max(count, 0))")
+                                .font(.system(size: 8 * fontScale))
+                                .foregroundColor(.white.opacity(0.8))
+                                .opacity(count > 0 ? 1 : 0)
+                                .frame(width: 12 * fontScale, alignment: .leading)
                         }
-                        .buttonStyle(PlainButtonStyle())
                     }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 4 * fontScale)
-                    .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
-                    .contentShape(Rectangle())
+                    .buttonStyle(PlainButtonStyle())
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 4 * fontScale)
+                .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
+                .contentShape(Rectangle())
             }
-            .frame(width: cardWidth, height: dynamicHeight)
         }
         .frame(width: cardWidth, height: dynamicHeight)
         .background(
             RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
-                .fill(Color.clear)
-                .background(.thinMaterial)
-                .coordinatedGlassEffect(id: glassId, cornerRadius: dynamicCornerRadius)
+                .fill(Color.black.opacity(hasImage ? 0.65 : 0.55))
         )
         .overlay(
             RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous)
