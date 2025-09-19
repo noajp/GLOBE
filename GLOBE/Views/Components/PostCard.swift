@@ -13,7 +13,6 @@ struct PostCard: View {
     @StateObject private var likeService = LikeService.shared
     @StateObject private var commentService = CommentService.shared
     @ObservedObject private var authManager = AuthManager.shared
-    @State private var showingDetailedView = false
     @State private var showingUserProfile = false
     
     private let cardCornerRadius: CGFloat = 18
@@ -151,7 +150,6 @@ struct PostCard: View {
                                 
                                 // Comment button
                                 Button(action: {
-                                    showingDetailedView = true
                                 }) {
                                     HStack(spacing: 3) {
                                         Image(systemName: "bubble.left")
@@ -273,7 +271,6 @@ struct PostCard: View {
                                 
                                 // Comment button
                                 Button(action: {
-                                    showingDetailedView = true
                                 }) {
                                     HStack(spacing: 6) {
                                         Image(systemName: "bubble.left")
@@ -331,12 +328,6 @@ struct PostCard: View {
         .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .onTapGesture {
-            showingDetailedView = true
-        }
-        .sheet(isPresented: $showingDetailedView) {
-            DetailedPostView(post: post, isPresented: $showingDetailedView)
-        }
         .sheet(isPresented: $showingUserProfile) {
             Text("User Profile: \(post.authorName)")
         }

@@ -19,8 +19,6 @@ struct MapContentView: View {
     @Binding var tappedLocation: CLLocationCoordinate2D?
     @Binding var vTipPoint: CGPoint?
 
-    @State private var selectedPost: Post?
-    @State private var showingPostDetail = false
     @State private var mapCameraPosition: MapCameraPosition = .camera(
         MapCamera(
             centerCoordinate: CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917),
@@ -54,8 +52,7 @@ struct MapContentView: View {
                 if CLLocationCoordinate2DIsValid(post.location) {
                     Annotation("", coordinate: post.location) {
                         PostPin(post: post) {
-                            selectedPost = post
-                            showingPostDetail = true
+                            // Popup表示を行わない
                         }
                     }
                     .annotationTitles(.hidden)
@@ -95,9 +92,6 @@ struct MapContentView: View {
                     )
                 )
             }
-        }
-        .sheet(item: $selectedPost) { post in
-            PostDetailView(post: post, isPresented: .constant(true))
         }
     }
 
