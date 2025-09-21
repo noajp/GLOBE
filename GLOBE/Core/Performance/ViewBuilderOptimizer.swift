@@ -145,6 +145,10 @@ struct OptimizedPostCard: View {
         return false
     }
 
+    private var postIdentifier: String {
+        String(post.id.uuidString.prefix(8)).uppercased()
+    }
+
     // Memoized computed properties
     private var authorDisplayName: String {
         post.authorName
@@ -169,18 +173,26 @@ struct OptimizedPostCard: View {
         ) {
             GeometryReader { proxy in
                 let cardWidth = proxy.size.width
+                let cardHeight = proxy.size.height
                 let imageHeight = cardWidth * mediaAspectRatio
 
                 VStack(spacing: 0) {
-                    mediaSection(width: cardWidth, height: imageHeight)
+                    metadataRow(width: cardWidth)
+                    dividerLine(width: cardWidth)
+
+                    if hasMediaAttachment {
+                        mediaSection(width: cardWidth, height: imageHeight)
+                    }
 
                     contentSection(hasMedia: hasMediaAttachment)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                    Spacer(minLength: 0)
                 }
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                .frame(width: cardWidth, height: cardHeight, alignment: .top)
             }
         }
-        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+        .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .padding(.horizontal)
         .padding(.vertical, 8)
         .contentShape(Rectangle())
@@ -210,7 +222,7 @@ struct OptimizedPostCard: View {
     }
 
     private func mediaImageView(_ image: Image, width: CGFloat, height: CGFloat) -> some View {
-        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
 
         return image
             .resizable()
@@ -234,7 +246,7 @@ struct OptimizedPostCard: View {
     }
 
     private func mediaPlaceholder(width: CGFloat, height: CGFloat, showProgress: Bool = false) -> some View {
-        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
 
         return ZStack {
             LinearGradient(
@@ -261,7 +273,7 @@ struct OptimizedPostCard: View {
     }
 
     private func contentSection(hasMedia: Bool) -> some View {
-        let corners: UIRectCorner = hasMedia ? [.bottomLeft, .bottomRight] : [.allCorners]
+        let corners: UIRectCorner = [.bottomLeft, .bottomRight]
         let contentShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: corners)
 
         return VStack(alignment: .leading, spacing: 14) {
@@ -302,6 +314,32 @@ struct OptimizedPostCard: View {
                     .overlay(shape.stroke(Color.white.opacity(0.06), lineWidth: 0.5))
             }
         }
+    }
+
+    private func metadataRow(width: CGFloat) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "tag.fill")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(MinimalDesign.Colors.accentRed)
+
+            Text("#\(postIdentifier)")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white.opacity(0.85))
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .frame(width: width, alignment: .leading)
+        .background(Color.black.opacity(0.32))
+    }
+
+    private func dividerLine(width: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(width: width, height: 0.8)
     }
 
     @ViewBuilder

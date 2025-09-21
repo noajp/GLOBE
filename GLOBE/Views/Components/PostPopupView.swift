@@ -10,6 +10,13 @@ import MapKit
 import AVFoundation
 import Combine
 
+// MARK: - Post Privacy Options
+enum PostPrivacyType: Equatable, Sendable {
+    case followersOnly
+    case publicPost
+    case anonymous
+}
+
 struct PostPopupView: View {
     @Binding var isPresented: Bool
     @ObservedObject var mapManager: MapManager
@@ -21,9 +28,6 @@ struct PostPopupView: View {
     
     // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
-    private let cardCornerRadius: CGFloat = 28
-    private let sectionCornerRadius: CGFloat = 20
-    private let mediaAspectRatio: CGFloat = 3.0 / 4.0
     
     @State private var postText = ""
     @State private var selectedImageData: Data?
@@ -42,56 +46,40 @@ struct PostPopupView: View {
     // App settings
     @StateObject private var appSettings = AppSettings.shared
     
-    enum PostPrivacyType {
-        case followersOnly
-        case publicPost
-        case anonymous
-    }
-    
     // Computed properties to reduce complexity
     private var isButtonDisabled: Bool {
-        let disabled = postText.isEmpty && selectedImageData == nil
-        print("🔘 PostPopup - isButtonDisabled calculated: \(disabled) (text='\(postText)', hasImage=\(selectedImageData != nil))")
+        let hasText = !postText.isEmpty
+        let hasImage = selectedImageData != nil
+        let disabled = !hasText && !hasImage
+        print("🔘 PostPopup - isButtonDisabled calculated: \(disabled) (hasText=\(hasText), hasImage=\(hasImage), imageSize=\(selectedImageData?.count ?? 0))")
         return disabled
     }
     
     private var maxTextLength: Int {
         selectedImageData != nil ? 30 : 60
     }
-
-    private var hasSelectedImage: Bool {
-        selectedImageData != nil
-    }
     
     var body: some View {
         ZStack {
             // Popup content with speech bubble tail
-            LiquidGlassCard(
-                id: "create-post-card",
-                cornerRadius: cardCornerRadius,
-                tint: Color.white.opacity(0.12),
-                strokeColor: Color.white.opacity(0.38),
-                highlightColor: Color.white.opacity(0.92),
-                contentPadding: EdgeInsets(),
-                contentBackdropOpacity: 0.22,
-                shadowColor: Color.black.opacity(0.4),
-                shadowRadius: 26,
-                shadowOffsetY: 18
-            ) {
-                if !showPrivacySelection {
-                    postCreationView
-                } else {
-                    privacySelectionView
+            GlassEffectContainer {
+                VStack(spacing: 0) {
+                    if !showPrivacySelection {
+                        postCreationView
+                    } else {
+                        privacySelectionView
+                    }
                 }
+                .frame(width: 240, height: 350)
+                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                // Note: Do not add a parent onTapGesture here; it can interfere with inner Buttons
+                .overlay(
+                    speechBubbleTail
+                        .allowsHitTesting(false),
+                    alignment: .bottom
+                )
+                .shadow(radius: 10)
             }
-            .frame(width: 260)
-            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-            // Note: Do not add a parent onTapGesture here; it can interfere with inner Buttons
-            .overlay(
-                speechBubbleTail
-                    .allowsHitTesting(false),
-                alignment: .bottom
-            )
             // 吹き出しV先端のスクリーン座標をPreferenceで親に通知
             .overlay(alignment: .bottom) {
                 GeometryReader { proxy in
@@ -135,9 +123,13 @@ struct PostPopupView: View {
             .onChange(of: capturedUIImage) { _, newImage in
                 if let img = newImage, let data = img.jpegData(compressionQuality: 0.85) {
                     print("📷 PostPopup - Captured image via custom camera: \(data.count) bytes")
-                    selectedImageData = data
-                    capturedUIImage = nil
-                    showingCamera = false
+                    DispatchQueue.main.async {
+                        selectedImageData = data
+                        capturedUIImage = nil
+                        showingCamera = false
+                        print("📷 PostPopup - selectedImageData set to \(data.count) bytes")
+                        print("🔘 PostPopup - Button disabled after image capture: \(postText.isEmpty && selectedImageData == nil)")
+                    }
                 }
             }
         }
@@ -182,7 +174,7 @@ struct PostPopupView: View {
         // ここでは購読しない（無限再レンダリングを避ける）。投稿時に最新座標を参照する。
         .onChange(of: selectedImageData) { oldValue, newValue in
             print("📸 PostPopup - selectedImageData changed: \(newValue?.count ?? 0) bytes (was: \(oldValue?.count ?? 0) bytes)")
-            print("📝 PostPopup - After change - text: '\(postText)', hasImage: \(newValue != nil)")
+            print("📝 PostPopup - After change - text: '\(postText)', hasImage=\(newValue != nil)")
             print("🔘 PostPopup - Button should be disabled: \(postText.isEmpty && newValue == nil)")
             // Ensure the popup remains visible after capture
             if newValue != nil {
@@ -194,22 +186,13 @@ struct PostPopupView: View {
     
     // MARK: - Post Creation View
     private var postCreationView: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 0) {
             headerView
-
-            VStack(spacing: 0) {
-                mediaSection
-                textComposerSection
-            }
-
-            Spacer(minLength: 0)
-
-            bottomActionRow
+            photoPreviewView
+            textInputView
+            Spacer()
+            bottomSectionView
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 20)
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .transition(.move(edge: .leading).combined(with: .opacity))
     }
     
@@ -242,78 +225,46 @@ struct PostPopupView: View {
         .zIndex(1) // ensure header stays above other layers for hit testing
     }
     
-    // MARK: - Media Section
-    private var mediaSection: some View {
-        let clipShape = RoundedCornerShape(radius: sectionCornerRadius, corners: [.topLeft, .topRight])
-
-        return ZStack(alignment: .topTrailing) {
-            Group {
-                if let imageData = selectedImageData,
-                   let uiImage = UIImage(data: imageData)?.fixOrientation() {
+    // MARK: - Photo Preview View
+    @ViewBuilder
+    private var photoPreviewView: some View {
+        if let selectedImageData = selectedImageData {
+            let _ = print("📸 PostPopup - Displaying image preview: \(selectedImageData.count) bytes")
+            if let uiImage = UIImage(data: selectedImageData) {
+                ZStack(alignment: .topTrailing) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(mediaAspectRatio, contentMode: .fill)
+                        .frame(width: 240, height: 180)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                         .overlay(
-                            LinearGradient(
-                                colors: [
-                                    Color.black.opacity(0.0),
-                                    Color.black.opacity(0.55)
-                                ],
-                                startPoint: .center,
-                                endPoint: .bottom
-                            )
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1.0)
                         )
-                } else {
-                    ZStack(spacing: 10) {
-                        clipShape
-                            .fill(.ultraThinMaterial)
-                            .overlay(clipShape.fill(Color.black.opacity(0.28)))
-                            .overlay(clipShape.stroke(Color.white.opacity(0.08), lineWidth: 0.6))
-                            .compositingGroup()
-                            .blur(radius: 12)
-
-                        VStack(spacing: 6) {
-                            Image(systemName: "camera.fill")
-                                .font(.system(size: 20, weight: .medium))
-                            Text("写真を追加")
-                                .font(.system(size: 13, weight: .semibold))
-                        }
-                        .foregroundColor(.white.opacity(0.85))
+                    
+                    // Remove photo button
+                    Button(action: {
+                        print("❌ PostPopup - Removing selected image")
+                        self.selectedImageData = Optional<Data>.none
+                        print("🔘 PostPopup - Button disabled after image removal: \(postText.isEmpty && selectedImageData == nil)")
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
                     }
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(mediaAspectRatio, contentMode: .fit)
+                    .padding(8)
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .clipShape(clipShape)
-            .overlay(clipShape.stroke(Color.white.opacity(0.08), lineWidth: 0.6))
-            .shadow(color: Color.black.opacity(hasSelectedImage ? 0.25 : 0.18), radius: hasSelectedImage ? 18 : 12, x: 0, y: 6)
-
-            if hasSelectedImage {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedImageData = nil
-                    }
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.white)
-                        .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 2)
-                }
-                .padding(12)
+                .frame(width: 240, height: 180)
+            } else {
+                let _ = print("❌ PostPopup - Failed to create UIImage from data")
+                EmptyView()
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: hasSelectedImage)
     }
-
-    // MARK: - Text Composer View
-    private var textComposerSection: some View {
-        let corners: UIRectCorner = hasSelectedImage ? [.bottomLeft, .bottomRight] : [.allCorners]
-        let shape = RoundedCornerShape(radius: sectionCornerRadius, corners: corners)
-
-        return VStack(alignment: .trailing, spacing: 6) {
+    
+    // MARK: - Text Input View
+    private var textInputView: some View {
+        VStack(alignment: .trailing, spacing: 4) {
             TextField("何を投稿しますか？", text: Binding(
                 get: { postText },
                 set: { newValue in
@@ -322,101 +273,52 @@ struct PostPopupView: View {
             ), axis: .vertical)
             .font(.system(size: 16))
             .foregroundColor(postText.count > maxTextLength ? .red : .white)
-            .lineLimit(8)
+            .lineLimit(10)
             .textFieldStyle(PlainTextFieldStyle())
             .scrollContentBackground(.hidden)
-
+            
+            // 文字数カウンター
             Text("\(postText.count)/\(maxTextLength)")
                 .font(.system(size: 12))
-                .foregroundColor(
-                    postText.count > maxTextLength
-                        ? .red
-                        : (postText.count >= maxTextLength ? .orange : .white.opacity(0.7))
-                )
+                .foregroundColor(postText.count > maxTextLength ? .red : (postText.count >= maxTextLength ? .orange : .gray))
+                .padding(.trailing, 4)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            glassSectionBackground(
-                corners: corners,
-                radius: sectionCornerRadius,
-                opacity: hasSelectedImage ? 0.45 : 0.32
-            )
-        )
-        .clipShape(shape)
-        .shadow(color: Color.black.opacity(0.18), radius: 10, x: 0, y: 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
-    // MARK: - Bottom Action Row
-    private var bottomActionRow: some View {
-        let shape = RoundedCornerShape(radius: sectionCornerRadius, corners: [.allCorners])
-
-        return HStack(spacing: 14) {
+    
+    // MARK: - Bottom Section View
+    private var bottomSectionView: some View {
+        HStack {
+            // Location info button - move to current location
             Button(action: {
                 print("📍🔥 PostPopup: Location button ACTION TRIGGERED!")
                 moveToCurrentLocation()
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: postLocation != nil ? "location.fill" : "location")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(MinimalDesign.Colors.accentRed)
-
-                    Text("現在地")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(postLocation != nil ? .white : .gray)
+                        .font(.system(size: 14, weight: .medium))
+                        .frame(width: 28, height: 28)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.black.opacity(0.35))
-                )
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("現在地に移動")
-
+            
             Spacer()
-
+            
             Button(action: checkCameraPermissionAndOpen) {
                 Image(systemName: "camera.fill")
                     .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .padding(12)
-                    .background(
-                        Circle()
-                            .fill(Color.black.opacity(0.45))
-                    )
+                    .frame(width: 36, height: 36)
+                    .glassEffect(.clear, in: Circle())
             }
-            .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 10)
-        .background(
-            glassSectionBackground(
-                corners: [.allCorners],
-                radius: sectionCornerRadius,
-                opacity: 0.26
-            )
-        )
-        .clipShape(shape)
-    }
-
-    private func glassSectionBackground(
-        corners: UIRectCorner,
-        radius: CGFloat,
-        opacity: Double,
-        blurRadius: CGFloat = 14
-    ) -> some View {
-        let shape = RoundedCornerShape(radius: radius, corners: corners)
-
-        return shape
-            .fill(.ultraThinMaterial)
-            .overlay(shape.fill(Color.black.opacity(opacity)))
-            .overlay(shape.stroke(Color.white.opacity(0.08), lineWidth: 0.6))
-            .compositingGroup()
-            .blur(radius: blurRadius)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
     }
     
     // MARK: - Privacy Selection View
@@ -485,13 +387,10 @@ struct PostPopupView: View {
                         .foregroundColor(.white)
                 }
                 .frame(width: 160, height: 80)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.05))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                        )
+                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
                 )
             }
             
@@ -517,13 +416,10 @@ struct PostPopupView: View {
                         .foregroundColor(.white)
                 }
                 .frame(width: 160, height: 80)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.05))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                        )
+                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
                 )
             }
             
@@ -549,13 +445,10 @@ struct PostPopupView: View {
                         .foregroundColor(.white)
                 }
                 .frame(width: 160, height: 80)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.05))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                        )
+                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
                 )
             }
         }
@@ -564,8 +457,9 @@ struct PostPopupView: View {
     // MARK: - Speech Bubble Tail
     private var speechBubbleTail: some View {
         Triangle()
-            .fill(hasSelectedImage ? Color.black.opacity(0.85) : customBlack.opacity(0.9))
+            .fill(Color.clear)
             .frame(width: 20, height: 15)
+            .glassEffect(.clear, in: Triangle())
             .rotationEffect(.degrees(180))
             .offset(y: 15)
     }
@@ -613,7 +507,7 @@ struct PostPopupView: View {
 
         // Close immediately
         postText = ""
-        selectedImageData = nil
+        selectedImageData = Optional<Data>.none
         showPrivacySelection = false
         isSubmitting = false
         isPresented = false
@@ -701,117 +595,68 @@ struct PostPopupView: View {
                         longitude: location.longitude
                     )
                     self.mapManager.focusOnLocation(offsetCoordinate)
-                    // postLocation は設定せず、地図移動のみ
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        // 何も設定しない - 位置ボタンは地図移動のみ
+                        let center = self.mapManager.region.center
+                        self.postLocation = center
+                        self.updateAreaLocation(for: center)
                     }
                 } else {
-                    print("❌ PostPopup - Failed to get location")
-                    self.areaName = "位置情報を取得できません"
+                    print("⚠️ PostPopup - Failed to get location update")
                 }
             }
-        }
-    }
-    
-    private func updatePostLocation() {
-        if let initialLocation = initialLocation {
-            print("🗺️ PostPopup - Using provided initial location: \(initialLocation.latitude), \(initialLocation.longitude)")
-            // 投稿座標は指定の地点。地図は動かさない（ユーザーの意図を優先）
-            postLocation = initialLocation
-            updateAreaLocation(for: initialLocation)
-        } else {
-            // 投稿座標は「地図の中心」
-            let center = mapManager.region.center
-            print("🗺️ PostPopup - Using map center for post: \(center.latitude), \(center.longitude)")
-            postLocation = center
-            updateAreaLocation(for: center)
         }
     }
     
     private func updateAreaLocation(for coordinate: CLLocationCoordinate2D) {
         Task {
-            do {
-                let request = MKLocalSearch.Request()
-                request.naturalLanguageQuery = "\(coordinate.latitude),\(coordinate.longitude)"
-                request.resultTypes = [.address]
-                
-                let search = MKLocalSearch(request: request)
-                let response = try await search.start()
-                
-                if let mapItem = response.mapItems.first {
-                    DispatchQueue.main.async {
-                        var components: [String] = []
-                        
-                        if let name = mapItem.name {
-                            let cleanedName = name
-                                .replacingOccurrences(of: #"[0-9]+-[0-9]+.*"#, with: "", options: .regularExpression)
-                                .replacingOccurrences(of: #"[0-9]+番地.*"#, with: "", options: .regularExpression)
-                                .trimmingCharacters(in: .whitespacesAndNewlines)
-                            
-                            if !cleanedName.isEmpty {
-                                components.append(cleanedName)
-                            }
-                        }
-                        
-                        if components.isEmpty {
-                            components.append("Near Current Location")
-                        }
-                        
-                        self.areaName = components.prefix(2).joined(separator: " ")
-                        
-                        if self.areaName.isEmpty {
-                            self.areaName = "不明な場所"
-                        }
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.areaName = "位置情報を取得できませんでした"
+            if let area = await resolveAreaName(for: coordinate) {
+                await MainActor.run {
+                    self.areaName = area
                 }
             }
         }
     }
-
-    // MARK: - Move to current location
+    
     private func moveToCurrentLocation() {
-        print("📍🔥 PostPopup: Location button pressed - Moving to current location")
+        print("📍🔥 PostPopup: moveToCurrentLocation called")
 
-        // Start location services if not already started
-        mapLocationService.startLocationServices()
+        // Check location services availability off main thread
+        Task {
+            let servicesEnabled = CLLocationManager.locationServicesEnabled()
 
-        // Request immediate location update
-        mapLocationService.requestLocation()
+            await MainActor.run {
+                guard servicesEnabled else {
+                    print("🚫 PostPopup: Location services disabled")
+                    showingLocationPermissionAlert = true
+                    return
+                }
 
-        // Use CLLocationManager directly as a fallback
-        let locationManager = CLLocationManager()
+                // If we already have permission, go straight to the location manager's helper
+                if locationManager.authorizationStatus == .authorizedAlways || locationManager.authorizationStatus == .authorizedWhenInUse {
+                    print("✅ PostPopup: Already authorized, calling autoAcquireCurrentLocation")
+                    autoAcquireCurrentLocation()
+                    return
+                }
 
-        if let location = locationManager.location {
-            print("📍🔥 PostPopup: Using CLLocationManager location: \(location.coordinate)")
-
-            // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
-            let offsetCoordinate = CLLocationCoordinate2D(
-                latitude: location.coordinate.latitude + 0.003, // 北に約300m移動
-                longitude: location.coordinate.longitude
-            )
-            mapManager.focusOnLocation(offsetCoordinate)
-
-            // DON'T update post location - keep it at speech bubble tip position
-            print("📍🔥 PostPopup: Map moved to current location, but post location remains unchanged")
-        } else if let mapLocation = mapLocationService.location {
-            print("📍🔥 PostPopup: Using MapLocationService location: \(mapLocation.coordinate)")
-
-            // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
-            let offsetCoordinate = CLLocationCoordinate2D(
-                latitude: mapLocation.coordinate.latitude + 0.003, // 北に約300m移動
-                longitude: mapLocation.coordinate.longitude
-            )
-            mapManager.focusOnLocation(offsetCoordinate)
-
-            // DON'T update post location - keep it at speech bubble tip position
-            print("📍🔥 PostPopup: Map moved to current location, but post location remains unchanged")
-        } else {
-            print("📍🔥 PostPopup: No location available, requesting permission...")
-            locationManager.requestWhenInUseAuthorization()
+                switch locationManager.authorizationStatus {
+                case .notDetermined:
+                    print("❔ PostPopup: Authorization not determined, requesting...")
+                    locationManager.requestLocationPermission()
+                    // After requesting, try to auto acquire (CLLocationManager will callback via delegate)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.autoAcquireCurrentLocation()
+                    }
+                case .denied, .restricted:
+                    print("🚫 PostPopup: Authorization denied or restricted, showing alert")
+                    showingLocationPermissionAlert = true
+                case .authorizedAlways, .authorizedWhenInUse:
+                    print("✅ PostPopup: Authorization OK, auto-acquiring location")
+                    autoAcquireCurrentLocation()
+                @unknown default:
+                    print("❌ PostPopup: Unknown authorization status")
+                    showingLocationPermissionAlert = true
+                }
+            }
         }
     }
     
@@ -861,20 +706,9 @@ struct PostPopupView: View {
             }
         }
     }
-}
-
-// MARK: - Rounded Corner Helper
-private struct RoundedCornerShape: Shape {
-    var radius: CGFloat
-    var corners: UIRectCorner
-
-    func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
+    
+    private func updatePostLocation() {
+        postLocation = mapManager.region.center
     }
 }
 
@@ -904,53 +738,40 @@ class PostLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate
     @Published var location: CLLocationCoordinate2D?
     @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
     private var locationUpdateCompletion: ((CLLocationCoordinate2D?) -> Void)?
-    
+
     override init() {
         super.init()
         locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyBest
-        authorizationStatus = locationManager.authorizationStatus
+        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
     }
-    
+
     func requestLocationPermission() {
-        if authorizationStatus == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
-        } else if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            locationManager.requestLocation()
-        }
+        locationManager.requestWhenInUseAuthorization()
     }
-    
+
     func requestLocationUpdate(completion: @escaping (CLLocationCoordinate2D?) -> Void) {
         locationUpdateCompletion = completion
-        
-        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
-            locationManager.requestLocation()
-        } else if authorizationStatus == .notDetermined {
-            locationManager.requestWhenInUseAuthorization()
-        } else {
-            completion(nil)
-        }
+        locationManager.requestLocation()
     }
-    
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.last else { return }
-        DispatchQueue.main.async {
-            self.location = location.coordinate
-            self.locationUpdateCompletion?(location.coordinate)
-            self.locationUpdateCompletion = nil
-        }
-    }
-    
+
+    // MARK: - CLLocationManagerDelegate
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        DispatchQueue.main.async {
-            self.authorizationStatus = manager.authorizationStatus
-            if self.authorizationStatus == .authorizedWhenInUse || self.authorizationStatus == .authorizedAlways {
-                manager.requestLocation()
-            }
-        }
+        authorizationStatus = manager.authorizationStatus
     }
-    
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.first else {
+            locationUpdateCompletion?(nil)
+            locationUpdateCompletion = nil
+            return
+        }
+        self.location = location.coordinate
+        locationUpdateCompletion?(location.coordinate)
+        locationUpdateCompletion = nil
+    }
+
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("❌ PostLocationManager - Failed to get location: \(error.localizedDescription)")
         locationUpdateCompletion?(nil)
         locationUpdateCompletion = nil
     }

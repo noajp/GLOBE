@@ -25,16 +25,22 @@ struct CreatePostView: View {
     @State private var areaName: String = ""
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
+        ZStack {
+            // 透明背景でガラスエフェクトを活かす
+            Color.clear
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
                 createHeader()
                 createMainPostSection()
                 createLocationSection()
                 Spacer()
             }
-            .background(Color(UIColor.systemBackground))
-            .navigationBarHidden(true)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
         }
+        .background(Color.clear)
+        .navigationBarHidden(true)
         .onAppear {
             locationManager.requestLocationPermission()
             // 少し遅延してから位置情報更新を開始
@@ -71,95 +77,114 @@ struct CreatePostView: View {
     }
     
     private func createHeader() -> some View {
-        HStack {
-            Button("キャンセル") {
-                isPresented = false
-            }
-            .foregroundColor(.white)
-            
-            Spacer()
-            
-            Text("新規投稿")
-                .font(.headline)
+        GlassEffectContainer {
+            HStack {
+                Button("キャンセル") {
+                    isPresented = false
+                }
                 .foregroundColor(.white)
-            
-            Spacer()
-            
-            Button("投稿") {
-                createPost()
+
+                Spacer()
+
+                Text("新規投稿")
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                Button("投稿") {
+                    createPost()
+                }
+                .foregroundColor(postText.isEmpty ? .gray : .white)
+                .disabled(postText.isEmpty)
             }
-            .foregroundColor(postText.isEmpty ? .gray : .white)
-            .disabled(postText.isEmpty)
+            .padding()
+            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .padding()
-        .background(customBlack)
     }
     
     private func createMainPostSection() -> some View {
-        VStack(spacing: 0) {
-            // 写真プレビューエリア（写真がある場合のみ表示）
-            if let selectedImageData,
-               let uiImage = UIImage(data: selectedImageData) {
-                ZStack {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 200)
-                        .clipped()
-                    
-                    // 削除ボタン
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Button(action: {
-                                self.selectedImageData = nil
-                                self.capturedUIImage = nil
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .background(customBlack.opacity(0.6))
-                                    .clipShape(Circle())
+        GlassEffectContainer {
+            VStack(spacing: 0) {
+                // 写真プレビューエリア（写真がある場合のみ表示）
+                if let selectedImageData,
+                   let uiImage = UIImage(data: selectedImageData) {
+                    ZStack {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 200)
+                            .clipped()
+
+                        // 削除ボタン
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    self.selectedImageData = nil
+                                    self.capturedUIImage = nil
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .background(customBlack.opacity(0.6))
+                                        .clipShape(Circle())
+                                }
+                                .padding()
                             }
-                            .padding()
+                            Spacer()
                         }
+                    }
+                    .frame(height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+
+                // テキスト入力エリア
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("何を投稿しますか？")
+                            .font(.headline)
+                            .foregroundColor(.white)
+
                         Spacer()
+
+                        // カメラボタン
+                        Button(action: {
+                            checkCameraPermissionAndOpen()
+                        }) {
+                            Image(systemName: "camera.fill")
+                                .font(.title2)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
                     }
-                }
-                .frame(height: 200)
-            }
-            
-            // テキスト入力エリア
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("何を投稿しますか？")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                    
-                    // カメラボタン
-                    Button(action: {
-                        checkCameraPermissionAndOpen()
-                    }) {
-                        Image(systemName: "camera.fill")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top)
-                
-                // テキスト入力
-                ScrollView {
-                    TextEditor(text: $postText)
-                        .scrollContentBackground(.hidden)
+                    .padding(.horizontal)
+                    .padding(.top)
+
+                    // テキスト入力
+                    ZStack(alignment: .topLeading) {
+                        ScrollView {
+                            TextEditor(text: $postText)
+                                .scrollContentBackground(.hidden)
+                                .background(Color.clear)
+                                .padding(.horizontal)
+                                .frame(minHeight: selectedImageData != nil ? 100 : 200)
+                                .foregroundColor(.white)
+                        }
                         .background(Color.clear)
-                        .padding(.horizontal)
-                        .frame(minHeight: selectedImageData != nil ? 100 : 200)
+
+                        // プレースホルダー
+                        if postText.isEmpty {
+                            Text("ここに投稿内容を入力してください...")
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.horizontal, 24)
+                                .padding(.top, 8)
+                                .allowsHitTesting(false)
+                        }
+                    }
                 }
-                .background(Color(UIColor.systemGray6).opacity(0.3))
             }
+            .padding()
+            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraView(selectedImageData: $selectedImageData)
@@ -168,19 +193,21 @@ struct CreatePostView: View {
     }
     
     private func createLocationSection() -> some View {
-        HStack {
-            Image(systemName: displayLocation != nil ? "location.fill" : "location.slash")
-                .foregroundColor(displayLocation != nil ? .blue : .gray)
-                .font(.system(size: 14))
-            
-            Text(areaName.isEmpty ? "エリアを取得中..." : areaName)
-                .font(.system(size: 14))
-                .foregroundColor(.primary)
-            
-            Spacer()
+        GlassEffectContainer {
+            HStack {
+                Image(systemName: displayLocation != nil ? "location.fill" : "location.slash")
+                    .foregroundColor(displayLocation != nil ? .white.opacity(0.9) : .white.opacity(0.6))
+                    .font(.system(size: 14))
+
+                Text(areaName.isEmpty ? "エリアを取得中..." : areaName)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.9))
+
+                Spacer()
+            }
+            .padding()
+            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        .padding()
-        .background(Color(UIColor.systemGray6))
     }
     
     
