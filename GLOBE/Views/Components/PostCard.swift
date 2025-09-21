@@ -22,6 +22,10 @@ struct PostCard: View {
         post.imageData != nil || post.imageUrl != nil
     }
 
+    private var postIdentifier: String {
+        String(post.id.uuidString.prefix(8)).uppercased()
+    }
+
     var body: some View {
         let glassId = "post-card-\(post.id.uuidString)"
 
@@ -39,18 +43,26 @@ struct PostCard: View {
         ) {
             GeometryReader { proxy in
                 let cardWidth = proxy.size.width
+                let cardHeight = proxy.size.height
                 let imageHeight = cardWidth * mediaAspectRatio
 
                 VStack(spacing: 0) {
-                    mediaSection(width: cardWidth, height: imageHeight)
+                    metadataRow(width: cardWidth)
+                    dividerLine(width: cardWidth)
+
+                    if hasMediaAttachment {
+                        mediaSection(width: cardWidth, height: imageHeight)
+                    }
 
                     contentSection(hasMedia: hasMediaAttachment)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
+
+                    Spacer(minLength: 0)
                 }
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
+                .frame(width: cardWidth, height: cardHeight, alignment: .top)
             }
         }
-        .aspectRatio(3.0 / 4.0, contentMode: .fit)
+        .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
         .sheet(isPresented: $showingUserProfile) {
@@ -83,7 +95,7 @@ struct PostCard: View {
     }
 
     private func mediaImageView(_ image: Image, width: CGFloat, height: CGFloat) -> some View {
-        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
 
         return image
             .resizable()
@@ -107,7 +119,7 @@ struct PostCard: View {
     }
 
     private func mediaPlaceholder(width: CGFloat, height: CGFloat, showProgress: Bool = false) -> some View {
-        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
 
         return ZStack {
             LinearGradient(
@@ -134,12 +146,9 @@ struct PostCard: View {
     }
 
     private func contentSection(hasMedia: Bool) -> some View {
-        let corners: UIRectCorner = hasMedia ? [.bottomLeft, .bottomRight] : [.allCorners]
-        let contentShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: corners)
+        let contentShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
 
         return VStack(alignment: .leading, spacing: 14) {
-            headerCompact
-
             if !post.text.isEmpty {
                 Text(post.text)
                     .font(.system(size: hasMedia ? 14 : 16, weight: .regular))
@@ -177,51 +186,41 @@ struct PostCard: View {
         }
     }
 
-    private var headerCompact: some View {
+    private func metadataRow(width: CGFloat) -> some View {
         HStack(spacing: 12) {
-            Button(action: {
-                showingUserProfile = true
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.18))
-                    if let avatarUrl = post.authorAvatarUrl, let url = URL(string: avatarUrl) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            default:
-                                Text(String(post.authorName.prefix(1)).uppercased())
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .clipShape(Circle())
-                    } else {
-                        Text(String(post.authorName.prefix(1)).uppercased())
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-                .frame(width: 40, height: 40)
-            }
-            .buttonStyle(.plain)
+            avatarBadge(size: 34)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(post.authorName)
-                    .font(.system(size: 15, weight: .semibold))
+                Text("#\(postIdentifier)")
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .truncationMode(.tail)
 
                 Text(timeAgoText(from: post.createdAt))
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.7))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.65))
             }
 
-            Spacer()
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .frame(width: width, alignment: .leading)
+        .background(
+            RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+                .fill(Color.black.opacity(0.32))
+        )
+        .overlay(
+            RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+                .stroke(Color.white.opacity(0.06), lineWidth: 0.6)
+        )
+    }
+
+    private func dividerLine(width: CGFloat) -> some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+        .frame(width: width, height: 0.8)
     }
 
     private var interactionRowCompact: some View {
@@ -281,6 +280,40 @@ struct PostCard: View {
                 .buttonStyle(.plain)
             }
         }
+    }
+
+    private func avatarBadge(size: CGFloat) -> some View {
+        Button(action: {
+            showingUserProfile = true
+        }) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.18))
+
+                if let avatarUrl = post.authorAvatarUrl,
+                   let url = URL(string: avatarUrl) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        default:
+                            Text(String(post.authorName.prefix(1)).uppercased())
+                                .font(.system(size: size * 0.45, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .clipShape(Circle())
+                } else {
+                    Text(String(post.authorName.prefix(1)).uppercased())
+                        .font(.system(size: size * 0.45, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(width: size, height: size)
+        }
+        .buttonStyle(.plain)
     }
 
     private func handleLikeTap() {
