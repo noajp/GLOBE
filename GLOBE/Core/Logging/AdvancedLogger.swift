@@ -376,13 +376,11 @@ final class AdvancedLogger: ObservableObject {
             metadata: metadata
         )
 
-        Task { @MainActor in
-            performanceMetrics.append(metric)
+        performanceMetrics.append(metric)
 
-            // Keep only recent metrics
-            if performanceMetrics.count > LoggingConfig.maxPerformanceMetrics {
-                performanceMetrics.removeFirst()
-            }
+        // Keep only recent metrics
+        if performanceMetrics.count > LoggingConfig.maxPerformanceMetrics {
+            performanceMetrics.removeFirst()
         }
 
         info("Performance: \(name) = \(String(format: "%.2f", value))\(unit)",
@@ -445,13 +443,11 @@ final class AdvancedLogger: ObservableObject {
         )
 
         // Add to recent logs for debug view
-        Task { @MainActor in
-            recentLogs.append(logEntry)
+        recentLogs.append(logEntry)
 
-            // Keep only recent logs
-            if recentLogs.count > LoggingConfig.maxRecentLogs {
-                recentLogs.removeFirst()
-            }
+        // Keep only recent logs
+        if recentLogs.count > LoggingConfig.maxRecentLogs {
+            recentLogs.removeFirst()
         }
 
         // Log to OSLog
@@ -467,11 +463,8 @@ final class AdvancedLogger: ObservableObject {
         #endif
 
         // Write to file
-        logQueue.async { [weak self] in
-            guard let self = self else { return }
-            Task { @MainActor in
-                self.writeToFile(logEntry)
-            }
+        Task {
+            await self.writeToFileAsync(logEntry)
         }
     }
 
@@ -526,6 +519,21 @@ final class AdvancedLogger: ObservableObject {
         }
     }
 
+    private func writeToFileAsync(_ entry: LogEntry) async {
+        guard LoggingConfig.enableFileLogging else { return }
+
+        await withCheckedContinuation { continuation in
+            logQueue.async { [weak self] in
+                guard let self = self else {
+                    continuation.resume()
+                    return
+                }
+                self.writeToFile(entry)
+                continuation.resume()
+            }
+        }
+    }
+
     private func createLogFile() async {
         guard let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return
@@ -554,22 +562,25 @@ final class AdvancedLogger: ObservableObject {
         }
     }
 
-    private func writeToFile(_ entry: LogEntry) {
-        guard let handle = logFileHandle else { return }
+    private nonisolated func writeToFile(_ entry: LogEntry) {
+        Task { @MainActor in
+            guard let handle = self.logFileHandle else { return }
 
-        let logLine = formatFileLogEntry(entry)
+            let logLine = self.formatFileLogEntry(entry)
 
-        if let data = logLine.data(using: .utf8) {
-            handle.write(data)
+            if let data = logLine.data(using: .utf8) {
+                handle.write(data)
+            }
         }
     }
 
-    private func formatFileLogEntry(_ entry: LogEntry) -> String {
+    private nonisolated func formatFileLogEntry(_ entry: LogEntry) -> String {
         let timestamp = ISO8601DateFormatter().string(from: entry.timestamp)
         let metadataJSON = try? JSONSerialization.data(withJSONObject: entry.metadata)
         let metadataString = metadataJSON.flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let fileName = URL(fileURLWithPath: entry.file).lastPathComponent
 
-        return "\(timestamp) [\(entry.level.rawValue.uppercased())] [\(entry.category.rawValue)] [\(entry.fileName):\(entry.line)] \(entry.function) - \(entry.message) \(metadataString)\n"
+        return "\(timestamp) [\(entry.level.rawValue.uppercased())] [\(entry.category.rawValue)] [\(fileName):\(entry.line)] \(entry.function) - \(entry.message) \(metadataString)\n"
     }
 
     private func cleanupOldLogs() async {
@@ -618,8 +629,9 @@ final class AdvancedLogger: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                self?.warning("Received memory warning", category: .lifecycle)
+                self.warning("Received memory warning", category: .lifecycle)
             }
         }
     }

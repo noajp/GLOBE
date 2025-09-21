@@ -93,6 +93,18 @@ struct MapContentView: View {
                 )
             }
         }
+        .onChange(of: mapManager.shouldUpdateMapPosition) { _, newPosition in
+            if let newPosition = newPosition {
+                print("🗺️ MapContentView: Received position update from MapManager")
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    mapCameraPosition = newPosition
+                }
+                // Reset the trigger to allow for subsequent updates
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    mapManager.shouldUpdateMapPosition = nil
+                }
+            }
+        }
     }
 
     // MARK: - 3D Perspective Correction

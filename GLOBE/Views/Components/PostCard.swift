@@ -27,6 +27,16 @@ struct PostCard: View {
         String(post.id.uuidString.prefix(8)).uppercased()
     }
 
+    // MARK: - Speech Bubble Tail
+    private var speechBubbleTail: some View {
+        Triangle()
+            .fill(Color.clear)
+            .frame(width: 20, height: 15)
+            .glassEffect(.clear, in: Triangle())
+            .rotationEffect(.degrees(180))
+            .offset(y: 15)
+    }
+
     var body: some View {
         let glassId = "post-card-\(post.id.uuidString)"
 
@@ -63,7 +73,16 @@ struct PostCard: View {
                 .frame(width: cardWidth, height: cardHeight, alignment: .top)
             }
         }
-        .aspectRatio(3.2 / 4.0, contentMode: .fit)
+        .overlay(
+            RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous)
+                .stroke(Color.white.opacity(0.4), lineWidth: 1)
+        )
+        .overlay(
+            speechBubbleTail
+                .allowsHitTesting(false),
+            alignment: .bottom
+        )
+        .aspectRatio(4.0 / 3.0, contentMode: .fit)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
         .sheet(isPresented: $showingUserProfile) {
@@ -363,3 +382,4 @@ private struct RoundedCornerShape: Shape {
         return Path(path.cgPath)
     }
 }
+

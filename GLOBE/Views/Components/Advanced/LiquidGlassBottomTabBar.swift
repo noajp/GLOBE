@@ -10,42 +10,37 @@ struct LiquidGlassBottomTabBar: View {
     let onProfileTapped: () -> Void
     let onPostTapped: () -> Void
 
-    private let buttonWidth: CGFloat = 50
-    private let buttonHeight: CGFloat = 50
+    private let buttonWidth: CGFloat = 40
+    private let buttonHeight: CGFloat = 40
 
     var body: some View {
         GlassEffectContainer {
-            VStack(spacing: 15) {
-                GlassRectangleButton(
-                    id: "profile-button",
-                    width: buttonWidth,
-                    height: buttonHeight,
-                    action: onProfileTapped
-                ) {
+            VStack(spacing: 12) {
+                Button(action: onProfileTapped) {
                     Image(systemName: "person.circle.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .shadow(color: .white.opacity(0.25), radius: 1, x: 0, y: 0)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.black.opacity(0.9))
+                        .frame(width: buttonWidth, height: buttonHeight)
+                        .background(.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
                 }
 
-                GlassRectangleButton(
-                    id: "post-button-main",
-                    width: buttonWidth,
-                    height: buttonHeight,
-                    action: onPostTapped
-                ) {
+                Button(action: onPostTapped) {
                     Image(systemName: "plus")
-                        .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .shadow(color: .white.opacity(0.25), radius: 1, x: 0, y: 0)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.black.opacity(0.9))
+                        .frame(width: buttonWidth, height: buttonHeight)
+                        .background(.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
                 }
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 8)
-            .frame(width: 80)
-            .coordinatedGlassEffect(id: "floating-action-tab", cornerRadius: 16)
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 6)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 6)
         }
+        .coordinatedGlassEffect(id: "bottom-tab-bar")
+        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
     }
 }
 

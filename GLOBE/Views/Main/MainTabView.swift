@@ -75,8 +75,8 @@ struct MainTabView: View {
                         mapManager: mapManager,
                         initialLocation: tappedLocation
                     )
-                    // 既存のカード位置を維持（下寄せ 50px）
-                    .offset(y: 50)
+                    // ポップアップ位置を画面中央やや下に調整
+                    .offset(y: -20)
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
                     .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
