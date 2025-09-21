@@ -31,13 +31,13 @@ class SmartPrefetchManager: ObservableObject {
     private let imageCache: ImageCacheManager
     private let batchRequestManager: BatchRequestManager
 
-    init(
+    @MainActor init(
         postRepository: (any PostRepositoryProtocol)? = nil,
-        imageCache: ImageCacheManager = ImageCacheManager.shared,
+        imageCache: ImageCacheManager? = nil,
         batchRequestManager: BatchRequestManager? = nil
     ) {
         self.postRepository = postRepository ?? PostRepository.create()
-        self.imageCache = imageCache
+        self.imageCache = imageCache ?? ImageCacheManager.shared
         self.batchRequestManager = batchRequestManager ?? BatchRequestManager.shared
 
         self.prefetchQueue = DispatchQueue(

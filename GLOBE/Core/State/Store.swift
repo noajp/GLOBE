@@ -305,8 +305,12 @@ struct StoreProvider<Content: View>: View {
     let store: AppStore
     let content: Content
 
-    init(store: AppStore = .shared, @ViewBuilder content: () -> Content) {
-        self.store = store
+    @MainActor init(store: AppStore? = nil, @ViewBuilder content: () -> Content) {
+        if let store = store {
+            self.store = store
+        } else {
+            self.store = AppStore.shared
+        }
         self.content = content()
     }
 

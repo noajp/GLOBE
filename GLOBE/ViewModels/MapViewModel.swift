@@ -233,21 +233,57 @@ class MapViewModel: NSObject, ObservableObject {
 
     // MARK: - Utility Methods
     func getLocationName(for coordinate: CLLocationCoordinate2D) async -> String? {
-        let geocoder = CLGeocoder()
-        let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-
         do {
-            // Use CLGeocoder despite deprecation warning - it still works and is stable
-            let placemarks = try await geocoder.reverseGeocodeLocation(location)
-            guard let placemark = placemarks.first else {
-                return nil
-            }
+            // Use MapKit's MKLocalSearch for iOS 26.0+ as recommended
+            if #available(iOS 26.0, *) {
+                // For iOS 26.0+, use MKLocalSearch with reverse geocoding approach
+                let region = MKCoordinateRegion(
+                    center: coordinate,
+                    latitudinalMeters: 1000,
+                    longitudinalMeters: 1000
+                )
 
-            // Return area name without detailed address for privacy
-            let locationParts: [String?] = [placemark.administrativeArea, placemark.locality, placemark.subLocality]
-            return locationParts
-                .compactMap { $0 }
-                .first
+                let searchRequest = MKLocalSearch.Request()
+                searchRequest.region = region
+                searchRequest.resultTypes = [.address]
+
+                let search = MKLocalSearch(request: searchRequest)
+                let response = try await search.start()
+
+                if let mapItem = response.mapItems.first {
+                    // Use placemark for now since MKAddress API is not fully documented
+                    // TODO: Update to use mapItem.address when iOS 26.0 APIs are stable
+                    let placemark = mapItem.placemark
+                    let locationParts: [String?] = [
+                        placemark.administrativeArea,
+                        placemark.locality,
+                        placemark.subLocality
+                    ]
+
+                    return locationParts
+                        .compactMap { $0 }
+                        .first
+                }
+            } else {
+                // Fallback to CLGeocoder for older iOS versions
+                let geocoder = CLGeocoder()
+                let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                let placemarks = try await geocoder.reverseGeocodeLocation(location)
+
+                guard let placemark = placemarks.first else {
+                    return nil
+                }
+
+                // Return area name without detailed address for privacy
+                let locationParts: [String?] = [
+                    placemark.administrativeArea,
+                    placemark.locality,
+                    placemark.subLocality
+                ]
+                return locationParts
+                    .compactMap { $0 }
+                    .first
+            }
         } catch {
             SecureLogger.shared.error("Failed to geocode location: \(error.localizedDescription)")
         }

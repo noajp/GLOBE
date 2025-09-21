@@ -68,30 +68,33 @@ class MapManager: ObservableObject {
         print("🗺️ MapManager: Test post added, total posts: \(posts.count)")
     }
     
-    func focusOnLocation(_ coordinate: CLLocationCoordinate2D) {
+    func focusOnLocation(_ coordinate: CLLocationCoordinate2D, zoomLevel: Double = 0.001) {
         print("🗺🔥 MapManager: focusOnLocation called with coordinate: \(coordinate)")
         print("🗺🔥 MapManager: Current region center: \(region.center)")
-        
+        print("🗺🔥 MapManager: zoomLevel: \(zoomLevel)")
+
         let newRegion = MKCoordinateRegion(
             center: coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.003, longitudeDelta: 0.003) // より拡大（約300m範囲）
+            span: MKCoordinateSpan(latitudeDelta: zoomLevel, longitudeDelta: zoomLevel) // デフォルトは約100m範囲
         )
-        
-        // Update the legacy region property
-        region = newRegion
-        
-        // Trigger map position update for modern Map view - 記事.txtの手法を参考
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                self.shouldUpdateMapPosition = MapCameraPosition.region(newRegion)
-            }
-            // 記事.txtのように明示的にobjectWillChange.send()を呼び出し
+
+        // Update the legacy region property first
+        self.region = newRegion
+
+        // Force update the map position immediately on main thread
+        if Thread.isMainThread {
+            self.shouldUpdateMapPosition = MapCameraPosition.region(newRegion)
             self.objectWillChange.send()
+        } else {
+            DispatchQueue.main.async {
+                self.shouldUpdateMapPosition = MapCameraPosition.region(newRegion)
+                self.objectWillChange.send()
+            }
         }
-        
-        print("🗺🔥 MapManager: Updated region center: \(region.center)")
-        print("🗺🔥 MapManager: Region span: \(region.span)")
-        print("🗺🔥 MapManager: Triggered map position update with objectWillChange")
+
+        print("🗺🔥 MapManager: Updated region center: \(newRegion.center)")
+        print("🗺🔥 MapManager: Region span: \(newRegion.span)")
+        print("🗺🔥 MapManager: shouldUpdateMapPosition set to new region")
     }
     
     // 期限切れ投稿を削除

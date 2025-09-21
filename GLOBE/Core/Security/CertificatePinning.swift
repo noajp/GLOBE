@@ -80,12 +80,10 @@ final class CertificatePinning: NSObject {
     private func setupNetworkPathMonitor() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             guard let self = self else { return }
-            Task {
-                await MainActor.run {
-                    self.isNetworkAvailable = path.status == .satisfied
-                }
+            Task { @MainActor in
+                self.isNetworkAvailable = path.status == .satisfied
                 if path.status != .satisfied {
-                    await SecureLogger.shared.warning("Network unavailable - certificate pinning may be affected")
+                    SecureLogger.shared.warning("Network unavailable - certificate pinning may be affected")
                 }
             }
         }
@@ -107,7 +105,9 @@ final class CertificatePinning: NSObject {
             if result {
                 completionHandler(.useCredential, URLCredential(trust: serverTrust))
             } else {
-                SecureLogger.shared.error("Default certificate validation failed for \(host)")
+                Task { @MainActor in
+                    SecureLogger.shared.error("Default certificate validation failed for \(host)")
+                }
                 completionHandler(.cancelAuthenticationChallenge, nil)
             }
             return
@@ -117,12 +117,14 @@ final class CertificatePinning: NSObject {
         Task {
             let isValid = await validateCertificateChain(serverTrust, for: host)
 
-            if isValid {
-                SecureLogger.shared.info("Certificate pinning validation succeeded for \(host)")
-                completionHandler(.useCredential, URLCredential(trust: serverTrust))
-            } else {
-                SecureLogger.shared.error("Certificate pinning validation failed for \(host)")
-                completionHandler(.cancelAuthenticationChallenge, nil)
+            await MainActor.run {
+                if isValid {
+                    SecureLogger.shared.info("Certificate pinning validation succeeded for \(host)")
+                    completionHandler(.useCredential, URLCredential(trust: serverTrust))
+                } else {
+                    SecureLogger.shared.error("Certificate pinning validation failed for \(host)")
+                    completionHandler(.cancelAuthenticationChallenge, nil)
+                }
             }
         }
     }
@@ -389,7 +391,7 @@ final class CertificatePinning: NSObject {
 
 extension CertificatePinning: URLSessionDelegate {
 
-    func urlSession(
+    nonisolated func urlSession(
         _ session: URLSession,
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
@@ -402,13 +404,17 @@ extension CertificatePinning: URLSessionDelegate {
         }
 
         guard let serverTrust = challenge.protectionSpace.serverTrust else {
-            SecureLogger.shared.error("No server trust available for challenge")
+            Task { @MainActor in
+                SecureLogger.shared.error("No server trust available for challenge")
+            }
             completionHandler(.cancelAuthenticationChallenge, nil)
             return
         }
 
         let host = challenge.protectionSpace.host
-        validateServerTrust(serverTrust, for: host, completionHandler: completionHandler)
+        Task {
+            await validateServerTrust(serverTrust, for: host, completionHandler: completionHandler)
+        }
     }
 }
 
