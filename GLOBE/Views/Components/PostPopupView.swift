@@ -7,7 +7,6 @@ import SwiftUI
 import UIKit
 import CoreLocation
 import MapKit
-import AVFoundation
 import Combine
 
 // MARK: - Post Privacy Options
@@ -16,6 +15,7 @@ enum PostPrivacyType: Equatable, Sendable {
     case publicPost
     case anonymous
 }
+
 
 struct PostPopupView: View {
     @Binding var isPresented: Bool
@@ -30,13 +30,9 @@ struct PostPopupView: View {
     private let customBlack = MinimalDesign.Colors.background
     
     @State private var postText = ""
-    @State private var selectedImageData: Data?
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var showingCamera = false
-    @State private var showingCameraPermissionAlert = false
     @State private var showingLocationPermissionAlert = false
-    @State private var capturedUIImage: UIImage?
     @State private var postLocation: CLLocationCoordinate2D?
     // 位置決定は地図の中心に揃える（Vの先端=地図中心）。余計なオフセットは使わない。
     @State private var areaName: String = ""
@@ -49,14 +45,13 @@ struct PostPopupView: View {
     // Computed properties to reduce complexity
     private var isButtonDisabled: Bool {
         let hasText = !postText.isEmpty
-        let hasImage = selectedImageData != nil
-        let disabled = !hasText && !hasImage
-        print("🔘 PostPopup - isButtonDisabled calculated: \(disabled) (hasText=\(hasText), hasImage=\(hasImage), imageSize=\(selectedImageData?.count ?? 0))")
+        let disabled = !hasText
+        print("🔘 PostPopup - isButtonDisabled calculated: \(disabled) (hasText=\(hasText))")
         return disabled
     }
     
     private var maxTextLength: Int {
-        selectedImageData != nil ? 30 : 60
+        60  // Text-only posts can use the full length
     }
     
     var body: some View {
@@ -100,49 +95,6 @@ struct PostPopupView: View {
         .onDisappear {
             mapManager.draftPostCoordinate = nil
         }
-        .fullScreenCover(isPresented: $showingCamera) {
-            ZStack {
-                // Fast custom camera preview
-                CameraPreviewView(capturedImage: $capturedUIImage)
-                    .ignoresSafeArea()
-
-                // Top bar with close button
-                VStack {
-                    HStack {
-                        Button(action: { showingCamera = false }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                        .padding()
-                        Spacer()
-                    }
-                    Spacer()
-                }
-            }
-            .onChange(of: capturedUIImage) { _, newImage in
-                if let img = newImage, let data = img.jpegData(compressionQuality: 0.85) {
-                    print("📷 PostPopup - Captured image via custom camera: \(data.count) bytes")
-                    DispatchQueue.main.async {
-                        selectedImageData = data
-                        capturedUIImage = nil
-                        showingCamera = false
-                        print("📷 PostPopup - selectedImageData set to \(data.count) bytes")
-                        print("🔘 PostPopup - Button disabled after image capture: \(postText.isEmpty && selectedImageData == nil)")
-                    }
-                }
-            }
-        }
-        .alert("カメラへのアクセスが必要です", isPresented: $showingCameraPermissionAlert) {
-            Button("設定を開く") {
-                if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(settingsUrl)
-                }
-            }
-            Button("キャンセル", role: .cancel) {}
-        } message: {
-            Text("写真を撮影するために、カメラへのアクセスを許可してください。")
-        }
         .alert("エラー", isPresented: $showError) {
             Button("OK") {}
         } message: {
@@ -165,22 +117,6 @@ struct PostPopupView: View {
             // Initialize with current map center; user can press the direction icon to move to self location.
             updatePostLocation()
 
-            // Pre-warm camera permission to reduce launch latency
-            let status = AVCaptureDevice.authorizationStatus(for: .video)
-            if status == .notDetermined {
-                AVCaptureDevice.requestAccess(for: .video) { _ in }
-            }
-        }
-        // ここでは購読しない（無限再レンダリングを避ける）。投稿時に最新座標を参照する。
-        .onChange(of: selectedImageData) { oldValue, newValue in
-            print("📸 PostPopup - selectedImageData changed: \(newValue?.count ?? 0) bytes (was: \(oldValue?.count ?? 0) bytes)")
-            print("📝 PostPopup - After change - text: '\(postText)', hasImage=\(newValue != nil)")
-            print("🔘 PostPopup - Button should be disabled: \(postText.isEmpty && newValue == nil)")
-            // Ensure the popup remains visible after capture
-            if newValue != nil {
-                // Just in case, guarantee camera sheet is closed
-                showingCamera = false
-            }
         }
     }
     
@@ -188,7 +124,6 @@ struct PostPopupView: View {
     private var postCreationView: some View {
         VStack(spacing: 0) {
             headerView
-            photoPreviewView
             textInputView
             Spacer()
             bottomSectionView
@@ -225,42 +160,6 @@ struct PostPopupView: View {
         .zIndex(1) // ensure header stays above other layers for hit testing
     }
     
-    // MARK: - Photo Preview View
-    @ViewBuilder
-    private var photoPreviewView: some View {
-        if let selectedImageData = selectedImageData {
-            let _ = print("📸 PostPopup - Displaying image preview: \(selectedImageData.count) bytes")
-            if let uiImage = UIImage(data: selectedImageData) {
-                ZStack(alignment: .topTrailing) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 240, height: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1.0)
-                        )
-                    
-                    // Remove photo button
-                    Button(action: {
-                        print("❌ PostPopup - Removing selected image")
-                        self.selectedImageData = Optional<Data>.none
-                        print("🔘 PostPopup - Button disabled after image removal: \(postText.isEmpty && selectedImageData == nil)")
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .padding(8)
-                }
-                .frame(width: 240, height: 180)
-            } else {
-                let _ = print("❌ PostPopup - Failed to create UIImage from data")
-                EmptyView()
-            }
-        }
-    }
     
     // MARK: - Text Input View
     private var textInputView: some View {
@@ -298,24 +197,22 @@ struct PostPopupView: View {
             }) {
                 HStack(spacing: 8) {
                     Image(systemName: postLocation != nil ? "location.fill" : "location")
-                        .foregroundColor(postLocation != nil ? .white : .gray)
+                        .foregroundColor(postLocation != nil ? .white.opacity(0.7) : .gray.opacity(0.5))
                         .font(.system(size: 14, weight: .medium))
                         .frame(width: 28, height: 28)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(Color.white.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
             }
             
             Spacer()
             
-            Button(action: checkCameraPermissionAndOpen) {
-                Image(systemName: "camera.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .glassEffect(.clear, in: Circle())
-            }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
@@ -467,11 +364,8 @@ struct PostPopupView: View {
     // MARK: - Action Methods
     private func handleNextButtonPress() {
         print("🔘 PostPopup - Next button pressed")
-        print("📝 PostPopup - Current state: text='\(postText)', hasImage=\(selectedImageData != nil)")
+        print("📝 PostPopup - Current state: text='\(postText)'")
         print("🚫 PostPopup - Button disabled state: \(isButtonDisabled)")
-        if let imageData = selectedImageData {
-            print("📸 PostPopup - Image data size at button press: \(imageData.count) bytes")
-        }
         withAnimation(.easeInOut(duration: 0.3)) {
             showPrivacySelection = true
         }
@@ -483,7 +377,6 @@ struct PostPopupView: View {
 
         // Capture values to avoid self reference issues
         let currentText = postText
-        let currentImageData = selectedImageData
         let currentPrivacyType = selectedPrivacyType
         // Use speech bubble tip position (V先端) if available, otherwise use map center
         let location = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
@@ -495,10 +388,15 @@ struct PostPopupView: View {
             do {
                 try await postManager.createPost(
                     content: currentText,
-                    imageData: currentImageData,
+                    imageData: nil,  // No image data for text-only posts
                     location: location,
                     locationName: nil,
-                    isAnonymous: currentPrivacyType == .anonymous
+                    isAnonymous: {
+                        switch currentPrivacyType {
+                        case .anonymous: return true
+                        default: return false
+                        }
+                    }()
                 )
             } catch {
                 // Silently handle errors in background
@@ -507,7 +405,6 @@ struct PostPopupView: View {
 
         // Close immediately
         postText = ""
-        selectedImageData = Optional<Data>.none
         showPrivacySelection = false
         isSubmitting = false
         isPresented = false
@@ -539,32 +436,6 @@ struct PostPopupView: View {
         return nil
     }
     
-    private func checkCameraPermissionAndOpen() {
-        let cameraAuthStatus = AVCaptureDevice.authorizationStatus(for: .video)
-        
-        switch cameraAuthStatus {
-        case .authorized:
-            showingCamera = true
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { granted in
-                DispatchQueue.main.async {
-                    if granted {
-                        self.showingCamera = true
-                    } else {
-                        self.showingCameraPermissionAlert = true
-                    }
-                }
-            }
-        case .denied, .restricted:
-            DispatchQueue.main.async {
-                self.showingCameraPermissionAlert = true
-            }
-        @unknown default:
-            DispatchQueue.main.async {
-                self.showingCameraPermissionAlert = true
-            }
-        }
-    }
     
     private func getCurrentLocationAndMoveMap() {
         print("📍 PostPopup - Location button tapped, getting current location")

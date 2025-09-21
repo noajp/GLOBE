@@ -442,7 +442,7 @@ final class SecureDataTask {
     }
 
     /// Perform secure data task with automatic validation
-    func perform<T: Codable>(expecting type: T.Type) async throws -> T {
+    func perform<T: Codable & Sendable>(expecting type: T.Type) async throws -> T {
         return try await withCheckedThrowingContinuation { continuation in
             let task = session.dataTask(with: request) { [weak self] data, response, error in
                 guard let self = self else {

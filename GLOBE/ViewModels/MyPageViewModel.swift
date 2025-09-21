@@ -60,12 +60,12 @@ final class MyPageViewModel: BaseViewModel {
     // MARK: - Initialization
 
     init(
-        authService: any AuthServiceProtocol = AuthManager.shared,
+        authService: (any AuthServiceProtocol)? = nil,
         userRepository: (any UserRepositoryProtocol)? = nil,
         postRepository: (any PostRepositoryProtocol)? = nil,
         cacheRepository: (any CacheRepositoryProtocol)? = nil
     ) {
-        self.authService = authService
+        self.authService = authService ?? AuthManager.shared
         self.userRepository = userRepository ?? UserRepository.create()
         self.postRepository = postRepository ?? PostRepository.create()
         self.cacheRepository = cacheRepository ?? CacheRepository.create()
@@ -164,7 +164,7 @@ final class MyPageViewModel: BaseViewModel {
 
     /// フォロー中ユーザーの最新ストーリーを取得（24時間以内の画像付き投稿）
     func loadFollowedStories(limit: Int = 20) async {
-        guard let userId = await currentUserId else { return }
+        guard let userId = currentUserId else { return }
         do {
             // 1) フォロー中のユーザーID一覧
             let followsRes = try await supabase
@@ -294,7 +294,7 @@ final class MyPageViewModel: BaseViewModel {
             if error.localizedDescription.contains("sessionMissing") {
                 errorMessage = "セッションが無効です。再度ログインしてください。"
                 // AuthManagerに再認証を促す
-                await authService.checkCurrentUser()
+                _ = await authService.checkCurrentUser()
             } else {
                 errorMessage = "プロフィール取得に失敗しました: \(error.localizedDescription)"
             }
@@ -306,7 +306,7 @@ final class MyPageViewModel: BaseViewModel {
     @MainActor
     func syncProfileWithAuthData() async {
         guard let currentUser = authService.currentUser,
-              let userId = await currentUserId else {
+              let userId = currentUserId else {
             print("❌ MyPageViewModel: No current user for sync")
             return
         }
@@ -358,7 +358,7 @@ final class MyPageViewModel: BaseViewModel {
     }
     
     func updateProfile(username: String, displayName: String, bio: String) async {
-        guard let userId = await currentUserId else { return }
+        guard let userId = currentUserId else { return }
         
         isLoading = true
         defer { isLoading = false }
@@ -428,7 +428,7 @@ final class MyPageViewModel: BaseViewModel {
 
     // MARK: - Avatar Update
     func updateAvatar(imageData: Data) async {
-        guard let userId = await currentUserId else { return }
+        guard let userId = currentUserId else { return }
         isLoading = true
         defer { isLoading = false }
 

@@ -155,16 +155,18 @@ final class PerformanceMonitor: ObservableObject {
     private func setupMonitoring() {
         // Frame rate monitoring
         frameRateTimer = Timer.scheduledTimer(withTimeInterval: MonitoringConfig.frameRateUpdateInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateFrameRate()
+            guard let self = self else { return }
+            Task {
+                await self.updateFrameRate()
             }
         }
 
         // Memory monitoring
         memoryTimer = Timer.scheduledTimer(withTimeInterval: MonitoringConfig.updateInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.updateMemoryUsage()
-                self?.updateSystemMetrics()
+            guard let self = self else { return }
+            Task {
+                await self.updateMemoryUsage()
+                await self.updateSystemMetrics()
             }
         }
 
@@ -220,7 +222,7 @@ final class PerformanceMonitor: ObservableObject {
 
     // MARK: - Frame Rate Monitoring
 
-    private func updateFrameRate() {
+    private func updateFrameRate() async {
         let currentTime = CACurrentMediaTime()
 
         if lastFrameTime > 0 {
@@ -252,7 +254,7 @@ final class PerformanceMonitor: ObservableObject {
 
     // MARK: - Memory Monitoring
 
-    private func updateMemoryUsage() {
+    private func updateMemoryUsage() async {
         let info = readMachTaskInfo()
         let previousResident = memoryUsage.resident
 
@@ -289,11 +291,12 @@ final class PerformanceMonitor: ObservableObject {
         host_page_size(host_port, &pagesize)
 
         var vm_stat = vm_statistics_data_t()
-        withUnsafeMutablePointer(to: &vm_stat) {
+        let result = withUnsafeMutablePointer(to: &vm_stat) {
             $0.withMemoryRebound(to: integer_t.self, capacity: Int(host_size)) {
                 host_statistics(host_port, HOST_VM_INFO, $0, &host_size)
             }
         }
+        _ = result
 
         let free_memory = UInt64(vm_stat.free_count) * UInt64(pagesize)
         return free_memory
@@ -312,7 +315,7 @@ final class PerformanceMonitor: ObservableObject {
 
     // MARK: - System Metrics
 
-    private func updateSystemMetrics() {
+    private func updateSystemMetrics() async {
         // CPU Usage (simplified)
         let cpuUsage = getCurrentCPUUsage()
         logger.trackPerformance(
@@ -497,7 +500,9 @@ final class PerformanceMonitor: ObservableObject {
         logger.warning("Memory warning received (count: \(appLifecycleMetrics.memoryWarningsCount))", category: .lifecycle)
 
         // Force memory usage update
-        updateMemoryUsage()
+        Task {
+            await updateMemoryUsage()
+        }
     }
 
     private func handleThermalStateChange() {
@@ -561,7 +566,9 @@ final class PerformanceMonitor: ObservableObject {
     deinit {
         frameRateTimer?.invalidate()
         memoryTimer?.invalidate()
-        UIDevice.current.isBatteryMonitoringEnabled = false
+        Task { @MainActor in
+            UIDevice.current.isBatteryMonitoringEnabled = false
+        }
     }
 }
 

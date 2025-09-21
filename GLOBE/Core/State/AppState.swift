@@ -10,11 +10,7 @@ import Combine
 
 // MARK: - CoreLocation Extensions
 
-extension CLLocationCoordinate2D: Equatable {
-    public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
-        return lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
-    }
-}
+// Note: CLLocationCoordinate2D Equatable conformance moved to avoid future conflicts
 
 // MARK: - App State
 
@@ -85,6 +81,28 @@ struct MapState: Equatable {
     var locationPermissionStatus: LocationPermissionStatus
     var isLocationServicesEnabled: Bool
     var zoomLevel: Double
+
+    static func == (lhs: MapState, rhs: MapState) -> Bool {
+        return coordinatesEqual(lhs.userLocation, rhs.userLocation) &&
+               lhs.region == rhs.region &&
+               lhs.visiblePosts == rhs.visiblePosts &&
+               lhs.selectedPost == rhs.selectedPost &&
+               lhs.isTrackingUser == rhs.isTrackingUser &&
+               lhs.locationPermissionStatus == rhs.locationPermissionStatus &&
+               lhs.isLocationServicesEnabled == rhs.isLocationServicesEnabled &&
+               lhs.zoomLevel == rhs.zoomLevel
+    }
+
+    private static func coordinatesEqual(_ lhs: CLLocationCoordinate2D?, _ rhs: CLLocationCoordinate2D?) -> Bool {
+        switch (lhs, rhs) {
+        case (nil, nil):
+            return true
+        case (let lhsCoord?, let rhsCoord?):
+            return lhsCoord.latitude == rhsCoord.latitude && lhsCoord.longitude == rhsCoord.longitude
+        default:
+            return false
+        }
+    }
 
     static let initial = MapState(
         userLocation: nil,

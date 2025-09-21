@@ -14,9 +14,10 @@ struct PostCard: View {
     @StateObject private var commentService = CommentService.shared
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showingUserProfile = false
+    @State private var showingComments = false
 
     private let cardCornerRadius: CGFloat = 18
-    private let mediaAspectRatio: CGFloat = 3.0 / 4.0
+    private let mediaAspectRatio: CGFloat = 4.0 / 5.0
 
     private var hasMediaAttachment: Bool {
         post.imageData != nil || post.imageUrl != nil
@@ -47,12 +48,12 @@ struct PostCard: View {
                 let imageHeight = cardWidth * mediaAspectRatio
 
                 VStack(spacing: 0) {
-                    metadataRow(width: cardWidth)
-                    dividerLine(width: cardWidth)
-
                     if hasMediaAttachment {
                         mediaSection(width: cardWidth, height: imageHeight)
                     }
+
+                    metadataRow(width: cardWidth)
+                    dividerLine(width: cardWidth)
 
                     contentSection(hasMedia: hasMediaAttachment)
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -62,11 +63,14 @@ struct PostCard: View {
                 .frame(width: cardWidth, height: cardHeight, alignment: .top)
             }
         }
-        .aspectRatio(4.0 / 3.0, contentMode: .fit)
+        .aspectRatio(3.2 / 4.0, contentMode: .fit)
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
         .sheet(isPresented: $showingUserProfile) {
             Text("User Profile: \(post.authorName)")
+        }
+        .sheet(isPresented: $showingComments) {
+            CommentView(post: post)
         }
     }
 
@@ -95,7 +99,7 @@ struct PostCard: View {
     }
 
     private func mediaImageView(_ image: Image, width: CGFloat, height: CGFloat) -> some View {
-        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
 
         return image
             .resizable()
@@ -119,7 +123,7 @@ struct PostCard: View {
     }
 
     private func mediaPlaceholder(width: CGFloat, height: CGFloat, showProgress: Bool = false) -> some View {
-        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
+        let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
 
         return ZStack {
             LinearGradient(
@@ -208,11 +212,11 @@ struct PostCard: View {
         .padding(.vertical, 12)
         .frame(width: width, alignment: .leading)
         .background(
-            RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+            Rectangle()
                 .fill(Color.black.opacity(0.32))
         )
         .overlay(
-            RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
+            Rectangle()
                 .stroke(Color.white.opacity(0.06), lineWidth: 0.6)
         )
     }
@@ -229,7 +233,7 @@ struct PostCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "location.fill")
                         .font(.system(size: 14))
-                        .foregroundColor(MinimalDesign.Colors.accentRed)
+                        .foregroundColor(MinimalDesign.Colors.accentRed.opacity(0.5))
                     Text(locationName)
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.75))
@@ -256,7 +260,9 @@ struct PostCard: View {
                 }
                 .buttonStyle(.plain)
 
-                Button(action: {}) {
+                Button(action: {
+                    showingComments = true
+                }) {
                     HStack(spacing: 6) {
                         Image(systemName: "bubble.left")
                             .font(.system(size: 18))
@@ -275,7 +281,7 @@ struct PostCard: View {
                 Button(action: {}) {
                     Image(systemName: "map")
                         .font(.system(size: 18))
-                        .foregroundColor(.white)
+                        .foregroundColor(.white.opacity(0.5))
                 }
                 .buttonStyle(.plain)
             }

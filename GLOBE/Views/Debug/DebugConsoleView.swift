@@ -175,7 +175,7 @@ struct DebugConsoleView: View {
                 }
             }
             .listStyle(PlainListStyle())
-            .onChange(of: filteredLogs.count) { _ in
+            .onChange(of: filteredLogs.count) { _, _ in
                 if autoScroll, let lastEntry = filteredLogs.last {
                     withAnimation(.easeOut(duration: 0.3)) {
                         proxy.scrollTo(lastEntry.id, anchor: .bottom)

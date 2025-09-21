@@ -125,7 +125,7 @@ class CacheRepository: CacheRepositoryProtocol {
     // MARK: - User Profile Cache
 
     func cacheUserProfile(_ profile: UserProfile, for userId: String) async throws {
-        let cacheKey = NSString(string: userId)
+        let _ = NSString(string: userId)
 
         // Store in memory cache
         memoryProfileCache[userId] = profile
@@ -146,7 +146,7 @@ class CacheRepository: CacheRepositoryProtocol {
     }
 
     func getCachedUserProfile(for userId: String) async throws -> UserProfile? {
-        let cacheKey = NSString(string: userId)
+        let _ = NSString(string: userId)
 
         // First check memory cache
         if let memoryProfile = memoryProfileCache[userId] {
@@ -177,7 +177,7 @@ class CacheRepository: CacheRepositoryProtocol {
     }
 
     func removeCachedUserProfile(for userId: String) async throws {
-        let cacheKey = NSString(string: userId)
+        let _ = NSString(string: userId)
 
         // Remove from memory cache
         memoryProfileCache.removeValue(forKey: userId)

@@ -21,6 +21,7 @@ struct PostPin: View {
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showingUserProfile = false
     @State private var showingImageViewer = false
+    @State private var showingComments = false
     private var borderWidth: CGFloat { 1.2 }
 
     private var hasImageContent: Bool {
@@ -33,7 +34,7 @@ struct PostPin: View {
         let hasText = !post.text.isEmpty
 
         if hasImage && !hasText {
-            return max(cardWidth * 0.68, 110)
+            return max(cardWidth * 0.80, 120)
         }
 
         let textFont = UIFont.systemFont(ofSize: 9, weight: .medium)
@@ -120,7 +121,41 @@ struct PostPin: View {
 
         GlassEffectContainer {
             VStack(alignment: .leading, spacing: 4) {
-            // MARK: - Top Header with Avatar and ID (Always visible)
+            // MARK: - Content Area (Photo and/or Text)
+            VStack(alignment: .leading, spacing: 2) {
+                // Photo content
+            if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
+                let inset: CGFloat = isPhotoOnly ? 2 : 6
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .padding(.horizontal, max(2, inset - 2))
+                    .onTapGesture { showingImageViewer = true }
+
+            } else if let imageUrl = post.imageUrl {
+                let inset: CGFloat = isPhotoOnly ? 2 : 6
+                AsyncImage(url: URL(string: imageUrl)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(ProgressView().scaleEffect(0.45))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .padding(.horizontal, max(2, inset - 2))
+                .onTapGesture { showingImageViewer = true }
+
+            }
+            }
+            .padding(.horizontal, 8)
+
+            // MARK: - Header with Avatar and ID (After photo)
             HStack(spacing: 6) {
                 // Avatar
                 Circle()
@@ -161,60 +196,16 @@ struct PostPin: View {
                 Spacer()
             }
             .padding(.horizontal, 8)
-            .padding(.top, 6)
+            .padding(.top, hasImageContent ? 2 : 6)
             .padding(.bottom, 2)
 
-            // MARK: - Content Area (Photo and/or Text)
-            VStack(alignment: .leading, spacing: 2) {
-                // Photo content
-            if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
-                let inset: CGFloat = isPhotoOnly ? 2 : 6
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, max(2, inset - 2))
-                    .onTapGesture { showingImageViewer = true }
-
-
-                if !post.text.isEmpty {
-                    let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                    captionText(post.text)
-                        .padding(.top, max(4, verticalPadding))
-                        .padding(.bottom, verticalPadding)
-                }
-            } else if let imageUrl = post.imageUrl {
-                let inset: CGFloat = isPhotoOnly ? 2 : 6
-                AsyncImage(url: URL(string: imageUrl)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                } placeholder: {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(ProgressView().scaleEffect(0.45))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .padding(.horizontal, max(2, inset - 2))
-                .onTapGesture { showingImageViewer = true }
-
-
-                if !post.text.isEmpty {
-                    let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
-                    captionText(post.text)
-                        .padding(.top, max(4, verticalPadding))
-                        .padding(.bottom, verticalPadding)
-                }
-            } else if !post.text.isEmpty {
-                // Text-only content
+            // MARK: - Text Content (After header)
+            if !post.text.isEmpty {
+                let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
                 captionText(post.text)
-                    .padding(.vertical, 4)
+                    .padding(.top, max(4, verticalPadding))
+                    .padding(.bottom, verticalPadding)
             }
-            }
-            .padding(.horizontal, 8)
 
             Spacer()
 
@@ -240,7 +231,9 @@ struct PostPin: View {
                     .buttonStyle(PlainButtonStyle())
 
                     // Comment button
-                    Button(action: {}) {
+                    Button(action: {
+                        showingComments = true
+                    }) {
                         Image(systemName: "bubble.left")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.9))
@@ -276,6 +269,9 @@ struct PostPin: View {
                 PhotoViewerView(imageUrl: url) { showingImageViewer = false }
             }
         }
+        .sheet(isPresented: $showingComments) {
+            CommentView(post: post)
+        }
     }
 }
 
@@ -304,6 +300,7 @@ struct ScalablePostPin: View {
     @ObservedObject private var authManager = AuthManager.shared
     @State private var showingUserProfile = false
     @State private var showingImageViewer = false
+    @State private var showingComments = false
     private var borderWidth: CGFloat { 1.2 }
     
     private var scaleFactor: CGFloat {

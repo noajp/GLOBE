@@ -33,12 +33,12 @@ class SmartPrefetchManager: ObservableObject {
 
     init(
         postRepository: (any PostRepositoryProtocol)? = nil,
-        imageCache: ImageCacheManager = .shared,
-        batchRequestManager: BatchRequestManager = .shared
+        imageCache: ImageCacheManager = ImageCacheManager.shared,
+        batchRequestManager: BatchRequestManager? = nil
     ) {
         self.postRepository = postRepository ?? PostRepository.create()
         self.imageCache = imageCache
-        self.batchRequestManager = batchRequestManager
+        self.batchRequestManager = batchRequestManager ?? BatchRequestManager.shared
 
         self.prefetchQueue = DispatchQueue(
             label: "prefetch.queue",
@@ -227,8 +227,11 @@ class SmartPrefetchManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            guard let self = self else { return }
             if let location = notification.userInfo?["location"] as? CLLocationCoordinate2D {
-                self?.updateUserLocation(location)
+                Task { @MainActor in
+                    self.updateUserLocation(location)
+                }
             }
         }
     }

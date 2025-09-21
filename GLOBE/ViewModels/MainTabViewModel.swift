@@ -55,13 +55,13 @@ class MainTabViewModel: ObservableObject {
 
     // MARK: - Initialization
     init(
-        authService: any AuthServiceProtocol = AuthManager.shared,
-        postService: any PostServiceProtocol = PostManager.shared,
+        authService: (any AuthServiceProtocol)? = nil,
+        postService: (any PostServiceProtocol)? = nil,
         userRepository: (any UserRepositoryProtocol)? = nil,
         postRepository: (any PostRepositoryProtocol)? = nil
     ) {
-        self.authService = authService
-        self.postService = postService
+        self.authService = authService ?? AuthManager.shared
+        self.postService = postService ?? PostManager.shared
         self.userRepository = userRepository ?? UserRepository.create()
         self.postRepository = postRepository ?? PostRepository.create()
 
@@ -124,18 +124,10 @@ class MainTabViewModel: ObservableObject {
     }
 
     func signOut() {
-        Task {
-            do {
-                try await authService.signOut()
-                await MainActor.run {
-                    clearUserData()
-                    showingAuth = true
-                }
-            } catch {
-                await MainActor.run {
-                    errorMessage = "ログアウトに失敗しました"
-                }
-            }
+        Task { @MainActor in
+            _ = await authService.signOut()
+            clearUserData()
+            showingAuth = true
         }
     }
 

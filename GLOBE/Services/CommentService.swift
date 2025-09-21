@@ -31,6 +31,19 @@ class CommentService: ObservableObject {
         comments[comment.postId]?.append(comment)
         commentCounts[comment.postId] = comments[comment.postId]?.count ?? 0
     }
+
+    func addComment(to postId: UUID, content: String, authorId: String, authorName: String) async throws {
+        let comment = Comment(
+            postId: postId,
+            text: content,
+            authorName: authorName,
+            authorId: authorId
+        )
+
+        // In a real app, this would make an API call to the backend
+        // For now, we'll just add it locally
+        addComment(comment)
+    }
     
     func loadComments(for postId: UUID) {
         if comments[postId] == nil {

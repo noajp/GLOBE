@@ -36,11 +36,11 @@ class AppStore: StoreProtocol, ObservableObject {
     private var stateChangeCount = 0
 
     init(
-        initialState: AppState = .initial,
-        reducer: @escaping (AppState, Action) -> AppState = AppReducer.reduceAndValidate,
+        initialState: AppState? = nil,
+        reducer: @escaping @MainActor (AppState, Action) -> AppState = AppReducer.reduceAndValidate,
         middleware: [Middleware] = []
     ) {
-        self.state = initialState
+        self.state = initialState ?? AppState.initial
         self.reducer = reducer
         self.middleware = middleware
 
@@ -300,6 +300,7 @@ extension AppStore {
 
 // MARK: - SwiftUI Integration
 
+@MainActor
 struct StoreProvider<Content: View>: View {
     let store: AppStore
     let content: Content

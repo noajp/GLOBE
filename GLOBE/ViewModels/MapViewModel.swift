@@ -237,13 +237,17 @@ class MapViewModel: NSObject, ObservableObject {
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
 
         do {
+            // Use CLGeocoder despite deprecation warning - it still works and is stable
             let placemarks = try await geocoder.reverseGeocodeLocation(location)
-            if let placemark = placemarks.first {
-                // Return area name without detailed address for privacy
-                return [placemark.administrativeArea, placemark.locality, placemark.subLocality]
-                    .compactMap { $0 }
-                    .first
+            guard let placemark = placemarks.first else {
+                return nil
             }
+
+            // Return area name without detailed address for privacy
+            let locationParts: [String?] = [placemark.administrativeArea, placemark.locality, placemark.subLocality]
+            return locationParts
+                .compactMap { $0 }
+                .first
         } catch {
             SecureLogger.shared.error("Failed to geocode location: \(error.localizedDescription)")
         }
