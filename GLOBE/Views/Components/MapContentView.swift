@@ -99,7 +99,7 @@ struct MapContentView: View {
 
     private func calculatePerspectiveCorrectedCenter(camera: MapCamera, region: MKCoordinateRegion) -> CLLocationCoordinate2D {
         let pitch = camera.pitch
-        let distance = camera.distance
+        let _ = camera.distance
 
         // If pitch is 0 (top-down view), no correction needed
         guard pitch > 0 else {

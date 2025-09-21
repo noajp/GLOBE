@@ -56,10 +56,10 @@ class PostCreationViewModel: BaseViewModel {
     // MARK: - Initialization
     init(
         postRepository: (any PostRepositoryProtocol)? = nil,
-        authService: any AuthServiceProtocol = AuthManager.shared
+        authService: (any AuthServiceProtocol)? = nil
     ) {
         self.postRepository = postRepository ?? PostRepository.create()
-        self.authService = authService
+        self.authService = authService ?? AuthManager.shared
 
         super.init()
 

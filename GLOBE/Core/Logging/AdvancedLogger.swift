@@ -468,8 +468,9 @@ final class AdvancedLogger: ObservableObject {
 
         // Write to file
         logQueue.async { [weak self] in
+            guard let self = self else { return }
             Task { @MainActor in
-                self?.writeToFile(logEntry)
+                self.writeToFile(logEntry)
             }
         }
     }
@@ -517,14 +518,15 @@ final class AdvancedLogger: ObservableObject {
         guard LoggingConfig.enableFileLogging else { return }
 
         logQueue.async { [weak self] in
-            Task { @MainActor in
-                self?.createLogFile()
-                self?.cleanupOldLogs()
+            guard let self = self else { return }
+            Task {
+                await self.createLogFile()
+                await self.cleanupOldLogs()
             }
         }
     }
 
-    private func createLogFile() {
+    private func createLogFile() async {
         guard let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return
         }
@@ -570,7 +572,7 @@ final class AdvancedLogger: ObservableObject {
         return "\(timestamp) [\(entry.level.rawValue.uppercased())] [\(entry.category.rawValue)] [\(entry.fileName):\(entry.line)] \(entry.function) - \(entry.message) \(metadataString)\n"
     }
 
-    private func cleanupOldLogs() {
+    private func cleanupOldLogs() async {
         guard let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return
         }
@@ -596,13 +598,14 @@ final class AdvancedLogger: ObservableObject {
 
     private func startPerformanceMonitoring() {
         Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.collectSystemMetrics()
+            guard let self = self else { return }
+            Task {
+                await self.collectSystemMetrics()
             }
         }
     }
 
-    private func collectSystemMetrics() {
+    private func collectSystemMetrics() async {
         let memoryInfo = readMachTaskInfo()
         let memoryUsage = Double(memoryInfo.resident_size) / 1024 / 1024 // MB
 

@@ -7,6 +7,7 @@
 import Foundation
 import Security
 import CryptoKit
+import LocalAuthentication
 
 @MainActor
 final class SecureKeychain {
@@ -198,9 +199,11 @@ final class SecureKeychain {
             query[kSecAttrAccessGroup as String] = accessGroup
         }
 
-        // Set biometric prompt if provided
+        // Set biometric context if provided
         if let promptMessage = promptMessage {
-            query[kSecUseOperationPrompt as String] = promptMessage
+            let context = LAContext()
+            context.localizedReason = promptMessage
+            query[kSecUseAuthenticationContext as String] = context
         }
 
         var result: AnyObject?

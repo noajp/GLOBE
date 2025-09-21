@@ -79,10 +79,13 @@ final class CertificatePinning: NSObject {
 
     private func setupNetworkPathMonitor() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
-            Task { @MainActor in
-                self?.isNetworkAvailable = path.status == .satisfied
+            guard let self = self else { return }
+            Task {
+                await MainActor.run {
+                    self.isNetworkAvailable = path.status == .satisfied
+                }
                 if path.status != .satisfied {
-                    SecureLogger.shared.warning("Network unavailable - certificate pinning may be affected")
+                    await SecureLogger.shared.warning("Network unavailable - certificate pinning may be affected")
                 }
             }
         }
@@ -181,14 +184,34 @@ final class CertificatePinning: NSObject {
         let certificateCount = SecTrustGetCertificateCount(serverTrust)
         guard certificateCount > 0 else { return nil }
 
-        var certificates: [SecCertificate] = []
-        for index in 0..<certificateCount {
-            if let certificate = SecTrustGetCertificateAtIndex(serverTrust, index) {
-                certificates.append(certificate)
+        // Use modern API for iOS 15.0+
+        if #available(iOS 15.0, *) {
+            guard let certificateChain = SecTrustCopyCertificateChain(serverTrust) else {
+                return nil
             }
-        }
 
-        return certificates.isEmpty ? nil : certificates
+            let count = CFArrayGetCount(certificateChain)
+            var certificates: [SecCertificate] = []
+
+            for index in 0..<count {
+                if let certificate = CFArrayGetValueAtIndex(certificateChain, index) {
+                    let secCertificate = Unmanaged<SecCertificate>.fromOpaque(certificate).takeUnretainedValue()
+                    certificates.append(secCertificate)
+                }
+            }
+
+            return certificates.isEmpty ? nil : certificates
+        } else {
+            // Fallback for older iOS versions
+            var certificates: [SecCertificate] = []
+            for index in 0..<certificateCount {
+                if let certificate = SecTrustGetCertificateAtIndex(serverTrust, index) {
+                    certificates.append(certificate)
+                }
+            }
+
+            return certificates.isEmpty ? nil : certificates
+        }
     }
 
     private func validateCertificates(_ certificates: [SecCertificate], for domain: String) async -> Bool {
@@ -243,7 +266,7 @@ final class CertificatePinning: NSObject {
             return nil
         }
 
-        return SecTrustCopyPublicKey(trust)
+        return SecTrustCopyKey(trust)
     }
 
     private func performSystemValidation(_ serverTrust: SecTrust) -> Bool {
@@ -283,12 +306,12 @@ final class CertificatePinning: NSObject {
     func validateCertificateExpiration(_ certificates: [SecCertificate]) -> Bool {
         guard configuration.enforceExpirationCheck else { return true }
 
-        let currentDate = Date()
+        let _ = Date()
 
         for certificate in certificates {
             var commonName: CFString?
             SecCertificateCopyCommonName(certificate, &commonName)
-            let name = commonName as String? ?? "Unknown"
+            let _ = commonName as String? ?? "Unknown"
 
             // Check not valid before
             // Certificate date validation removed - iOS handles this automatically
@@ -364,7 +387,6 @@ final class CertificatePinning: NSObject {
 
 // MARK: - URLSessionDelegate Extension
 
-@MainActor
 extension CertificatePinning: URLSessionDelegate {
 
     func urlSession(

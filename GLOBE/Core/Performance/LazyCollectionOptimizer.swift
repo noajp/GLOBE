@@ -109,7 +109,7 @@ struct OptimizedPostList: View {
                     .onAppear {
                         viewportSize = proxy.size
                     }
-                    .onChange(of: proxy.size) { size in
+                    .onChange(of: proxy.size) { _, size in
                         viewportSize = size
                     }
             }
@@ -188,7 +188,7 @@ struct OptimizedStoriesBar: View {
                 }
                 .padding(.horizontal)
             }
-            .onChange(of: selectedStory?.id) { storyId in
+            .onChange(of: selectedStory?.id) { _, storyId in
                 if let storyId = storyId {
                     withAnimation(.easeInOut) {
                         proxy.scrollTo(storyId, anchor: .center)
@@ -323,7 +323,7 @@ struct VirtualizedScrollView<Content: View>: View {
             .background(
                 GeometryReader { geometry in
                     Color.clear
-                        .onChange(of: geometry.frame(in: .global).minY) { offset in
+                        .onChange(of: geometry.frame(in: .global).minY) { _, offset in
                             contentOffset = offset
                             updateVisibleRange(offset: offset, viewportHeight: geometry.size.height)
                         }

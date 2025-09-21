@@ -52,8 +52,9 @@ class ImageCacheManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
+            guard let self = self else { return }
             Task { @MainActor in
-                self?.handleMemoryWarning()
+                self.handleMemoryWarning()
             }
         }
 
@@ -196,7 +197,7 @@ class ImageCacheManager: ObservableObject {
             do {
                 try await self.cacheRepository.cacheImage(data: originalData, for: key)
             } catch {
-                SecureLogger.shared.error("Failed to cache image to disk: \(error.localizedDescription)")
+                await SecureLogger.shared.error("Failed to cache image to disk: \(error.localizedDescription)")
             }
         }
     }
