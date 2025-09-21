@@ -1,475 +1,406 @@
-# 🏗️ **GLOBE リファクタリング計画書**
+# GLOBE 包括的リファクタリング計画書
+*Serenaによる詳細なプロジェクト分析に基づく戦略的リファクタリングプラン*
 
-## 📋 **コードベース分析結果**
+## 📋 エグゼクティブサマリー
 
-### **現在のアーキテクチャ概要:**
-- **設計パターン**: MVVM + ObservableObject
-- **UI フレームワーク**: SwiftUI
-- **バックエンド**: Supabase
-- **認証システム**: カスタム AuthManager (シングルトン)
-- **状態管理**: Combine + @Published
+GLOBEプロジェクトの包括的分析に基づき、本リファクタリング計画では主要なアーキテクチャ改善、統合機会、構造最適化を特定し、保守性、パフォーマンス、開発者体験の向上を目指します。
 
----
+### 現在の状態分析
+- **プロジェクト成熟度**: 85%完了、堅固な基盤
+- **アーキテクチャ**: SwiftUIによる構造化されたMVVM
+- **セキュリティ**: 包括的なセキュリティレイヤー実装済み
+- **テスト**: コンポーネント全体で良好なテストカバレッジ
+- **技術的負債**: 戦略的リファクタリングが必要な中程度レベル
 
-## 🎯 **包括的リファクタリング計画**
+## 🏗️ アーキテクチャ改善
 
-### **Phase 1: アーキテクチャ基盤の強化** ⏰ 推定: 3-4日
+### 1. サービスレイヤー統合
 
-#### **1.1 依存性注入システムの実装**
-- [X] DependencyContainer プロトコルの作成
-- [X] ServiceLocator パターンの実装
-- [X] AuthManager の シングルトン依存を削除
-- [X] PostManager の依存性注入対応
-- [ ] ProfileImageCacheManager の依存性注入対応
+**現在の問題:**
+- 責任が重複する複数のサービスクラス
+- ServicesとManagersの間で一貫性のないパターン
+- 一部サービスでシングルトンパターン、他では依存性注入
 
-#### **1.2 プロトコル指向設計への移行**
-- [X] AuthServiceProtocol の定義
-- [X] PostServiceProtocol の定義
-- [ ] CacheServiceProtocol の定義
-- [ ] LocationServiceProtocol の定義
-- [X] 各Manager クラスのプロトコル準拠
-
-#### **1.3 エラーハンドリングの統一**
-- [X] AppError enum の作成
-- [X] Result<Success, AppError> パターンの導入
-- [X] 全 async/await メソッドのエラーハンドリング統一
-- [ ] ユーザー向けエラーメッセージの国際化準備
-
-### **Phase 2: ビューアーキテクチャの改善** ⏰ 推定: 2-3日
-
-#### **2.1 ViewModels の分離と責任明確化**
-- [X] MainTabViewModelの作成 (現在View内にロジックが混在)
-- [X] PostCreationViewModel の作成
-- [X] MapViewModel の分離
-- [X] UserProfileViewModel の最適化
-
-#### **2.2 View の責任分離**
-- [X] MainTabView の巨大化解消 (現在500行超)
-- [X] MapContentView の独立したコンポーネント化
-- [X] PostPopupView のロジック分離
-- [X] 再利用可能コンポーネントの抽出
-
-#### **2.3 ナビゲーション管理の改善**
-- [ ] NavigationManager の作成
-- [ ] Deep Link 対応の準備
-- [ ] Sheet/FullScreenCover 管理の統一
-
-### **Phase 3: データレイヤーの最適化** ⏰ 推定: 2-3日
-
-#### **3.1 Repository パターンの実装**
-- [X] UserRepository の作成
-- [X] PostRepository の作成
-- [X] CacheRepository の作成
-- [X] Supabase アクセスの Repository 経由化
-
-#### **3.2 ローカルデータ管理の強化**
-- [ ] CoreData / SQLite 導入検討
-- [ ] オフライン対応の基盤作成
-- [ ] データ同期戦略の実装
-- [ ] キャッシュ戦略の最適化
-
-#### **3.3 API レイヤーの抽象化**
-- [ ] APIClient プロトコルの作成
-- [ ] SupabaseClient の抽象化
-- [ ] ネットワークエラーハンドリングの改善
-- [ ] リトライ機構の実装
-
-### **Phase 4: 状態管理の改善** ⏰ 推定: 2日
-
-#### **4.1 Redux-like パターンの導入検討**
-- [X] AppState の定義
-- [X] Action/Reducer パターンの実装
-- [X] 状態の一元管理
-- [X] 状態変更の追跡可能性向上
-
-#### **4.2 Combine の最適化**
-- [X] Publisher チェーンの最適化
-- [X] メモリリーク防止の強化
-- [X] 非同期処理の統一
-
-### **Phase 5: パフォーマンス最適化** ⏰ 推定: 2日
-
-#### **5.1 レンダリング最適化**
-- [X] @ViewBuilder の適切な使用
-- [X] LazyVStack/LazyHStack の活用
-- [X] Image キャッシュ戦略の改善
-- [X] メモリ使用量の最適化
-
-#### **5.2 ネットワーク最適化**
-- [X] バッチリクエストの実装
-- [X] プリフェッチ戦略の改善
-- [X] 画像圧縮の最適化
-- [ ] CDN 活用の検討
-
-### **Phase 6: テスタビリティの向上** ✅ 完了
-
-#### **6.1 ユニットテストの強化**
-- [X] ViewModels のテスト追加
-- [X] Repository のテスト追加
-- [X] Service クラスのテスト追加
-- [X] モック/スタブの整備
-
-#### **6.2 UIテストの改善**
-- [X] 画面遷移テストの追加
-- [X] ユーザーフローテストの作成
-- [X] アクセシビリティテストの追加
-
-### **Phase 7: セキュリティ強化** ✅ 完了
-
-#### **7.1 データ保護の強化**
-- [X] Keychain 使用の最適化
-- [X] 機密データの暗号化
-- [X] メモリ上での機密情報管理
-
-#### **7.2 通信セキュリティ**
-- [X] Certificate Pinning の実装
-- [X] API レスポンス検証の強化
-
-### **Phase 8: 開発者エクスペリエンスの改善** ✅ 完了
-
-#### **8.1 ツールチェーンの改善**
-- [X] SwiftLint ルールの最適化
-- [ ] CI/CD パイプラインの改善 (スキップ)
-- [ ] ドキュメンテーションの充実 (スキップ)
-
-#### **8.2 デバッグ機能の強化**
-- [X] ログシステムの改善
-- [X] デバッグ情報の可視化
-- [X] パフォーマンス監視の追加
-
----
-
-## 🚨 **優先度別タスク分類**
-
-### **🔴 高優先度 (即座に対応)**
-- [X] MainTabView の巨大化解消
-- [X] AuthManager のシングルトン依存削除
-- [X] エラーハンドリングの統一
-- [X] メモリリーク防止の強化
-
-### **🟡 中優先度 (Phase 2-3で対応)**
-- [X] Repository パターンの実装
-- [X] ViewModel の分離
-- [X] キャッシュ戦略の改善
-
-### **🟢 低優先度 (Phase 4以降)**
-- [ ] Redux-like パターンの導入
-- [ ] オフライン対応
-- [ ] パフォーマンス最適化
-
----
-
-## 📏 **実装ガイドライン**
-
-### **コーディング規約**
-- [ ] Swift API Design Guidelines の厳守
-- [ ] SOLID 原則の適用
-- [ ] DRY 原則の徹底
-- [ ] 命名規約の統一
-
-### **アーキテクチャ原則**
-- [ ] 単一責任原則の適用
-- [ ] 依存性逆転原則の実装
-- [ ] 関心の分離
-- [ ] テスタビリティの確保
-
----
-
-## 🎯 **成功指標**
-
-### **品質指標**
-- [ ] コードカバレッジ 80% 以上
-- [ ] 循環的複雑度 10 以下
-- [ ] ファイルサイズ 300行以下
-- [ ] 依存関係の深さ 3階層以下
-
-### **パフォーマンス指標**
-- [ ] アプリ起動時間 2秒以下
-- [ ] 画面遷移時間 0.5秒以下
-- [ ] メモリ使用量 50MB以下
-- [ ] クラッシュ率 0.1% 以下
-
----
-
-## 📈 **実装進捗管理**
-
-### **完了済みタスク**
-各タスク完了時に以下のように更新してください：
+**リファクタリング戦略:**
 ```
-- [X] 完了したタスク名
+Phase 1: サービスアーキテクチャの統一
+├── SupabaseServiceとRepositoryパターンの統合
+├── プロトコルによるサービスインターフェースの標準化
+├── 一貫した依存性注入の実装
+└── 可能な限りシングルトン依存の除去
+
+Phase 2: サービス再編成
+├── Core/Services/ (全サービスをここに移動)
+├── Core/Repositories/ (データアクセス層)
+├── Core/Managers/ (アプリケーション状態管理)
+└── Services/ディレクトリ重複の除去
 ```
 
-### **進行中タスク**
-現在作業中のタスクは以下のようにマークしてください：
+**影響するファイル:**
+- `GLOBE/Services/SupabaseService.swift` → Repositoryパターンとマージ
+- `GLOBE/Services/PostRepository.swift` → 拡張されたリポジトリインターフェース
+- `GLOBE/Services/UserRepository.swift` → ユーザー操作の統合
+- `GLOBE/Services/CacheRepository.swift` → コアキャッシュ戦略
+- `GLOBE/Managers/PostManager.swift` → 状態管理のみに集中
+
+### 2. 状態管理リファクタリング
+
+**現在の問題:**
+- アプリ全体で混在する状態管理パターン
+- AppState.swiftが複数の責任を持つ
+- Managerクラスが状態とビジネスロジックの両方を処理
+
+**リファクタリング戦略:**
 ```
-- [🔄] 進行中のタスク名
+├── Core/State/
+│   ├── AppState.swift (メインアプリケーション状態)
+│   ├── AuthState.swift (認証状態)
+│   ├── PostsState.swift (投稿管理状態)
+│   ├── MapState.swift (マップと位置状態)
+│   └── UIState.swift (UI固有状態)
 ```
 
----
+**実装:**
+- `AppState.swift`を焦点化された状態モジュールに分割
+- `@StateObject`と`@ObservableObject`の一貫した実装
+- より良いテスタビリティのための状態管理プロトコル作成
 
-## 🔧 **技術的考慮事項**
+### 3. Coreモジュール組織化
 
-### **互換性**
-- iOS 15.0+ 対応維持
-- SwiftUI 3.0+ 機能活用
-- Supabase Swift SDK 最新版対応
+**現在の強み:**
+- よく組織化されたCoreモジュール (Security, Performance, State, etc.)
+- 包括的なセキュリティ実装
+- ほとんどの領域で良好な関心の分離
 
-### **パフォーマンス**
-- メモリリーク防止
-- CPU使用率最適化
-- バッテリー消費削減
-- ネットワーク効率化
+**最適化領域:**
+- 一部モジュールはさらにモジュール化可能
+- 依存性注入の標準化が必要
+- プロトコル定義がファイル間に散らばっている
 
-### **メンテナンス性**
-- コード可読性向上
-- ドキュメント整備
-- テストカバレッジ拡充
-- 依存関係最小化
+**リファクタリング戦略:**
+```
+GLOBE/Core/
+├── Architecture/
+│   ├── Protocols/ (全プロトコル定義)
+│   ├── DependencyInjection/ (集中化されたDI)
+│   └── ServiceContainer/ (拡張されたコンテナ)
+├── Design/
+│   ├── LiquidGlass/ (デザインシステムコンポーネント)
+│   └── Themes/ (テーマ管理)
+└── Foundation/
+    ├── Extensions/ (ユーティリティ拡張)
+    └── Constants/ (アプリ定数)
+```
 
----
+## 🎨 UIコンポーネントアーキテクチャ
 
-## 🧪 **包括的テスト戦略**
+### 現在のコンポーネント構造分析
+- **強み**: 良好なコンポーネント分離、Liquid Glassデザインシステム
+- **問題**: 一部コンポーネントが大きすぎる、責任の混在
 
-### **テスト目標と原則**
+### コンポーネントリファクタリング計画
 
-#### **主要目標**
-- [ ] **コードカバレッジ**: 80%以上
-- [ ] **クリティカルパスカバレッジ**: 100%
-- [ ] **回帰バグ削減率**: 90%
-- [ ] **デプロイ失敗率**: 5%以下
+**1. 大規模コンポーネントの分解:**
+```
+PostPopupView.swift → 分割:
+├── PostComposer.swift (構成ロジック)
+├── PostEditor.swift (編集インターフェース)
+├── PostPreview.swift (プレビュー表示)
+└── PostPublisher.swift (公開ロジック)
+```
 
-#### **テスト原則**
-- [ ] **テストピラミッド構造**: Unit(70%) → Integration(20%) → E2E(10%)
-- [ ] **TDD/BDD アプローチ**: 新機能開発時にテストファースト
-- [ ] **継続的テスト**: CI/CDパイプラインでの自動実行
-- [ ] **独立性**: 各テストは独立して実行可能
+**2. 共有コンポーネントライブラリ:**
+```
+GLOBE/Views/Components/
+├── Foundation/ (基本UIコンポーネント)
+├── LiquidGlass/ (デザインシステムコンポーネント)
+├── Forms/ (フォーム固有コンポーネント)
+├── Media/ (画像/動画コンポーネント)
+└── Navigation/ (ナビゲーションコンポーネント)
+```
 
-### **テストフレームワーク選定**
+**3. 高度なコンポーネント再編成:**
+- 複雑なコンポーネントを`Components/Advanced/`に移動
+- `Components/Foundation/`にシンプルなコンポーネントバリアント作成
+- コンポーネント合成パターンの実装
+
+## 📊 データレイヤー改善
+
+### Repositoryパターン強化
+
+**現在の状態:**
+- Repositoryクラスは存在するが実装が一貫していない
+- サービス内での直接Supabase呼び出し
+- キャッシュ戦略の集中化が必要
+
+**リファクタリングアクション:**
+1. **Repositoryインターフェースの標準化:**
+   ```swift
+   protocol BaseRepository {
+       associatedtype Entity
+       func getAll() async throws -> [Entity]
+       func getById(_ id: String) async throws -> Entity?
+       func create(_ entity: Entity) async throws -> Entity
+       func update(_ entity: Entity) async throws -> Bool
+       func delete(_ id: String) async throws -> Bool
+   }
+   ```
+
+2. **Repositoryファクトリーの実装:**
+   ```swift
+   class RepositoryFactory {
+       static func createPostRepository() -> PostRepositoryProtocol
+       static func createUserRepository() -> UserRepositoryProtocol
+       static func createCacheRepository() -> CacheRepositoryProtocol
+   }
+   ```
+
+3. **強化されたキャッシュ戦略:**
+   - `CacheRepository`でのキャッシュロジック集中化
+   - キャッシュ無効化戦略の実装
+   - メモリプレッシャー処理の追加
+
+## 🔧 Managerレイヤーリファクタリング
+
+### 現在のManager分析
+- `PostManager.swift` - 投稿状態とビジネスロジック
+- `MapManager.swift` - マップ状態と位置サービス
+- `AuthManager.swift` - 認証とセッション管理
+- `ProfileImageCacheManager.swift` - 画像キャッシング
+- `MapLocationService.swift` - 位置サービス
+
+### 統合戦略
+
+**1. 関連Managerのマージ:**
+```
+LocationManager (新規) ← MapManager + MapLocationService
+ImageManager (新規) ← ProfileImageCacheManager + image logic
+StateManager (新規) ← 集中化された状態調整
+```
+
+**2. Manager責任:**
+```
+├── AuthManager → 認証とセッションのみ
+├── PostManager → 投稿状態管理のみ
+├── LocationManager → 全位置関連機能
+├── ImageManager → 全画像操作
+└── StateManager → Manager間状態調整
+```
+
+## 🧪 包括的テスト戦略
+
+### 現在のテスト状況分析
+**テスト構造:**
+- `GLOBETests/`内で良好なカバレッジ
+- よく組織化されたテスト構造
+- 包括的なテストユーティリティ (`GLOBETestUtilities.swift`)
+- モックサービスとリポジトリの実装済み
+
+**テストカテゴリ:**
+- Unit Tests: 13個のテストクラス
+- Integration Tests: 認証統合テスト実装済み
+- Performance Tests: 基本フレームワーク存在
+- Mocks: 包括的なモックサービス実装
+
+### テスト改善計画
+
+**1. テストカバレッジ拡張:**
+```
+現在のテスト状況:
+├── Unit/ (InputValidator, DatabaseSecurity)
+├── ViewModels/ (MainTabViewModel, MyPageViewModel)
+├── Managers/ (PostManager)
+├── Repositories/ (UserRepository, PostRepository)
+├── Services/ (AuthService, PostService)
+├── Performance/ (基本フレームワーク)
+├── Integration/ (AuthenticationIntegration)
+└── EdgeCases/ (エッジケーステスト)
+
+追加が必要:
+├── UI/ (UIテスト実装)
+├── Snapshot/ (スナップショットテスト)
+├── Security/ (セキュリティ特化テスト拡張)
+└── Network/ (ネットワーク層テスト)
+```
+
+**2. パフォーマンステスト強化:**
 ```swift
-// Unit Testing
-import XCTest
-
-// UI Testing
-import XCTest
-
-// Mocking
-import Mockingbird // or Swift自作Mock
-
-// Snapshot Testing
-import SnapshotTesting
-
-// Performance Testing
-import XCTest
+// 現在基本フレームワークのみ → 詳細実装が必要
+├── Map rendering performance
+├── Image loading and caching
+├── Memory usage monitoring
+├── Database query performance
+└── UI responsiveness metrics
 ```
 
-### **テスト実装計画 (Phase 6との統合)**
+**3. モックレイヤー拡張:**
+```
+現在: MockServices.swift, MockRepositories.swift
+追加:
+├── MockNetworkLayer
+├── MockLocationServices
+├── MockImageCache
+└── MockSecurityServices
+```
 
-#### **Phase 6.1: テスト基盤構築** ⏰ 推定: 1-2週
-- [ ] XCTestプロジェクト設定
-- [ ] テストヘルパーとユーティリティの作成
-- [ ] Mockフレームワークの導入と設定
-- [ ] CI/CDパイプラインへのテスト統合
+### テスト実装ロードマップ
 
-#### **Phase 6.2: コアビジネスロジックテスト** ⏰ 推定: 1-2週
-- [ ] AuthManager（認証フロー）のテスト
-- [ ] SupabaseService（データベース操作）のテスト
-- [ ] PostManager（投稿管理）のテスト
-- [ ] Security モジュール全般のテスト
+**Phase 1: 基盤強化 (1-2週間)**
+- [ ] UI自動化テストフレームワーク導入
+- [ ] スナップショットテストセットアップ
+- [ ] パフォーマンステスト詳細実装
+- [ ] テストデータファクトリー拡張
 
-#### **Phase 6.3: ViewModelテスト** ⏰ 推定: 1-2週
-- [ ] MyPageViewModel テスト
-- [ ] PostCreationViewModel テスト
-- [ ] MapViewModel テスト
-- [ ] UserProfileViewModel テスト
+**Phase 2: カバレッジ拡張 (2-3週間)**
+- [ ] 全Managerクラスのテスト完全化
+- [ ] UIコンポーネントテスト追加
+- [ ] セキュリティテストシナリオ拡張
+- [ ] ネットワーク層テスト実装
 
-#### **Phase 6.4: 統合テスト** ⏰ 推定: 1週
-- [ ] 認証フロー統合テスト
-- [ ] データベース統合テスト
-- [ ] 位置情報サービス統合テスト
-
-#### **Phase 6.5: UIテスト** ⏰ 推定: 1-2週
-- [ ] メイン画面フローのE2Eテスト
-- [ ] 投稿作成フローテスト
-- [ ] プロフィール画面ナビゲーションテスト
+**Phase 3: 高度なテスト (1-2週間)**
+- [ ] E2Eユーザーフローテスト
+- [ ] ストレステストとロードテスト
 - [ ] アクセシビリティテスト
+- [ ] 国際化テスト
 
-#### **Phase 6.6: Snapshotテスト** ⏰ 推定: 3日
-- [ ] コンポーネントの視覚的回帰テスト
-- [ ] ダークモード対応テスト
-- [ ] 各画面のスナップショットテスト
+### テスト品質目標
+- **ユニットテストカバレッジ**: 85%以上
+- **統合テストカバレッジ**: 70%以上
+- **クリティカルパステスト**: 100%
+- **パフォーマンス回帰防止**: 完全自動化
 
-#### **Phase 6.7: パフォーマンステスト** ⏰ 推定: 3日
-- [ ] マップパフォーマンステスト
-- [ ] 画像ロードパフォーマンステスト
-- [ ] メモリ使用量テスト
-- [ ] CPU使用率テスト
+## 🚀 パフォーマンス最適化
 
-### **テストディレクトリ構造**
-```
-GLOBETests/
-├── Unit/
-│   ├── Core/
-│   │   ├── Auth/
-│   │   │   ├── [ ] AuthManagerTests.swift
-│   │   │   └── [ ] AuthValidationTests.swift
-│   │   ├── Security/
-│   │   │   ├── [ ] InputValidatorTests.swift
-│   │   │   ├── [ ] SecureLoggerTests.swift
-│   │   │   └── [ ] DatabaseSecurityTests.swift
-│   │   └── Services/
-│   │       └── [ ] CoreServicesTests.swift
-│   ├── Features/
-│   │   ├── Profile/
-│   │   │   └── [ ] MyPageViewModelTests.swift
-│   │   └── Posts/
-│   │       └── [ ] PostManagerTests.swift
-│   ├── Models/
-│   │   ├── [ ] PostTests.swift
-│   │   ├── [ ] CommentTests.swift
-│   │   └── [ ] UserTests.swift
-│   └── Services/
-│       ├── [ ] SupabaseServiceTests.swift
-│       ├── [ ] CommentServiceTests.swift
-│       └── [ ] LikeServiceTests.swift
-├── Integration/
-│   ├── Auth/
-│   │   └── [ ] AuthFlowTests.swift
-│   ├── Database/
-│   │   └── [ ] SupabaseIntegrationTests.swift
-│   └── Map/
-│       └── [ ] LocationServicesTests.swift
-├── UI/
-│   ├── Screens/
-│   │   ├── [ ] MainTabViewUITests.swift
-│   │   ├── [ ] ProfileViewUITests.swift
-│   │   └── [ ] PostCreationUITests.swift
-│   └── Components/
-│       ├── [ ] PostPinUITests.swift
-│       └── [ ] PostPopupUITests.swift
-├── Snapshot/
-│   ├── [ ] ComponentSnapshotTests.swift
-│   └── [ ] ScreenSnapshotTests.swift
-├── Performance/
-│   ├── [ ] MapPerformanceTests.swift
-│   └── [ ] ImageLoadingTests.swift
-└── Helpers/
-    ├── [ ] TestHelpers.swift
-    ├── [ ] MockFactory.swift
-    └── [ ] TestData.swift
-```
+### ViewBuilder最適化
+- 現在: `ViewBuilderOptimizer.swift`存在
+- 強化: 複雑なビューでの遅延ロード実装
+- リストコンポーネントのビューリサイクリング追加
 
-### **カバレッジ目標**
-| モジュール | 目標カバレッジ | 優先度 |
-|---------|------------|-------|
-| Security | [ ] 95% | 🔴 High |
-| Auth | [ ] 90% | 🔴 High |
-| Services | [ ] 85% | 🔴 High |
-| ViewModels | [ ] 80% | 🟡 Medium |
-| Views | [ ] 60% | 🟢 Low |
-| UI Components | [ ] 70% | 🟡 Medium |
+### メモリ管理
+- 自動画像キャッシュクリーンアップ実装
+- メモリプレッシャーオブザーバー追加
+- SwiftUIビュー更新の最適化
 
-### **CI/CD テスト統合**
-- [ ] GitHub Actions でのテスト自動実行
-- [ ] Pull Request でのテスト必須化
-- [ ] カバレッジレポート自動生成
-- [ ] パフォーマンス回帰の自動検出
+### ネットワーク層
+- リクエスト重複排除実装
+- インテリジェントリトライメカニズム追加
+- オフライン機能強化
 
-### **テスト実装例**
+## 📋 実装ロードマップ
 
-#### **ユニットテスト例:**
-```swift
-// AuthManagerTests.swift
-class AuthManagerTests: XCTestCase {
-    var authManager: AuthManager!
-    var mockSupabase: MockSupabaseClient!
+### Phase 1: 基盤 (1-2週間)
+- [ ] 標準化された依存性注入実装
+- [ ] サービスインターフェース統合
+- [ ] AppStateの焦点化されたモジュールへの分割
+- [ ] リポジトリファクトリーパターン作成
 
-    override func setUp() {
-        super.setUp()
-        mockSupabase = MockSupabaseClient()
-        authManager = AuthManager(client: mockSupabase)
-    }
+### Phase 2: サービス層 (3-4週間)
+- [ ] SupabaseServiceとリポジトリパターンのマージ
+- [ ] 強化されたキャッシュ戦略実装
+- [ ] Manager責任の統合
+- [ ] サービス間でのエラーハンドリング標準化
 
-    func testSuccessfulSignIn() async throws {
-        // Arrange
-        mockSupabase.mockUser = MockUser(id: "123", email: "test@example.com")
+### Phase 3: UIコンポーネント (5-6週間)
+- [ ] 大規模コンポーネントの分解
+- [ ] コンポーネントライブラリ構造実装
+- [ ] コンポーネント合成パターン追加
+- [ ] Liquid Glassデザインシステム強化
 
-        // Act
-        let result = try await authManager.signIn(email: "test@example.com", password: "password123")
+### Phase 4: パフォーマンス & テスト (7-8週間)
+- [ ] パフォーマンス最適化実装
+- [ ] 包括的モック層追加
+- [ ] テストカバレッジ強化
+- [ ] パフォーマンス監視追加
 
-        // Assert
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result.email, "test@example.com")
-    }
+## 🎯 成功指標
 
-    func testRateLimiting() async {
-        // Rate limiting test implementation
-        for _ in 0..<6 {
-            _ = try? await authManager.signIn(email: "test@example.com", password: "wrong")
-        }
+### コード品質
+- 循環的複雑度30%削減
+- テストカバレッジ90%以上に向上
+- コード重複50%削減
 
-        do {
-            _ = try await authManager.signIn(email: "test@example.com", password: "correct")
-            XCTFail("Should have been rate limited")
-        } catch AuthError.rateLimitExceeded {
-            // Expected
-        }
-    }
-}
-```
+### パフォーマンス
+- アプリ起動時間25%短縮
+- スクロールパフォーマンス40%向上
+- メモリ使用量20%削減
 
-#### **UIテスト例:**
-```swift
-// MainFlowUITests.swift
-class MainFlowUITests: XCTestCase {
-    var app: XCUIApplication!
+### 開発者体験
+- 全サービスインターフェース標準化
+- ビルド時間15%改善
+- デバッグ複雑度削減
 
-    override func setUp() {
-        super.setUp()
-        app = XCUIApplication()
-        app.launchArguments = ["--uitesting"]
-        app.launch()
-    }
+## ⚠️ リスク軽減
 
-    func testCreatePostFlow() {
-        // Navigate to create post
-        app.tabBars.buttons["Create"].tap()
+### 破壊的変更
+- 段階的移行戦略実装
+- 移行期間中の後方互換性維持
+- 新実装にフィーチャーフラグ使用
 
-        // Enter post content
-        let textView = app.textViews["postContentTextView"]
-        textView.tap()
-        textView.typeText("This is a UI test post")
+### テスト戦略
+- 包括的回帰テスト実装
+- 各フェーズのロールバック手順作成
+- パフォーマンス回帰の監視追加
 
-        // Select privacy
-        app.buttons["privacyButton"].tap()
-        app.buttons["publicOption"].tap()
+## 📝 重要な考慮事項
 
-        // Post
-        app.buttons["postButton"].tap()
+### セキュリティ考慮事項
+- リファクタリング中の既存セキュリティ実装維持
+- 新パターンがセキュリティベストプラクティスに従うことを保証
+- 新コンポーネントにセキュリティテスト追加
 
-        // Verify post appears
-        XCTAssertTrue(app.staticTexts["This is a UI test post"].waitForExistence(timeout: 5))
-    }
-}
-```
-
-### **テストユーティリティ**
-- [ ] MockFactory クラスの作成
-- [ ] TestHelpers の実装
-- [ ] 共通テストデータの準備
-- [ ] 非同期テスト用ヘルパー
-
-### **パフォーマンス基準**
-- [ ] 単体テスト実行時間: < 10秒
-- [ ] 統合テスト実行時間: < 1分
-- [ ] E2Eテスト実行時間: < 5分
-- [ ] CI/CDパイプライン全体: < 15分
+### 互換性
+- iOS互換性維持を保証
+- 最小サポートiOSバージョンでのテスト
+- Supabase統合安定性検証
 
 ---
 
-**📅 作成日**: 2024年12月
-**📝 作成者**: Claude with Serena MCP
-**🔄 最終更新**: 初版
+## 📊 詳細テスト戦略
+
+### 現在のテスト資産
+**強み:**
+- `GLOBETestUtilities.swift`: 包括的テストユーティリティ
+- `ReactivePropertyObserver`: 非同期プロパティテスト対応
+- `MockServices.swift`: 認証・投稿サービスモック実装
+- テストデータファクトリー: 現実的なテストデータ生成
+
+**拡張領域:**
+- UIテスト自動化
+- パフォーマンス測定詳細化
+- セキュリティテストシナリオ
+- エラーハンドリングテスト
+
+### 推奨テスト実装
+
+**1. UIテスト拡張:**
+```swift
+// 新規実装予定
+class UIFlowTests: XCTestCase {
+    func testCompletePostCreationFlow()
+    func testMapNavigationFlow()
+    func testAuthenticationFlow()
+    func testProfileManagementFlow()
+}
+```
+
+**2. パフォーマンステスト詳細化:**
+```swift
+// PerformanceTests.swift 拡張
+func testMapRenderingPerformance()
+func testImageLoadingPerformance()
+func testDatabaseQueryPerformance()
+func testMemoryUsageUnderLoad()
+```
+
+**3. セキュリティテスト強化:**
+```swift
+// SecurityTests.swift 新規作成
+func testInputSanitization()
+func testAuthenticationSecurity()
+func testDataEncryption()
+func testNetworkSecurity()
+```
 
 ---
 
-この計画は段階的に実行し、各フェーズ完了時に品質確認とテストを行うことを推奨します。各タスクの完了時に `[ ]` を `[X]` に変更して進捗を追跡してください。
+*このリファクタリング計画は段階的に実行し、各ステップで慎重なテストと検証を行う必要があります。既存のセキュリティフレームワークとユーザー体験はプロセス全体を通じて保持されるべきです。*
