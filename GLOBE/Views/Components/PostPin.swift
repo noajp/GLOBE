@@ -66,35 +66,41 @@ struct PostPin: View {
     }
     
     private var cardWidth: CGFloat {
-        return 110 // 統一サイズ
+        return 135 // PostPopupView (270) の1/2サイズ
     }
 
     private var cardHeight: CGFloat {
-        // 動的高さ計算：最小3行分の高さを確保
-        let minHeight = cardWidth * (3.0 / 4.0) // 最小高さ（3行分）
+        // 動的高さ計算
+        let baseHeight: CGFloat = 40 // 最小高さ
 
-        // テキストがある場合は行数に応じて高さ調整
+        // テキストがある場合の高さ計算
         if !post.text.isEmpty {
             let textFont = UIFont.systemFont(ofSize: 9, weight: .medium)
             let textHeight = measuredTextHeight(for: post.text, width: contentWidth - 16, font: textFont)
-            let lineHeight: CGFloat = 12 // 1行あたりの概算高さ
-            let estimatedLines = max(1, ceil(textHeight / lineHeight))
 
-            // 基本要素の高さ（ヘッダー + パディング + アクションバー）
-            let baseHeight: CGFloat = 34 + 16 + 24 // ヘッダー34px + パディング16px + アクションバー24px
+            // ヘッダー（アバター・ID）の高さ
+            let headerHeight: CGFloat = post.isAnonymous ? 0 : 30
 
-            // 写真がある場合の追加高さ
-            let imageHeight: CGFloat = hasImageContent ? 60 : 0
+            // テキスト部分の高さ（上下パディング含む）
+            let textAreaHeight = textHeight + 16
 
-            // テキスト分の高さ
-            let textAreaHeight = estimatedLines * lineHeight + 8 // 8pxは上下余白
+            // アクション部分（いいね・コメント）の高さ
+            let actionHeight: CGFloat = post.isAnonymous ? 0 : 30
 
-            let calculatedHeight = baseHeight + imageHeight + textAreaHeight
+            // 画像がある場合の追加高さ
+            let imageHeight: CGFloat = hasImageContent ? (cardWidth - 20) : 0
 
-            return max(minHeight, calculatedHeight)
+            let calculatedHeight = headerHeight + textAreaHeight + actionHeight + imageHeight
+
+            return max(baseHeight, calculatedHeight)
         }
 
-        return minHeight
+        // テキストがない場合は画像のみまたは最小高さ
+        if hasImageContent {
+            return cardWidth // 正方形
+        }
+
+        return baseHeight
     }
 
     private var contentWidth: CGFloat {
@@ -120,7 +126,7 @@ struct PostPin: View {
         let isPhotoOnly = hasImage && !hasText
 
         GlassEffectContainer {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
             // MARK: - Content Area (Photo and/or Text)
             VStack(alignment: .leading, spacing: 2) {
                 // Photo content
@@ -155,95 +161,104 @@ struct PostPin: View {
             }
             .padding(.horizontal, 8)
 
-            // MARK: - Header with Avatar and ID (After photo)
-            HStack(spacing: 6) {
-                // Avatar
-                Circle()
-                    .fill(Color.white.opacity(0.1)) // More transparent avatar background
-                    .frame(width: 20, height: 20)
-                    .overlay(
-                        Group {
-                            if let avatarUrl = post.authorAvatarUrl,
-                               let url = URL(string: avatarUrl) {
-                                AsyncImage(url: url) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .clipShape(Circle())
-                                } placeholder: {
+            // MARK: - Header with Avatar and ID (After photo) - Hidden for anonymous posts
+            if !post.isAnonymous {
+                HStack(spacing: 6) {
+                    // Avatar
+                    Circle()
+                        .fill(Color.white.opacity(0.1)) // More transparent avatar background
+                        .frame(width: 20, height: 20)
+                        .overlay(
+                            Group {
+                                if let avatarUrl = post.authorAvatarUrl,
+                                   let url = URL(string: avatarUrl) {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .clipShape(Circle())
+                                    } placeholder: {
+                                        Text(post.authorName.prefix(1).uppercased())
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                } else {
                                     Text(post.authorName.prefix(1).uppercased())
                                         .font(.system(size: 10, weight: .bold))
                                         .foregroundColor(.white)
                                 }
-                            } else {
-                                Text(post.authorName.prefix(1).uppercased())
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.white)
                             }
+                        )
+                        .onTapGesture {
+                            showingUserProfile = true
                         }
-                    )
-                    .onTapGesture {
-                        showingUserProfile = true
-                    }
 
-                // User ID
-                Text("@\(post.authorName)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    // User ID
+                    Text("@\(post.authorName)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-                Spacer()
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, hasImageContent ? 2 : 6)
+                .padding(.bottom, 2)
             }
-            .padding(.horizontal, 8)
-            .padding(.top, hasImageContent ? 2 : 6)
-            .padding(.bottom, 2)
 
             // MARK: - Text Content (After header)
             if !post.text.isEmpty {
-                let verticalPadding: CGFloat = post.isAnonymous ? 8 : 4
+                let verticalPadding: CGFloat = post.isAnonymous ? 6 : 4
                 captionText(post.text)
-                    .padding(.top, max(4, verticalPadding))
+                    .padding(.top, hasImageContent ? 4 : verticalPadding)
                     .padding(.bottom, verticalPadding)
             }
 
-            Spacer()
-
-            // MARK: - Bottom Action Bar (Likes and Comments)
-            HStack {
+            // 動的スペーサー（文字のみの場合は小さく）
+            if hasImageContent || post.isAnonymous {
                 Spacer()
-
-                HStack(spacing: 20) {
-                    // Like button
-                    Button(action: {
-                        if let userId = authManager.currentUser?.id {
-                            let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                            if newLikeState {
-                                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                impactFeedback.impactOccurred()
-                            }
-                        }
-                    }) {
-                        Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                            .font(.system(size: 12))
-                            .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.9))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-                    // Comment button
-                    Button(action: {
-                        showingComments = true
-                    }) {
-                        Image(systemName: "bubble.left")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+            } else {
+                Spacer(minLength: 4)
             }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 6)
-            .padding(.top, 2)
+
+            // MARK: - Bottom Action Bar (Likes and Comments) - Hidden for anonymous posts
+            if !post.isAnonymous {
+                HStack {
+                    Spacer()
+
+                    HStack(spacing: 20) {
+                        // Like button
+                        Button(action: {
+                            if let userId = authManager.currentUser?.id {
+                                let newLikeState = likeService.toggleLike(for: post, userId: userId)
+                                if newLikeState {
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                }
+                            }
+                        }) {
+                            Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
+                                .font(.system(size: 12))
+                                .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.9))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // Comment button
+                        Button(action: {
+                            showingComments = true
+                        }) {
+                            Image(systemName: "bubble.left")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 6)
+                .padding(.top, 2)
+            }
             }
             .frame(width: cardWidth, height: cardHeight, alignment: .top)
             .padding(.bottom, bottomPadding)
@@ -271,6 +286,8 @@ struct PostPin: View {
         }
         .sheet(isPresented: $showingComments) {
             CommentView(post: post)
+                .presentationDetents([.fraction(0.5)]) // 画面の半分の高さ
+                .presentationDragIndicator(.visible)
         }
     }
 }
@@ -285,7 +302,7 @@ private extension PostPin {
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: contentWidth, alignment: .leading)
-            .padding(.horizontal, 4)
+            .padding(.horizontal, 8)
     }
 }
 
@@ -325,9 +342,9 @@ struct ScalablePostPin: View {
     }
     
     private var baseCardSize: CGFloat {
-        100  // 統一サイズ
+        135  // PostPopupView (270) の1/2サイズ
     }
-    
+
     private var cardWidth: CGFloat {
         // Use wider width for text-only posts to create rectangular bubble
         return baseCardSize * scaleFactor
@@ -361,8 +378,24 @@ struct ScalablePostPin: View {
 
     // Dynamic height: shrink when anonymous text-only and single line
     private var dynamicHeight: CGFloat {
-        // 4:3 aspect ratio for consistency with PostPin
-        return cardWidth * (4.0 / 3.0)
+        let baseHeight: CGFloat = 30
+
+        if !post.text.isEmpty {
+            // テキストの行数に基づく高さ計算
+            let lineHeight: CGFloat = 12 * fontScale
+            let textHeight = max(lineHeight, CGFloat(estimatedTextLines) * lineHeight)
+
+            // パディングとマージン
+            let padding: CGFloat = 16 * fontScale
+
+            return max(baseHeight, textHeight + padding)
+        }
+
+        if hasImage {
+            return cardWidth * 0.8 // 画像の場合は少し縦長
+        }
+
+        return baseHeight
     }
 
     private var stackSpacing: CGFloat {
@@ -522,6 +555,7 @@ struct ScalablePostPin: View {
         // Apply transparent Liquid Glass effect
         .glassEffect(.clear, in: RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous))
         .overlay(alignment: .bottom) {
+            // Hide profile icon for anonymous posts
             if !post.isAnonymous && scaleFactor >= 0.9 {
                 let minDiameter: CGFloat = 16
                 let maxDiameter: CGFloat = 40
