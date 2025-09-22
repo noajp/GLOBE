@@ -7,6 +7,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import Combine
 
 struct MapContentView: View {
     @ObservedObject var mapManager: MapManager
@@ -47,13 +48,16 @@ struct MapContentView: View {
                 }
             }
 
-            // Post annotations
-            ForEach(mapManager.posts) { post in
-                if CLLocationCoordinate2DIsValid(post.location) {
-                    Annotation("", coordinate: post.location) {
+            // Post annotations with position adjustment and opacity management
+            ForEach(mapManager.visiblePosts) { post in
+                let adjustedLocation = mapManager.getAdjustedPosition(for: post.id, originalLocation: post.location)
+                let opacity = mapManager.getPostOpacity(for: post.id)
+                if opacity > 0.0 { // 完全透明なら表示しない
+                    Annotation("", coordinate: adjustedLocation) {
                         PostPin(post: post) {
                             // Popup表示を行わない
                         }
+                        .opacity(opacity)
                     }
                     .annotationTitles(.hidden)
                 }
@@ -69,7 +73,12 @@ struct MapContentView: View {
                     longitudeDelta: context.region.span.longitudeDelta
                 )
             )
+
+            print("🗺️ Map Camera Changed - New Zoom Level: \(newRegion.span.latitudeDelta)")
             mapManager.region = newRegion
+
+            // Trigger visibility recalculation with new region
+            mapManager.objectWillChange.send()
 
             // Temporarily disable 3D correction to prevent crashes
             // TODO: Re-implement with safer approach

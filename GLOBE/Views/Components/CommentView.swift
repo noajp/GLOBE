@@ -16,46 +16,51 @@ struct CommentView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Button("キャンセル") {
-                        dismiss()
-                    }
+        VStack(spacing: 0) {
+            // Header with drag indicator area
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.gray.opacity(0.5))
+                .frame(width: 40, height: 5)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
 
-                    Spacer()
-
-                    Text("コメント")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-
-                    Spacer()
-
-                    // Placeholder for balance
-                    Button("") { }
-                        .opacity(0)
+            // Header
+            HStack {
+                Button("キャンセル") {
+                    dismiss()
                 }
-                .padding()
-                .background(Color(.systemBackground))
 
-                Divider()
+                Spacer()
 
-                // Original post summary
-                postSummaryView
+                Text("コメント")
+                    .font(.headline)
+                    .fontWeight(.semibold)
 
-                Divider()
+                Spacer()
 
-                // Comments list
-                commentsList
-
-                Divider()
-
-                // Comment input
-                commentInputView
+                // Placeholder for balance
+                Button("") { }
+                    .opacity(0)
             }
+            .padding()
             .background(Color(.systemBackground))
+
+            Divider()
+
+            // Original post summary
+            postSummaryView
+
+            Divider()
+
+            // Comments list
+            commentsList
+
+            Divider()
+
+            // Comment input
+            commentInputView
         }
+        .background(Color(.systemBackground))
     }
 
     private var postSummaryView: some View {

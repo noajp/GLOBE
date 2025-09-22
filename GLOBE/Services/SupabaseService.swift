@@ -183,12 +183,12 @@ private init() {
                 "location_name": locationName.map { .string($0) } ?? .null,
                 "latitude": .double(latitude),
                 "longitude": .double(longitude),
-                "is_public": .bool(!isAnonymous),  // 匿名でない場合は公開
+                "is_public": .bool(true),  // 常に公開（匿名でも投稿内容は公開）
                 "expires_at": .string(expiresAtString)
             ]
-            
+
             postData["is_anonymous"] = .bool(isAnonymous)
-            print("📝 SupabaseService - Creating post with isAnonymous: \(isAnonymous), isPublic: \(!isAnonymous)")
+            print("📝 SupabaseService - Creating post with isAnonymous: \(isAnonymous), isPublic: true")
             
             _ = try await supabaseClient
                 .from("posts")
@@ -229,9 +229,9 @@ private init() {
                 text: content,
                 authorName: isAnonymous ? "匿名ユーザー" : (currentUser?.username ?? "ユーザー"),
                 authorId: isAnonymous ? "anonymous" : userId,
-                isPublic: !isAnonymous,
+                isPublic: true,  // 常に公開（匿名でも投稿内容は表示）
                 isAnonymous: isAnonymous,
-                authorAvatarUrl: avatarUrl
+                authorAvatarUrl: isAnonymous ? nil : avatarUrl  // 匿名の場合はアバターURLもnilに
             )
             
             await MainActor.run {

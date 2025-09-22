@@ -510,11 +510,10 @@ final class AdvancedLogger: ObservableObject {
     private func setupFileLogging() {
         guard LoggingConfig.enableFileLogging else { return }
 
-        logQueue.async { [weak self] in
-            guard let self = self else { return }
+        logQueue.async {
             Task {
-                await self.createLogFile()
-                await self.cleanupOldLogs()
+                await AdvancedLogger.shared.createLogFile()
+                await AdvancedLogger.shared.cleanupOldLogs()
             }
         }
     }
@@ -608,10 +607,9 @@ final class AdvancedLogger: ObservableObject {
     // MARK: - System Monitoring
 
     private func startPerformanceMonitoring() {
-        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            Task {
-                await self.collectSystemMetrics()
+        Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            Task { @MainActor in
+                await AdvancedLogger.shared.collectSystemMetrics()
             }
         }
     }
@@ -628,10 +626,9 @@ final class AdvancedLogger: ObservableObject {
             forName: UIApplication.didReceiveMemoryWarningNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
-            guard let self = self else { return }
+        ) { _ in
             Task { @MainActor in
-                self.warning("Received memory warning", category: .lifecycle)
+                AdvancedLogger.shared.warning("Received memory warning", category: .lifecycle)
             }
         }
     }

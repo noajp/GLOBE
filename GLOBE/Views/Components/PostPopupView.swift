@@ -17,45 +17,13 @@ enum PostPrivacyType: Equatable, Sendable {
 }
 
 // MARK: - Post Type Options
-enum PostType: Equatable, Sendable, CaseIterable {
-    case textPost
-    case photoPost
-    case locationPost
-    case eventPost
-
-    var displayName: String {
-        switch self {
-        case .textPost: return "テキスト"
-        case .photoPost: return "写真"
-        case .locationPost: return "位置情報"
-        case .eventPost: return "イベント"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .textPost: return "text.alignleft"
-        case .photoPost: return "camera.fill"
-        case .locationPost: return "location.fill"
-        case .eventPost: return "calendar"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .textPost: return .blue
-        case .photoPost: return .green
-        case .locationPost: return .red
-        case .eventPost: return .purple
-        }
-    }
-}
 
 
 struct PostPopupView: View {
     @Binding var isPresented: Bool
     @ObservedObject var mapManager: MapManager
     let initialLocation: CLLocationCoordinate2D? // Add parameter for exact post location
+    var postType: PostType = .textPost // Default to text post
     @StateObject private var locationManager = PostLocationManager()
     @StateObject private var mapLocationService = MapLocationService()
     @ObservedObject private var authManager = AuthManager.shared
@@ -71,10 +39,8 @@ struct PostPopupView: View {
     @State private var postLocation: CLLocationCoordinate2D?
     // 位置決定は地図の中心に揃える（Vの先端=地図中心）。余計なオフセットは使わない。
     @State private var areaName: String = ""
-    @State private var showPrivacySelection = false
-    @State private var showPostTypeSelection = false
-    @State private var selectedPrivacyType: PostPrivacyType = .publicPost
-    @State private var selectedPostType: PostType = .textPost
+    @State private var showPrivacyDropdown = false
+    @State private var selectedPrivacyType: PostPrivacyType = .anonymous
     @State private var isSubmitting = false
     // App settings
     @StateObject private var appSettings = AppSettings.shared
@@ -88,7 +54,7 @@ struct PostPopupView: View {
     }
     
     private var maxTextLength: Int {
-        60  // Text-only posts can use the full length
+        30  // Maximum 30 characters for all posts
     }
     
     var body: some View {
@@ -96,13 +62,7 @@ struct PostPopupView: View {
             // Popup content with speech bubble tail
             GlassEffectContainer {
                 VStack(spacing: 0) {
-                    if showPostTypeSelection {
-                        postTypeSelectionView
-                    } else if showPrivacySelection {
-                        privacySelectionView
-                    } else {
-                        postCreationView
-                    }
+                    postCreationView
                 }
                 .frame(width: 270, height: 189)
                 .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -110,6 +70,7 @@ struct PostPopupView: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.white.opacity(0.3), lineWidth: 1)
                 )
+                .clipped(antialiased: false) // Allow overflow for dropdown
                 // Note: Do not add a parent onTapGesture here; it can interfere with inner Buttons
                 .overlay(
                     speechBubbleTail
@@ -118,6 +79,7 @@ struct PostPopupView: View {
                 )
                 .shadow(radius: 10)
             }
+            .clipped(antialiased: false) // Allow dropdown to overflow container
             // 吹き出しV先端のスクリーン座標をPreferenceで親に通知
             .overlay(alignment: .bottom) {
                 GeometryReader { proxy in
@@ -133,11 +95,19 @@ struct PostPopupView: View {
                 }
                 .frame(width: 1, height: 1)
             }
+
+            // Privacy selection popup from bottom
+            if showPrivacyDropdown {
+                privacyPopupView
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(1000)
+            }
         }
-        .animation(.easeInOut(duration: 0.3), value: showPrivacySelection)
-        .animation(.easeInOut(duration: 0.3), value: showPostTypeSelection)
+        .animation(.easeInOut(duration: 0.3), value: showPrivacyDropdown)
         .onDisappear {
+            // Clean up when popup closes
             mapManager.draftPostCoordinate = nil
+            postLocation = nil
         }
         .alert("エラー", isPresented: $showError) {
             Button("OK") {}
@@ -158,9 +128,9 @@ struct PostPopupView: View {
             // Start location services
             mapLocationService.startLocationServices()
 
-            // Initialize with current map center; user can press the direction icon to move to self location.
-            updatePostLocation()
-
+            // Initialize with current map center
+            postLocation = mapManager.region.center
+            updateAreaLocation(for: mapManager.region.center)
         }
     }
     
@@ -193,19 +163,12 @@ struct PostPopupView: View {
             
             Spacer()
             
-            Button(action: handleVButtonPress) {
-                HStack(spacing: 3) {
-                    Text("POST")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.black)
-
-                    Triangle()
-                        .fill(.black)
-                        .frame(width: 8, height: 6)
-                        .rotationEffect(.degrees(180))
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+            Button(action: createPost) {
+                Text("POST")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
             }
             .background(.white.opacity(0.9))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -247,250 +210,75 @@ struct PostPopupView: View {
     }
 
     
-    // MARK: - Bottom Section View
+    // MARK: - Bottom Section View - ABSOLUTELY NO MOVEMENT!!!
     private var bottomSectionView: some View {
-        HStack {
-            // Location info button - move to current location
-            Button(action: {
-                print("📍🔥 PostPopup: Location button ACTION TRIGGERED!")
-                moveToCurrentLocation()
-            }) {
-                HStack(spacing: 6) {
-                    Image(systemName: postLocation != nil ? "location.fill" : "location")
-                        .foregroundColor(.black)
-                        .font(.system(size: 14, weight: .medium))
+        // TOTALLY STATIC FRAME - NEVER CHANGES SIZE
+        Rectangle()
+            .fill(.clear)
+            .frame(width: 270, height: 40) // FIXED SIZE ALWAYS
+            .overlay(
+                ZStack {
+                    // Location button - LOCKED POSITION (LEFT SIDE)
+                    Button(action: {
+                        print("📍 PostPopup: Location button pressed")
+                        // Move map to user's current location
+                        if let currentLocation = mapLocationService.location?.coordinate {
+                            // Move map to user location with offset
+                            let offsetCoordinate = CLLocationCoordinate2D(
+                                latitude: currentLocation.latitude + 0.0005,
+                                longitude: currentLocation.longitude
+                            )
+                            mapManager.focusOnLocation(offsetCoordinate, zoomLevel: 0.0008)
 
-                    if !areaName.isEmpty {
-                        Text(areaName)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.black.opacity(0.8))
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-            }
-            .background(.white.opacity(0.9))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-            
-            Spacer()
-            
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
-    }
-    
-    // MARK: - Post Type Selection View
-    private var postTypeSelectionView: some View {
-        VStack(spacing: 0) {
-            postTypeHeaderView
-            Spacer()
-            postTypeButtonsView
-            Spacer()
-        }
-        .transition(.move(edge: .leading).combined(with: .opacity))
-    }
-
-    // MARK: - Post Type Header View
-    private var postTypeHeaderView: some View {
-        HStack {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    showPostTypeSelection = false
-                }
-            }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-            }
-
-            Spacer()
-
-            Text("投稿タイプ")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-
-            Spacer()
-
-            // バランス用の空スペース
-            Image(systemName: "chevron.left")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.clear)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - Post Type Buttons View
-    private var postTypeButtonsView: some View {
-        HStack(spacing: 12) {
-            ForEach(Array(PostType.allCases.enumerated()), id: \.element) { index, postType in
-                Button(action: {
-                    selectedPostType = postType
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        showPostTypeSelection = false
-                        showPrivacySelection = true
-                    }
-                }) {
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(postType.color.opacity(0.2))
-                                .frame(width: 30, height: 30)
-
-                            Image(systemName: postType.icon)
-                                .font(.system(size: 14))
-                                .foregroundColor(postType.color)
+                            // Update the area name for the new location
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                self.updateAreaLocation(for: mapManager.region.center)
+                                self.postLocation = mapManager.region.center
+                            }
+                        } else {
+                            // Request location if not available
+                            mapLocationService.requestLocation()
                         }
+                    }) {
+                        Image(systemName: postLocation != nil ? "location.fill" : "location")
+                            .foregroundColor(.black)
+                            .font(.system(size: 14, weight: .medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                    }
+                    .background(.white.opacity(0.9))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                    .position(x: 25, y: 20) // FURTHER LEFT POSITION
 
-                        Text(postType.displayName)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.white)
+                    // Privacy button - LOCKED POSITION (RIGHT SIDE)
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showPrivacyDropdown = true
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.black)
+
+                            Text(selectedPrivacyType == .publicPost ? "Post publicly" :
+                                 selectedPrivacyType == .followersOnly ? "Post to followers" : "Post anonymously")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.black)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                     }
-                    .frame(width: 50, height: 55)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(postType.color.opacity(0.3), lineWidth: 1)
-                    )
+                    .frame(width: 140, height: 28)
+                    .background(.white.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.3), lineWidth: 1))
+                    .position(x: 195, y: 20) // RIGHT SIDE POSITION
                 }
-            }
-        }
+            )
     }
 
-    // MARK: - Privacy Selection View
-    private var privacySelectionView: some View {
-        VStack(spacing: 0) {
-            privacyHeaderView
-            Spacer()
-            privacyButtonsView
-            Spacer()
-        }
-        .transition(.move(edge: .trailing).combined(with: .opacity))
-    }
-    
-    // MARK: - Privacy Header View
-    private var privacyHeaderView: some View {
-        HStack {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    showPrivacySelection = false
-                }
-            }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white)
-            }
-            
-            Spacer()
-            
-            Text("公開範囲")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-            
-            Spacer()
-            
-            // バランス用の空スペース
-            Image(systemName: "chevron.left")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.clear)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-    
-    // MARK: - Privacy Buttons View
-    private var privacyButtonsView: some View {
-        VStack(spacing: 16) {
-            // Followers Only
-            Button(action: {
-                guard !isSubmitting else { return }
-                selectedPrivacyType = .followersOnly
-                createPostWithSelectedType()
-            }) {
-                VStack(spacing: 6) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.green.opacity(0.2))
-                            .frame(width: 50, height: 50)
-                        
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.green)
-                    }
-                    
-                    Text("Followers Only")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 180, height: 85)
-                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                )
-            }
-            
-            // Public
-            Button(action: {
-                guard !isSubmitting else { return }
-                selectedPrivacyType = .publicPost
-                createPostWithSelectedType()
-            }) {
-                VStack(spacing: 6) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.blue.opacity(0.2))
-                            .frame(width: 50, height: 50)
-                        
-                        Image(systemName: "globe")
-                            .font(.system(size: 22))
-                            .foregroundColor(.blue)
-                    }
-                    
-                    Text("Public")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 180, height: 85)
-                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                )
-            }
-            
-            // Anonymous
-            Button(action: {
-                guard !isSubmitting else { return }
-                selectedPrivacyType = .anonymous
-                createPostWithSelectedType()
-            }) {
-                VStack(spacing: 6) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.purple.opacity(0.2))
-                            .frame(width: 50, height: 50)
-                        
-                        Image(systemName: "person.fill.questionmark")
-                            .font(.system(size: 22))
-                            .foregroundColor(.purple)
-                    }
-                    
-                    Text("Anonymous")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 180, height: 85)
-                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                )
-            }
-        }
-    }
     
     // MARK: - Speech Bubble Tail
     private var speechBubbleTail: some View {
@@ -501,26 +289,96 @@ struct PostPopupView: View {
             .rotationEffect(.degrees(180))
             .offset(y: 15)
     }
-    
-    // MARK: - Action Methods
-    private func handleVButtonPress() {
-        print("🔘 PostPopup - V button pressed")
-        print("📝 PostPopup - Current state: text='\(postText)'")
-        print("🚫 PostPopup - Button disabled state: \(isButtonDisabled)")
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showPostTypeSelection = true
+
+    // MARK: - Privacy Popup View
+    private var privacyPopupView: some View {
+        VStack {
+            Spacer()
+
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Text("Select Privacy")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+
+                    Spacer()
+
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showPrivacyDropdown = false
+                        }
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.black.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+
+                // Privacy options
+                VStack(alignment: .leading, spacing: 1) {
+                    privacyPopupOption(.anonymous, "person.fill.questionmark", .black, "Post anonymously", "Your identity will be hidden")
+                    privacyPopupOption(.publicPost, "globe", .black, "Post publicly", "Everyone can see this post")
+                    privacyPopupOption(.followersOnly, "person.2.fill", .black, "Post to followers", "Only your followers can see this")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 30)
+            }
+            .background(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(.black.opacity(0.1), lineWidth: 1))
+            .padding(.horizontal, 20)
+            .shadow(radius: 10)
         }
     }
 
-    private func handleNextButtonPress() {
-        print("🔘 PostPopup - Next button pressed")
-        print("📝 PostPopup - Current state: text='\(postText)'")
-        print("🚫 PostPopup - Button disabled state: \(isButtonDisabled)")
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showPrivacySelection = true
+    private func privacyPopupOption(_ type: PostPrivacyType, _ icon: String, _ color: Color, _ title: String, _ subtitle: String) -> some View {
+        Button(action: {
+            selectedPrivacyType = type
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showPrivacyDropdown = false
+            }
+        }) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(color)
+                    .frame(width: 24, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text(title)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.black)
+                        Spacer()
+                    }
+                    HStack {
+                        Text(subtitle)
+                            .font(.system(size: 13))
+                            .foregroundColor(.black.opacity(0.6))
+                        Spacer()
+                    }
+                }
+
+                if selectedPrivacyType == type {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(selectedPrivacyType == type ? .black.opacity(0.05) : .clear)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .buttonStyle(PlainButtonStyle())
     }
     
+    // MARK: - Action Methods
+
     private func createPost() {
         guard !isSubmitting else { return }
         isSubmitting = true
@@ -528,10 +386,10 @@ struct PostPopupView: View {
         // Capture values to avoid self reference issues
         let currentText = postText
         let currentPrivacyType = selectedPrivacyType
-        // Use speech bubble tip position (V先端) if available, otherwise use map center
-        let location = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
+        // ALWAYS use the map center (where the popup is displayed)
+        let location = mapManager.region.center
 
-        print("📍 PostPopupView: Creating post at location: (\(location.latitude), \(location.longitude))")
+        print("📍 PostPopupView: Creating post at map center: (\(location.latitude), \(location.longitude))")
 
         // Create post in background without waiting for result
         Task.detached {
@@ -555,53 +413,13 @@ struct PostPopupView: View {
 
         // Close immediately
         postText = ""
-        showPrivacySelection = false
+        showPrivacyDropdown = false
         isSubmitting = false
         isPresented = false
     }
 
-    private func createPostWithSelectedType() {
-        guard !isSubmitting else { return }
-        isSubmitting = true
 
-        // Capture values to avoid self reference issues
-        let currentText = postText
-        let currentPrivacyType = selectedPrivacyType
-        let currentPostType = selectedPostType
-        // Use speech bubble tip position (V先端) if available, otherwise use map center
-        let location = mapManager.draftPostCoordinate ?? initialLocation ?? mapManager.region.center
-
-        print("📍 PostPopupView: Creating \(currentPostType.displayName) post at location: (\(location.latitude), \(location.longitude))")
-
-        // Create post in background without waiting for result
-        Task.detached {
-            do {
-                try await postManager.createPost(
-                    content: currentText,
-                    imageData: nil,  // No image data for now
-                    location: location,
-                    locationName: nil,
-                    isAnonymous: {
-                        switch currentPrivacyType {
-                        case .anonymous: return true
-                        default: return false
-                        }
-                    }()
-                )
-            } catch {
-                // Silently handle errors in background
-            }
-        }
-
-        // Close immediately
-        postText = ""
-        showPrivacySelection = false
-        showPostTypeSelection = false
-        isSubmitting = false
-        isPresented = false
-    }
-
-    // 選択座標のエリア名を軽量に解決（投稿時のみ）
+    // MARK: - Helper Functions
     private func resolveAreaName(for coordinate: CLLocationCoordinate2D) async -> String? {
         do {
             let request = MKLocalSearch.Request()
@@ -626,48 +444,7 @@ struct PostPopupView: View {
         }
         return nil
     }
-    
-    
-    private func getCurrentLocationAndMoveMap() {
-        print("📍 PostPopup - Location button tapped, getting current location")
-        // If denied, surface an alert guiding the user to Settings
-        if locationManager.authorizationStatus == .denied || locationManager.authorizationStatus == .restricted {
-            showingLocationPermissionAlert = true
-            return
-        }
-        locationManager.requestLocationPermission()
-        
-        if let currentLocation = locationManager.location {
-            print("✅ PostPopup - Got current location: \(currentLocation.latitude), \(currentLocation.longitude)")
-            mapManager.focusOnLocation(currentLocation)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let center = self.mapManager.region.center
-                self.postLocation = center
-                self.updateAreaLocation(for: center)
-            }
-        } else {
-            print("🔄 PostPopup - Requesting location update...")
-            locationManager.requestLocationUpdate { location in
-                if let location = location {
-                    print("✅ PostPopup - Got location update: \(location.latitude), \(location.longitude)")
-                    
-                    // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
-                    let offsetCoordinate = CLLocationCoordinate2D(
-                        latitude: location.latitude + 0.003, // 北に約300m移動
-                        longitude: location.longitude
-                    )
-                    self.mapManager.focusOnLocation(offsetCoordinate)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        let center = self.mapManager.region.center
-                        self.postLocation = center
-                        self.updateAreaLocation(for: center)
-                    }
-                } else {
-                    print("⚠️ PostPopup - Failed to get location update")
-                }
-            }
-        }
-    }
+
     
     private func updateAreaLocation(for coordinate: CLLocationCoordinate2D) {
         Task {
@@ -680,109 +457,12 @@ struct PostPopupView: View {
     }
     
     private func moveToCurrentLocation() {
-        print("📍🔥 PostPopup: moveToCurrentLocation called")
-
-        // Check location services availability off main thread
-        Task.detached {
-            let servicesEnabled = await Task.detached { CLLocationManager.locationServicesEnabled() }.value
-
-            await MainActor.run {
-                guard servicesEnabled else {
-                    print("🚫 PostPopup: Location services disabled")
-                    showingLocationPermissionAlert = true
-                    return
-                }
-
-                // If we already have permission, go straight to the location manager's helper
-                if locationManager.authorizationStatus == .authorizedAlways || locationManager.authorizationStatus == .authorizedWhenInUse {
-                    print("✅ PostPopup: Already authorized, calling autoAcquireCurrentLocation")
-                    autoAcquireCurrentLocation()
-                    return
-                }
-
-                switch locationManager.authorizationStatus {
-                case .notDetermined:
-                    print("❔ PostPopup: Authorization not determined, requesting...")
-                    locationManager.requestLocationPermission()
-                    // After requesting, try to auto acquire (CLLocationManager will callback via delegate)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        self.autoAcquireCurrentLocation()
-                    }
-                case .denied, .restricted:
-                    print("🚫 PostPopup: Authorization denied or restricted, showing alert")
-                    showingLocationPermissionAlert = true
-                case .authorizedAlways, .authorizedWhenInUse:
-                    print("✅ PostPopup: Authorization OK, auto-acquiring location")
-                    autoAcquireCurrentLocation()
-                @unknown default:
-                    print("❌ PostPopup: Unknown authorization status")
-                    showingLocationPermissionAlert = true
-                }
-            }
-        }
+        // Removed - using simpler inline approach in button action
     }
-    
+
     // MARK: - Auto acquire current location on demand
     private func autoAcquireCurrentLocation() {
-        print("📍🔥 PostPopup: autoAcquireCurrentLocation called")
-        
-        // Request permission if needed, then try to read cached location first
-        print("📍🔥 PostPopup: Requesting location permission...")
-        locationManager.requestLocationPermission()
-
-        if let loc = locationManager.location {
-            // Use immediate value if available
-            print("📍🔥 PostPopup: Using cached location: \(loc)")
-            print("📍🔥 PostPopup: Calling mapManager.focusOnLocation...")
-
-            Task { @MainActor in
-                // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
-                let offsetCoordinate = CLLocationCoordinate2D(
-                    latitude: loc.latitude + 0.0005, // 北に約50m移動（カードが見えるように調整）
-                    longitude: loc.longitude
-                )
-                // ズームインしながら現在地に遷移（focusOnLocationが内部でアニメーション処理をする）
-                self.mapManager.focusOnLocation(offsetCoordinate, zoomLevel: 0.0008)
-
-                // Update postLocation to show that location is set
-                self.postLocation = loc
-                self.updateAreaLocation(for: loc)
-
-                // Move the post creation card to current location immediately
-                self.mapManager.draftPostCoordinate = loc
-            }
-            return
-        }
-
-        print("📍🔥 PostPopup: No cached location, requesting one-shot update...")
-        // Otherwise request a one-shot update
-        locationManager.requestLocationUpdate { coordinate in
-            print("📍🔥 PostPopup: One-shot update callback received: \(String(describing: coordinate))")
-            if let c = coordinate {
-                print("📍🔥 PostPopup: Calling mapManager.focusOnLocation with new location...")
-
-                Task { @MainActor in
-                    // 画面下部に位置マーカーが来るように、マップの中心を少し北側にオフセット
-                    let offsetCoordinate = CLLocationCoordinate2D(
-                        latitude: c.latitude + 0.0005, // 北に約50m移動（カードが見えるように調整）
-                        longitude: c.longitude
-                    )
-                    // ズームインしながら現在地に遷移（focusOnLocationが内部でアニメーション処理をする）
-                    self.mapManager.focusOnLocation(offsetCoordinate, zoomLevel: 0.0008)
-
-                    // Update postLocation to show that location is set
-                    self.postLocation = c
-                    self.updateAreaLocation(for: c)
-
-                    // Move the post creation card to current location immediately
-                    self.mapManager.draftPostCoordinate = c
-                }
-            } else {
-                print("📍🔥 PostPopup: No coordinate received, falling back to map center")
-                // Fallback to current map center
-                self.updatePostLocation()
-            }
-        }
+        // Removed - using simpler inline approach in button action
     }
     
     private func updatePostLocation() {
@@ -832,6 +512,7 @@ class PostLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate
             locationUpdateCompletion = nil
             return
         }
+
         self.location = location.coordinate
         locationUpdateCompletion?(location.coordinate)
         locationUpdateCompletion = nil
