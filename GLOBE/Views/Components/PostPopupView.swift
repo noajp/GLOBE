@@ -148,21 +148,6 @@ struct PostPopupView: View {
     // MARK: - Header View
     private var headerView: some View {
         HStack {
-            Button(action: {
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                isPresented = false
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.black)
-                    .padding(8)
-            }
-            .background(.white.opacity(0.9))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-            
-            Spacer()
-            
             Button(action: createPost) {
                 Text("POST")
                     .font(.system(size: 11, weight: .semibold))
@@ -177,6 +162,21 @@ struct PostPopupView: View {
             .onAppear {
                 print("🔘 PostPopup - Button state on appear: disabled=\(isButtonDisabled)")
             }
+
+            Spacer()
+
+            Button(action: {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                isPresented = false
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.black)
+                    .padding(8)
+            }
+            .background(.white.opacity(0.9))
+            .clipShape(Circle())
+            .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -218,6 +218,22 @@ struct PostPopupView: View {
             .frame(width: 270, height: 40) // FIXED SIZE ALWAYS
             .overlay(
                 ZStack {
+                    // Camera button - POSITIONED ABOVE PRIVACY BUTTON
+                    Button(action: {
+                        // TODO: カメラ機能の実装
+                        print("📷 PostPopup: Camera button pressed")
+                    }) {
+                        Image(systemName: "camera.fill")
+                            .foregroundColor(.black)
+                            .font(.system(size: 14, weight: .medium))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                    }
+                    .background(.white.opacity(0.9))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                    .position(x: 135, y: 20) // CENTER POSITION (above privacy button)
+
                     // Location button - LOCKED POSITION (LEFT SIDE)
                     Button(action: {
                         print("📍 PostPopup: Location button pressed")

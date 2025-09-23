@@ -11,7 +11,6 @@ struct MainTabView: View {
     @StateObject private var locationManager = MapLocationService()
     @StateObject private var appSettings = AppSettings.shared
     @State private var showingCreatePost = false
-    @State private var stories: [Story] = Story.mockStories
     @State private var showingAuth = false
     @State private var showingProfile = false
     @State private var shouldMoveToCurrentLocation = false

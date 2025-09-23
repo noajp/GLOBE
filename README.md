@@ -110,44 +110,243 @@ xcodebuild -project GLOBE.xcodeproj -scheme GLOBE build
 
 ## 📐 Architecture
 
-### Directory Structure
+GLOBEは**MVVM (Model-View-ViewModel)** パターンを採用しています。SwiftUIの`@StateObject`/`@ObservableObject`と相性が良く、シンプルで保守しやすい構成です。
+
+### 🎯 アーキテクチャの意図
+
+**なぜMVVMを選んだか？**
+1. **SwiftUI親和性**: `@StateObject`/`@ObservableObject`と自然に統合
+2. **関心の分離**: View、ViewModel、Modelの責任が明確
+3. **テスタビリティ**: ViewModelを独立してテスト可能
+4. **標準的**: iOSアプリ開発でよく使われる一般的なパターン
+
+### 📂 ディレクトリ構造と責任
 
 ```
 GLOBE/
-├── 📁 Application/          # App entry point & configuration
-│   ├── GlobeApp.swift
-│   └── AppDelegate.swift
-├── 📁 Core/                 # Core components
-│   ├── Auth/               # Authentication logic
-│   ├── Managers/           # Business logic managers
-│   ├── Security/           # Security utilities
-│   └── Supabase/          # Database client
-├── 📁 Models/               # Data models
-│   ├── Post.swift
-│   ├── User.swift
-│   └── Comment.swift
-├── 📁 Views/                # UI components
-│   ├── MainTabView.swift
-│   ├── CreatePostView.swift
-│   └── Components/
-├── 📁 Services/             # External services
-│   ├── SupabaseService.swift
-│   ├── LikeService.swift
-│   └── CommentService.swift
-├── 📁 Features/             # Feature modules
-│   └── Profile/
-└── 📁 Resources/            # Assets & configs
+├── 📱 Views/                # View層 - UIの表示とユーザー操作
+│   ├── Main/               • メインタブビュー
+│   ├── Auth/               • ログイン・サインアップ画面
+│   ├── Profile/            • プロフィール関連画面
+│   ├── Posts/              • 投稿作成・詳細画面
+│   └── Components/         • 再利用可能UIコンポーネント
+│       ├── Advanced/       • 高度なUI要素（ガラスエフェクトなど）
+│       └── Shared/         • 基本UI要素
+│
+├── 🏗️ ViewModels/           # ViewModel層 - 状態管理とビジネスロジック
+│   ├── AuthManager.swift   • 認証ViewModel（状態 + ログイン処理）
+│   ├── PostManager.swift   • 投稿ViewModel（状態 + CRUD操作）
+│   ├── MapManager.swift    • 地図ViewModel（状態 + 位置情報処理）
+│   ├── AppSettings.swift   • アプリ設定ViewModel
+│   └── MyPageViewModel.swift• プロフィール画面ViewModel
+│
+├── 📦 Models/               # Model層 - データ構造定義
+│   ├── Post.swift          • 投稿データモデル
+│   ├── Comment.swift       • コメントデータモデル
+│   └── DatabaseModels.swift• DB関連モデル
+│
+├── 🌐 Repositories/         # Repository層 - データアクセス抽象化
+│   └── SupabaseService.swift• Supabaseリポジトリ実装
+│
+├── 🔧 Shared/               # 共通機能・ユーティリティ
+│   ├── Security/           • セキュリティユーティリティ
+│   ├── Design/             • デザインシステム
+│   ├── Logging/            • ログ機能
+│   ├── Protocols/          • 共通インターフェース
+│   ├── Supabase/           • データベースクライアント
+│   └── UIImage+Extensions.swift • Swift拡張機能
+│
+├── 🚀 App/                  # アプリケーション層
+│   ├── GlobeApp.swift      • アプリケーション起動点
+│   └── ContentView.swift   • ルートビュー
+│
+└── 🗄️ Database/             # インフラ層
+    └── migrations/         • データベースマイグレーション
 ```
 
-### Key Components
+### 🔄 データフローと責任
 
-| Component | Description |
-|-----------|------------|
-| `AuthManager` | 認証状態の管理とセッション制御 |
-| `PostManager` | 投稿の作成・取得・削除 |
-| `MapLocationService` | 位置情報サービスの管理 |
-| `InputValidator` | 入力値の検証とサニタイズ |
-| `SecureLogger` | セキュアなロギングシステム |
+```
+👆 User Action
+    ⬇️
+📱 View (SwiftUI)           ← UI表示・ユーザー操作受付
+    ⬇️
+🏗️ ViewModel (ObservableObject) ← 状態管理・ビジネスロジック実行
+    ⬇️
+🌐 Repository               ← データアクセス抽象化
+    ⬇️
+📦 Model                    ← データ構造・ビジネスルール
+    ⬇️
+🗄️ Database/API             ← データ永続化・外部サービス
+```
+
+### 🎭 各層の具体的な役割
+
+#### 📱 Views層 - 「UI表示とユーザー操作」
+**MVVMにおけるView層の責任**:
+- UI表示とレイアウト
+- ユーザー操作の受け取り
+- ViewModelの監視（`@StateObject`, `@ObservedObject`）
+- ローカルUI状態の管理（`@State`でモーダル表示など）
+
+**やらないこと**:
+- ビジネスロジックの実装
+- データの永続化
+- 複雑な状態計算
+
+```swift
+// ✅ Good - UIロジックのみ
+struct PostListView: View {
+    @StateObject private var postManager = PostManager.shared
+    @State private var showCreatePost = false
+
+    var body: some View {
+        List(postManager.posts) { post in
+            PostRowView(post: post)
+        }
+        .onAppear {
+            Task { await postManager.fetchPosts() }
+        }
+    }
+}
+```
+
+#### 🏗️ ViewModels層 - 「状態管理とビジネスロジック」
+**MVVMにおけるViewModel層の責任**:
+- アプリケーション状態の管理（`@Published`）
+- ビジネスルールとロジックの実装
+- 入力値の検証と変換
+- Repository/Serviceとの連携
+- ViewとModelの仲介
+
+**やらないこと**:
+- UIの直接操作や参照
+- データ構造の定義（それはModel層）
+
+```swift
+// ✅ Good - ビジネスロジックと状態管理
+@MainActor
+class PostViewModel: ObservableObject {
+    @Published var posts: [Post] = []
+    @Published var isLoading = false
+    @Published var error: String?
+
+    private let service = SupabaseService.shared
+
+    func createPost(content: String, location: CLLocationCoordinate2D) async {
+        // 1. 入力検証
+        guard !content.isEmpty else { return }
+
+        // 2. ビジネスルール適用
+        let post = Post(content: content, location: location, expiresAt: Date().addingTimeInterval(86400))
+
+        // 3. Service呼び出し
+        isLoading = true
+        do {
+            try await service.createPost(post)
+            await fetchPosts() // 状態更新
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
+```
+
+#### 📦 Models層 - 「データ構造とビジネスルール」
+**MVVMにおけるModel層の責任**:
+- データ構造の定義（struct, class）
+- ビジネスルールの実装（計算プロパティなど）
+- データの永続化インターフェース（Codable準拠）
+- ドメインロジック（`isExpired`など）
+
+**やらないこと**:
+- UI状態の管理（それはViewModel層）
+- ネットワーク通信（それはRepository層）
+
+```swift
+// ✅ Good - 純粋なデータ構造
+struct Post: Identifiable, Codable {
+    let id: UUID
+    let content: String
+    let createdAt: Date
+    let expiresAt: Date
+    let location: CLLocationCoordinate2D
+
+    // 計算プロパティは可
+    var isExpired: Bool {
+        Date() > expiresAt
+    }
+}
+```
+
+#### 🌐 Repositories層 - 「データアクセス抽象化」
+**MVVMにおけるRepository層の責任**:
+- 外部データソースとの通信（API、データベース）
+- データの変換（DTO ↔ Model）
+- データアクセスの抽象化（Protocolベース）
+- エラーハンドリングとリトライ処理
+
+**やらないこと**:
+- ビジネスロジックの実装（それはViewModel層）
+- UI状態の管理（それはViewModel層）
+
+```swift
+// ✅ Good - 外部通信に特化
+@MainActor
+class SupabaseService: ObservableObject {
+    @Published var posts: [Post] = []
+
+    func fetchPosts() async throws {
+        let response = try await supabase
+            .from("posts")
+            .select()
+            .execute()
+
+        let decoder = JSONDecoder()
+        self.posts = try decoder.decode([Post].self, from: response.data)
+    }
+}
+```
+
+### 🎯 MVVMパターンの利点
+
+| 利点 | 説明 |
+|-----|-----|
+| 🧩 **関心の分離** | View、ViewModel、Modelの責任が明確に分離 |
+| 🔄 **SwiftUI親和性** | `@StateObject`でViewModelを監視し自然なUI更新 |
+| 🧪 **テスタビリティ** | ViewModelを独立してユニットテスト可能 |
+| 📈 **再利用性** | ViewModelは複数のViewで再利用可能 |
+| 🌍 **業界標準** | iOS開発で広く採用されている一般的なパターン |
+
+### ⚠️ 避けるべきアンチパターン
+
+```swift
+// ❌ Bad - ViewにAPI呼び出し
+struct BadPostView: View {
+    func createPost() {
+        // ViewでSupabaseを直接呼び出すのはNG
+        supabase.from("posts").insert(post)
+    }
+}
+
+// ❌ Bad - Modelに状態管理
+struct BadPost: ObservableObject {
+    @Published var isLoading = false
+    func save() { /* ModelでAPI呼び出しはNG */ }
+}
+
+// ❌ Bad - Managerで複雑な継承
+class BadBaseManager: ObservableObject { /* 複雑な継承はNG */ }
+class BadPostManager: BadBaseManager { }
+```
+
+### 🔧 実装時のガイドライン
+
+1. **ViewModel作成時**: `@MainActor`付与 + `ObservableObject`準拠
+2. **View作成時**: `@StateObject`でViewModel監視
+3. **Model設計時**: `struct`でイミュータブルなデータ構造
+4. **Repository設計時**: Protocolベースで抽象化
 
 ## 🔧 Development
 
