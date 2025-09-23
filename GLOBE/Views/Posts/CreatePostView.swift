@@ -33,6 +33,7 @@ struct CreatePostView: View {
             VStack(spacing: 16) {
                 createHeader()
                 createMainPostSection()
+                createCameraSection()
                 createLocationSection()
                 Spacer()
             }
@@ -77,12 +78,21 @@ struct CreatePostView: View {
     }
     
     private func createHeader() -> some View {
-        GlassEffectContainer {
+        LiquidGlassCard(
+            id: "create-post-header",
+            cornerRadius: 16,
+            tint: Color.white.opacity(0.03),
+            strokeColor: Color.white.opacity(0.15),
+            highlightColor: Color.white.opacity(0.25),
+            contentPadding: EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
+            contentBackdropOpacity: 0.05
+        ) {
             HStack {
-                Button("キャンセル") {
-                    isPresented = false
+                Button("投稿") {
+                    createPost()
                 }
-                .foregroundColor(.white)
+                .foregroundColor(postText.isEmpty ? .gray : .white)
+                .disabled(postText.isEmpty)
 
                 Spacer()
 
@@ -92,19 +102,24 @@ struct CreatePostView: View {
 
                 Spacer()
 
-                Button("投稿") {
-                    createPost()
+                Button("キャンセル") {
+                    isPresented = false
                 }
-                .foregroundColor(postText.isEmpty ? .gray : .white)
-                .disabled(postText.isEmpty)
+                .foregroundColor(.white)
             }
-            .padding()
-            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
     
     private func createMainPostSection() -> some View {
-        GlassEffectContainer {
+        LiquidGlassCard(
+            id: "create-post-main",
+            cornerRadius: 20,
+            tint: Color.white.opacity(0.02),
+            strokeColor: Color.white.opacity(0.12),
+            highlightColor: Color.white.opacity(0.2),
+            contentPadding: EdgeInsets(top: 20, leading: 16, bottom: 20, trailing: 16),
+            contentBackdropOpacity: 0.03
+        ) {
             VStack(spacing: 0) {
                 // 写真プレビューエリア（写真がある場合のみ表示）
                 if let selectedImageData,
@@ -147,15 +162,6 @@ struct CreatePostView: View {
                             .foregroundColor(.white)
 
                         Spacer()
-
-                        // カメラボタン
-                        Button(action: {
-                            checkCameraPermissionAndOpen()
-                        }) {
-                            Image(systemName: "camera.fill")
-                                .font(.title2)
-                                .foregroundColor(.white.opacity(0.8))
-                        }
                     }
                     .padding(.horizontal)
                     .padding(.top)
@@ -183,17 +189,69 @@ struct CreatePostView: View {
                     }
                 }
             }
-            .padding()
-            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+    }
+
+    private func createCameraSection() -> some View {
+        LiquidGlassCard(
+            id: "create-post-camera",
+            cornerRadius: 12,
+            tint: Color.white.opacity(0.02),
+            strokeColor: Color.white.opacity(0.1),
+            highlightColor: Color.white.opacity(0.15),
+            contentPadding: EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16),
+            contentBackdropOpacity: 0.03
+        ) {
+            HStack {
+                // カメラボタン
+                Button(action: {
+                    checkCameraPermissionAndOpen()
+                }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white.opacity(0.8))
+
+                        Text("写真を追加")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                }
+
+                Spacer()
+
+                // プライバシー選択機能ボタン（将来の実装）
+                Button(action: {
+                    // TODO: プライバシー選択機能の実装
+                }) {
+                    HStack(spacing: 4) {
+                        Text("公開範囲")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.7))
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                }
+            }
         }
         .fullScreenCover(isPresented: $showingCamera) {
             CameraView(selectedImageData: $selectedImageData)
                 .ignoresSafeArea()
         }
     }
-    
+
     private func createLocationSection() -> some View {
-        GlassEffectContainer {
+        LiquidGlassCard(
+            id: "create-post-location",
+            cornerRadius: 12,
+            tint: Color.white.opacity(0.02),
+            strokeColor: Color.white.opacity(0.1),
+            highlightColor: Color.white.opacity(0.15),
+            contentPadding: EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16),
+            contentBackdropOpacity: 0.03
+        ) {
             HStack {
                 Image(systemName: displayLocation != nil ? "location.fill" : "location.slash")
                     .foregroundColor(displayLocation != nil ? .white.opacity(0.9) : .white.opacity(0.6))
@@ -205,8 +263,6 @@ struct CreatePostView: View {
 
                 Spacer()
             }
-            .padding()
-            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
     
