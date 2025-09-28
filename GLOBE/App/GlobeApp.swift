@@ -6,7 +6,10 @@ struct GlobeApp: App {
     init() {
         // ConsoleLoggerを初期化（本番は静かに）
         let consoleLogger = ConsoleLogger.shared
-        
+
+        // Supabase設定を初期化
+        initializeSupabaseConfig()
+
         // Keychainの古い設定をクリアして、Secrets.plistから再読み込み
         clearKeychainAndReloadConfig()
         
@@ -27,6 +30,37 @@ struct GlobeApp: App {
         }
     }
     
+    private func initializeSupabaseConfig() {
+        // Supabase設定を直接Keychainに保存
+        let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
+        let supabaseURL = "https://kkznkqshpdzlhtuawasm.supabase.co"
+        let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtrem5rcXNocGR6bGh0dWF3YXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTA5NzAsImV4cCI6MjA3MDg4Njk3MH0.BXF3JVvs0M7Mgp9whEwFXd6PRfEwEMcCbKfnRBROEBM"
+
+        // URLをKeychainに保存
+        let urlData = supabaseURL.data(using: .utf8)!
+        let urlQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "supabase_url",
+            kSecAttrService as String: service,
+            kSecValueData as String: urlData
+        ]
+        SecItemDelete(urlQuery as CFDictionary)
+        SecItemAdd(urlQuery as CFDictionary, nil)
+
+        // Anon KeyをKeychainに保存
+        let keyData = supabaseAnonKey.data(using: .utf8)!
+        let keyQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "supabase_anon_key",
+            kSecAttrService as String: service,
+            kSecValueData as String: keyData
+        ]
+        SecItemDelete(keyQuery as CFDictionary)
+        SecItemAdd(keyQuery as CFDictionary, nil)
+
+        print("✅ Supabase configuration initialized in Keychain")
+    }
+
     private func clearKeychainAndReloadConfig() {
         // 開発環境でのみ、間違ったURLが保存されている場合にクリア
         let service = Bundle.main.bundleIdentifier ?? "com.globe.app"

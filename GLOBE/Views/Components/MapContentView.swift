@@ -18,7 +18,7 @@ struct MapContentView: View {
     @Binding var showingCreatePost: Bool
     @Binding var shouldMoveToCurrentLocation: Bool
     @Binding var tappedLocation: CLLocationCoordinate2D?
-    @Binding var vTipPoint: CGPoint?
+    @Binding var vTipPoint: CGPoint
 
     @State private var mapCameraPosition: MapCameraPosition = .camera(
         MapCamera(
@@ -153,7 +153,7 @@ struct MapContentView: View {
         @State private var showingCreatePost = false
         @State private var shouldMoveToCurrentLocation = false
         @State private var tappedLocation: CLLocationCoordinate2D?
-        @State private var vTipPoint: CGPoint?
+        @State private var vTipPoint: CGPoint = CGPoint.zero
 
         var body: some View {
             MapContentView(
