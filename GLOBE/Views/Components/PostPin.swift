@@ -9,6 +9,62 @@ import Foundation
 import CoreLocation
 import UIKit
 
+// MARK: - Speech Bubble Shape for Post Cards
+struct PostCardBubbleShape: Shape {
+    let cornerRadius: CGFloat
+    let tailWidth: CGFloat
+    let tailHeight: CGFloat
+
+    init(cornerRadius: CGFloat = 12, tailWidth: CGFloat = 20, tailHeight: CGFloat = 10) {
+        self.cornerRadius = cornerRadius
+        self.tailWidth = tailWidth
+        self.tailHeight = tailHeight
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+
+        // Safety checks to prevent crashes
+        guard rect.width > 0, rect.height > tailHeight else {
+            return path
+        }
+
+        // Main rounded rectangle (card body)
+        let mainRect = CGRect(
+            x: rect.minX,
+            y: rect.minY,
+            width: rect.width,
+            height: max(0, rect.height - tailHeight)
+        )
+
+        // Add rounded rectangle for main body
+        if mainRect.width > 0 && mainRect.height > 0 {
+            path.addRoundedRect(in: mainRect, cornerSize: CGSize(width: cornerRadius, height: cornerRadius))
+        }
+
+        // Add simple triangle tail
+        let tailCenterX = rect.midX
+        let tailBaseY = mainRect.maxY
+        let tailTipY = rect.maxY
+
+        // Safety check for triangle
+        if tailTipY > tailBaseY && tailWidth > 0 {
+            // Triangle points
+            let leftPoint = CGPoint(x: tailCenterX - tailWidth / 2, y: tailBaseY)
+            let rightPoint = CGPoint(x: tailCenterX + tailWidth / 2, y: tailBaseY)
+            let tipPoint = CGPoint(x: tailCenterX, y: tailTipY)
+
+            // Draw triangle
+            path.move(to: leftPoint)
+            path.addLine(to: tipPoint)
+            path.addLine(to: rightPoint)
+            path.addLine(to: leftPoint)
+        }
+
+        return path
+    }
+}
+
 struct PostPin: View {
     private let customBlack = Color.black
     private let iconExtraOffset: CGFloat = 8
@@ -22,6 +78,7 @@ struct PostPin: View {
     @State private var showingUserProfile = false
     @State private var showingImageViewer = false
     @State private var showingComments = false
+    @State private var showingDeleteAlert = false
     private var borderWidth: CGFloat { 1.2 }
 
     private var hasImageContent: Bool {
@@ -119,16 +176,30 @@ struct PostPin: View {
         )
         return ceil(boundingBox.height)
     }
-    
+
+    // MARK: - Helper Methods
+    private func captionText(_ text: String, fontSize: CGFloat = 9) -> some View {
+        Text(text)
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundColor(.white)
+            .multilineTextAlignment(.leading)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: contentWidth, alignment: .leading)
+            .padding(.horizontal, 8)
+    }
+
     var body: some View {
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let hasText = !post.text.isEmpty
         let isPhotoOnly = hasImage && !hasText
 
         GlassEffectContainer {
-            VStack(alignment: .leading, spacing: 2) {
-            // MARK: - Content Area (Photo and/or Text)
-            VStack(alignment: .leading, spacing: 2) {
+            ZStack(alignment: .topTrailing) {
+                // Main content
+                VStack(alignment: .leading, spacing: 2) {
+                // MARK: - Content Area (Photo and/or Text)
+                VStack(alignment: .leading, spacing: 2) {
                 // Photo content
             if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                 let inset: CGFloat = isPhotoOnly ? 2 : 6
@@ -260,10 +331,31 @@ struct PostPin: View {
                 .padding(.top, 2)
             }
             }
-            .frame(width: cardWidth, height: cardHeight, alignment: .top)
+            .frame(width: cardWidth, height: cardHeight + 12, alignment: .top) // Added tail height
             .padding(.bottom, bottomPadding)
-            // Apply transparent Liquid Glass effect
-            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: cardCornerRadius, style: .continuous))
+
+                // Delete button overlay - always show for own posts
+                // Debug: Check if current user owns this post
+                let isOwner = post.authorId == authManager.currentUser?.id
+                if isOwner {
+                    let _ = print("🗑️ PostPin - Showing delete for post: \(post.id), isAnonymous: \(post.isAnonymous), authorId: \(post.authorId), currentUserId: \(authManager.currentUser?.id ?? "nil")")
+                    Menu {
+                        Button(role: .destructive) {
+                            showingDeleteAlert = true
+                        } label: {
+                            Label("Delete Post", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(8)
+                }
+            }
+            // Apply transparent Liquid Glass effect with speech bubble
+            .glassEffect(.clear, in: PostCardBubbleShape(cornerRadius: cardCornerRadius, tailWidth: 25, tailHeight: 12))
         }  // Close GlassEffectContainer
         .onAppear {
             commentService.loadComments(for: post.id)
@@ -289,22 +381,18 @@ struct PostPin: View {
                 .presentationDetents([.fraction(0.5)]) // 画面の半分の高さ
                 .presentationDragIndicator(.visible)
         }
-    }
-}
-
-// MARK: - Helper extension for PostPin
-private extension PostPin {
-    func captionText(_ text: String, fontSize: CGFloat = 9) -> some View {
-        Text(text)
-            .font(.system(size: fontSize, weight: .bold))
-            .foregroundColor(.white)
-            .multilineTextAlignment(.leading)
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: contentWidth, alignment: .leading)
-            .padding(.horizontal, 8)
-    }
-}
+        .alert("Delete Post", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    await PostManager.shared.deletePost(post.id)
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this post? This action cannot be undone.")
+        }
+    } // End of body
+} // End of PostPin struct
 
 // Scalable PostPin that adjusts size based on map zoom level
 struct ScalablePostPin: View {
@@ -318,6 +406,7 @@ struct ScalablePostPin: View {
     @State private var showingUserProfile = false
     @State private var showingImageViewer = false
     @State private var showingComments = false
+    @State private var showingDeleteAlert = false
     private var borderWidth: CGFloat { 1.2 }
     
     private var scaleFactor: CGFloat {
@@ -429,6 +518,16 @@ struct ScalablePostPin: View {
                         PhotoViewerView(imageUrl: url) { showingImageViewer = false }
                     }
                 }
+                .alert("Delete Post", isPresented: $showingDeleteAlert) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            await PostManager.shared.deletePost(post.id)
+                        }
+                    }
+                } message: {
+                    Text("Are you sure you want to delete this post? This action cannot be undone.")
+                }
         }
     }
 
@@ -436,7 +535,8 @@ struct ScalablePostPin: View {
     private var cardView: some View {
         let dynamicCornerRadius: CGFloat = max(12, cardCornerRadius * fontScale)
 
-        VStack(alignment: .leading, spacing: stackSpacing) {
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: stackSpacing) {
             if showHeaderMeta && !hasImage {
                 HStack(spacing: 3 * fontScale) {
                     Button(action: {
@@ -551,9 +651,27 @@ struct ScalablePostPin: View {
                 .contentShape(Rectangle())
             }
         }  // Close VStack
-        .frame(width: cardWidth, height: dynamicHeight)
-        // Apply transparent Liquid Glass effect
-        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: dynamicCornerRadius, style: .continuous))
+        .frame(width: cardWidth, height: dynamicHeight + 10 * fontScale) // Added tail height
+
+            // Delete button overlay - always show for own posts
+            if post.authorId == authManager.currentUser?.id {
+                Menu {
+                    Button(role: .destructive) {
+                        showingDeleteAlert = true
+                    } label: {
+                        Label("Delete Post", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 12 * fontScale, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(8 * fontScale)
+            }
+        }  // Close ZStack
+        // Apply transparent Liquid Glass effect with speech bubble
+        .glassEffect(.clear, in: PostCardBubbleShape(cornerRadius: dynamicCornerRadius, tailWidth: 20 * fontScale, tailHeight: 10 * fontScale))
         .overlay(alignment: .bottom) {
             // Hide profile icon for anonymous posts
             if !post.isAnonymous && scaleFactor >= 0.9 {

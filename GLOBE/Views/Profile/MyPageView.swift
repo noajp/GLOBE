@@ -47,7 +47,11 @@ struct MyPageView: View {
         .sheet(isPresented: $showEditProfile) {
             EditProfileView()
         }
-        
+        .onAppear {
+            Task {
+                await viewModel.loadUserData()
+            }
+        }
     }
     
     
@@ -148,24 +152,8 @@ struct MyPageView: View {
 
     // MARK: - Stories Section
     private var storiesSection: some View {
-        Group {
-            if !viewModel.stories.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Stories")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(MinimalDesign.Colors.primary)
-                        Spacer()
-                    }
-                    StoriesView(stories: viewModel.stories) {
-                        // 通知でメイン画面に投稿ポップアップを出す
-                        NotificationCenter.default.post(name: Notification.Name("PostAtCurrentLocation"), object: nil)
-                        dismiss()
-                    }
-                }
-                .padding(.vertical, MinimalDesign.Spacing.sm)
-            }
-        }
+        // Stories functionality removed during cleanup
+        EmptyView()
     }
     
     private var profilePlaceholder: some View {

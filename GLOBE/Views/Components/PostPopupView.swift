@@ -24,7 +24,6 @@ struct PostPopupView: View {
     @ObservedObject var mapManager: MapManager
     let initialLocation: CLLocationCoordinate2D? // Add parameter for exact post location
     var postType: PostType = .textPost // Default to text post
-    @StateObject private var locationManager = PostLocationManager()
     @StateObject private var mapLocationService = MapLocationService()
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var postManager = PostManager.shared
@@ -59,45 +58,54 @@ struct PostPopupView: View {
     
     var body: some View {
         ZStack {
-            // Popup content with speech bubble tail
+            // Popup content with speech bubble design
             GlassEffectContainer {
                 VStack(spacing: 0) {
-                    postCreationView
+                    // Main card with rounded corners
+                    VStack(spacing: 0) {
+                        postCreationView
+                    }
+                    .frame(width: 280, height: 210) // Reduced height for slimmer card
+                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                    )
+
+                    // Simple triangle tail below card
+                    Triangle()
+                        .fill(Color.clear)
+                        .frame(width: 50, height: 25)
+                        .glassEffect(.clear, in: Triangle())
+                        .rotationEffect(.degrees(180))
+                        .offset(y: -1) // Slight overlap to hide seam
                 }
-                .frame(width: 270, height: 189)
-                .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                )
-                .clipped(antialiased: false) // Allow overflow for dropdown
-                // Note: Do not add a parent onTapGesture here; it can interfere with inner Buttons
-                .overlay(
-                    speechBubbleTail
-                        .allowsHitTesting(false),
-                    alignment: .bottom
-                )
-                .shadow(radius: 10)
             }
-            .clipped(antialiased: false) // Allow dropdown to overflow container
-            // 吹き出しV先端のスクリーン座標をPreferenceで親に通知
-            .overlay(alignment: .bottom) {
-                GeometryReader { proxy in
-                    Color.clear
-                        .frame(width: 1, height: 1)
-                        // V先端はカードの下端から約15pt下
-                        .offset(y: 15)
-                        .preference(key: VTipPreferenceKey.self, value: {
-                            let f = proxy.frame(in: .global)
-                            // 吹き出し三角の高さ分（約15pt）を下に補正してV先端の画面座標に一致
-                            return CGPoint(x: f.midX, y: f.maxY + 15)
-                        }())
-                }
-                .frame(width: 1, height: 1)
-            }
+            .shadow(radius: 10)
+            // TEMPORARILY DISABLED - VTipPreferenceKey causes crashes
+            // .overlay(alignment: .bottom) {
+            //     GeometryReader { proxy in
+            //         Color.clear
+            //             .frame(width: 1, height: 1)
+            //             .preference(key: VTipPreferenceKey.self, value: {
+            //                 let f = proxy.frame(in: .global)
+            //                 // Speech bubble tail tip position (integrated into shape)
+            //                 return CGPoint(x: f.midX, y: f.maxY)
+            //             }())
+            //     }
+            //     .frame(width: 1, height: 1)
+            // }
 
             // Privacy selection popup from bottom
             if showPrivacyDropdown {
+                Color.black.opacity(0.001) // Invisible tap area
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            showPrivacyDropdown = false
+                        }
+                    }
+
                 privacyPopupView
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(1000)
@@ -147,47 +155,71 @@ struct PostPopupView: View {
     
     // MARK: - Header View
     private var headerView: some View {
-        HStack {
-            Button(action: createPost) {
-                Text("POST")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-            }
-            .background(.white.opacity(0.9))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.3), lineWidth: 1))
-            .disabled(isButtonDisabled || isSubmitting)
-            .onAppear {
-                print("🔘 PostPopup - Button state on appear: disabled=\(isButtonDisabled)")
-            }
+        Rectangle()
+            .fill(.clear)
+            .frame(width: 280, height: 44) // Adjusted for smaller popup
+            .overlay(
+                ZStack {
+                    // X button - TOP LEFT (same size as chevron button)
+                    Button(action: {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        isPresented = false
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.black)
+                            .padding(6)
+                    }
+                    .background(.white.opacity(0.9))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                    .position(x: 20, y: 22) // ABSOLUTE POSITION - LEFT SIDE
 
-            Spacer()
+                    // POST button - base layer (white background)
+                    Button(action: createPost) {
+                        Text("POST")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.black)
+                            .padding(.vertical, 7)
+                            .padding(.leading, 16) // Move text to the right
+                            .padding(.trailing, 8) // Less padding on the right
+                    }
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.3), lineWidth: 1))
+                    .disabled(isButtonDisabled || isSubmitting)
+                    .position(x: 240, y: 22)
 
-            Button(action: {
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                isPresented = false
-            }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.black)
-                    .padding(8)
-            }
-            .background(.white.opacity(0.9))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .zIndex(1) // ensure header stays above other layers for hit testing
+                    // Chevron button - overlaid on top of POST button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            showPrivacyDropdown.toggle()
+                        }
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(9)
+                            .rotationEffect(.degrees(showPrivacyDropdown ? 90 : 0))
+                    }
+                    .background(.black)
+                    .clipShape(Circle())
+                    .glassEffect(.clear, in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                    .position(x: 218, y: 22) // Positioned on top of POST button
+                    .onAppear {
+                        print("🔘 PostPopup - Button state on appear: disabled=\(isButtonDisabled)")
+                    }
+                }
+            )
+            .zIndex(1) // ensure header stays above other layers for hit testing
     }
     
     
     // MARK: - Text Input View
     private var textInputView: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            TextField("何を投稿しますか？", text: Binding(
+            TextField("text", text: Binding(
                 get: { postText },
                 set: { newValue in
                     postText = newValue
@@ -208,17 +240,16 @@ struct PostPopupView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
-
     
-    // MARK: - Bottom Section View - ABSOLUTELY NO MOVEMENT!!!
+    // MARK: - Bottom Section View 
     private var bottomSectionView: some View {
         // TOTALLY STATIC FRAME - NEVER CHANGES SIZE
         Rectangle()
             .fill(.clear)
-            .frame(width: 270, height: 40) // FIXED SIZE ALWAYS
+            .frame(width: 280, height: 50) // Back to safer size
             .overlay(
                 ZStack {
-                    // Camera button - POSITIONED ABOVE PRIVACY BUTTON
+                    // Camera button - TOP ROW, RIGHT SIDE
                     Button(action: {
                         // TODO: カメラ機能の実装
                         print("📷 PostPopup: Camera button pressed")
@@ -226,15 +257,15 @@ struct PostPopupView: View {
                         Image(systemName: "camera.fill")
                             .foregroundColor(.black)
                             .font(.system(size: 14, weight: .medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal,15 )
+                            .padding(.vertical, 7)
                     }
                     .background(.white.opacity(0.9))
                     .clipShape(Circle())
                     .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-                    .position(x: 135, y: 20) // CENTER POSITION (above privacy button)
+                    .position(x: 245, y: 2) // Camera button at y:2
 
-                    // Location button - LOCKED POSITION (LEFT SIDE)
+                    // Location button - BOTTOM ROW, LEFT SIDE
                     Button(action: {
                         print("📍 PostPopup: Location button pressed")
                         // Move map to user's current location
@@ -253,7 +284,7 @@ struct PostPopupView: View {
                             }
                         } else {
                             // Request location if not available
-                            mapLocationService.requestLocation()
+                            mapLocationService.startLocationServices()
                         }
                     }) {
                         Image(systemName: postLocation != nil ? "location.fill" : "location")
@@ -265,32 +296,18 @@ struct PostPopupView: View {
                     .background(.white.opacity(0.9))
                     .clipShape(Circle())
                     .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-                    .position(x: 25, y: 20) // FURTHER LEFT POSITION
+                    .position(x: 20, y: 5) // Location button adjusted
 
-                    // Privacy button - LOCKED POSITION (RIGHT SIDE)
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showPrivacyDropdown = true
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.black)
-
-                            Text(selectedPrivacyType == .publicPost ? "Post publicly" :
-                                 selectedPrivacyType == .followersOnly ? "Post to followers" : "Post anonymously")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.black)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
+                    // Privacy text display (shown when dropdown is open)
+                    if showPrivacyDropdown {
+                        Text(selectedPrivacyType == .publicPost ? "Post publicly" :
+                             selectedPrivacyType == .followersOnly ? "Post to followers" : "Post anonymously")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 120, height: 20)
+                            .position(x: 180, y: 5)
+                            .transition(.opacity.combined(with: .scale))
                     }
-                    .frame(width: 140, height: 28)
-                    .background(.white.opacity(0.9))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.3), lineWidth: 1))
-                    .position(x: 195, y: 20) // RIGHT SIDE POSITION
                 }
             )
     }
@@ -310,6 +327,8 @@ struct PostPopupView: View {
     private var privacyPopupView: some View {
         VStack {
             Spacer()
+            Spacer() // Additional spacer to push popup lower
+            Spacer() // Extra spacer to push popup even lower
 
             VStack(spacing: 0) {
                 // Header
@@ -487,56 +506,14 @@ struct PostPopupView: View {
 }
 
 
-// MARK: - V Tip Preference
-struct VTipPreferenceKey: PreferenceKey {
-    static var defaultValue: CGPoint? = nil
-    static func reduce(value: inout CGPoint?, nextValue: () -> CGPoint?) {
-        if let next = nextValue() { value = next }
-    }
-}
+// MARK: - Speech Bubble Shape - TEMPORARILY DISABLED DUE TO CRASHES
+// Replaced with separate RoundedRectangle and Triangle components
 
-// MARK: - PostLocationManager for PostPopup
-class PostLocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
-    private let locationManager = CLLocationManager()
-    @Published var location: CLLocationCoordinate2D?
-    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
-    private var locationUpdateCompletion: ((CLLocationCoordinate2D?) -> Void)?
+// MARK: - V Tip Preference - TEMPORARILY DISABLED
+// struct VTipPreferenceKey: PreferenceKey {
+//     static var defaultValue: CGPoint = CGPoint.zero
+//     static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) {
+//         value = nextValue()
+//     }
+// }
 
-    override init() {
-        super.init()
-        locationManager.delegate = self
-        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
-    }
-
-    func requestLocationPermission() {
-        locationManager.requestWhenInUseAuthorization()
-    }
-
-    func requestLocationUpdate(completion: @escaping (CLLocationCoordinate2D?) -> Void) {
-        locationUpdateCompletion = completion
-        locationManager.requestLocation()
-    }
-
-    // MARK: - CLLocationManagerDelegate
-    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        authorizationStatus = manager.authorizationStatus
-    }
-
-    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let location = locations.first else {
-            locationUpdateCompletion?(nil)
-            locationUpdateCompletion = nil
-            return
-        }
-
-        self.location = location.coordinate
-        locationUpdateCompletion?(location.coordinate)
-        locationUpdateCompletion = nil
-    }
-
-    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("❌ PostLocationManager - Failed to get location: \(error.localizedDescription)")
-        locationUpdateCompletion?(nil)
-        locationUpdateCompletion = nil
-    }
-}

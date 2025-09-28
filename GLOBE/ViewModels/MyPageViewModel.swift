@@ -9,7 +9,7 @@ import Supabase
 import CoreLocation
 
 @MainActor
-final class MyPageViewModel: BaseViewModel {
+final class MyPageViewModel: ObservableObject {
     // MARK: - Published Properties
 
     @Published var userProfile: UserProfile?
@@ -17,25 +17,23 @@ final class MyPageViewModel: BaseViewModel {
     @Published var postsCount: Int = 0
     @Published var followersCount: Int = 0
     @Published var followingCount: Int = 0
-    @Published var stories: [Story] = []
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
 
     // MARK: - Dependencies
 
     private let authService: any AuthServiceProtocol
-    private let userRepository: any UserRepositoryProtocol
-    private let postRepository: any PostRepositoryProtocol
-    private let cacheRepository: any CacheRepositoryProtocol
-    
+    private var supabase: SupabaseClient { supabaseSync }
+
     // MARK: - Private Properties
-    
+
     private var hasLoadedInitially = false
     private var currentUserId: String? {
         authService.currentUser?.id
     }
 
     private let logger = SecureLogger.shared
+    private var cancellables = Set<AnyCancellable>()
 
     private func handleAuthStateChange() {
         if authService.isAuthenticated {
@@ -50,7 +48,6 @@ final class MyPageViewModel: BaseViewModel {
     private func clearUserData() {
         userProfile = nil
         userPosts = []
-        stories = []
         postsCount = 0
         followersCount = 0
         followingCount = 0
@@ -59,18 +56,8 @@ final class MyPageViewModel: BaseViewModel {
     
     // MARK: - Initialization
 
-    init(
-        authService: (any AuthServiceProtocol)? = nil,
-        userRepository: (any UserRepositoryProtocol)? = nil,
-        postRepository: (any PostRepositoryProtocol)? = nil,
-        cacheRepository: (any CacheRepositoryProtocol)? = nil
-    ) {
+    init(authService: (any AuthServiceProtocol)? = nil) {
         self.authService = authService ?? AuthManager.shared
-        self.userRepository = userRepository ?? UserRepository.create()
-        self.postRepository = postRepository ?? PostRepository.create()
-        self.cacheRepository = cacheRepository ?? CacheRepository.create()
-
-        super.init()
 
         setupObservers()
         loadInitialData()
@@ -85,7 +72,7 @@ final class MyPageViewModel: BaseViewModel {
             .sink { [weak self] _ in
                 self?.handleAuthStateChange()
             }
-            .store(with: self)
+            .store(in: &cancellables)
     }
 
     private func loadInitialData() {
@@ -93,9 +80,8 @@ final class MyPageViewModel: BaseViewModel {
             // まずプロフィールと認証情報を同期
             await syncProfileWithAuthData()
             await loadUserDataIfNeeded()
-            await loadFollowedStories()
         }
-        
+
     }
     
     // MARK: - Public Methods
@@ -115,8 +101,16 @@ final class MyPageViewModel: BaseViewModel {
         isLoading = true
 
         do {
-            // Load profile using repository
-            if let profile = try await userRepository.getUserProfile(by: userId) {
+            // Load profile directly from Supabase
+            let profileResult = try await supabase
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .execute()
+
+            let profiles = try? JSONDecoder().decode([UserProfile].self, from: profileResult.data)
+
+            if let profile = profiles?.first {
                 userProfile = profile
                 SecureLogger.shared.info("Profile loaded successfully username=\(profile.username)")
             } else {
@@ -126,10 +120,17 @@ final class MyPageViewModel: BaseViewModel {
                 return
             }
 
-            // Load user posts using repository
-            let posts = try await postRepository.getPostsByUser(userId)
-            userPosts = posts
-            postsCount = posts.count
+            // Load user posts directly from Supabase
+            let postsResult = try await supabase
+                .from("posts")
+                .select()
+                .eq("user_id", value: userId)
+                .order("created_at", ascending: false)
+                .execute()
+
+            let posts = try? JSONDecoder().decode([Post].self, from: postsResult.data)
+            userPosts = posts ?? []
+            postsCount = userPosts.count
 
             // Update local user profile with post count
             if var profile = userProfile {
@@ -162,80 +163,6 @@ final class MyPageViewModel: BaseViewModel {
         }
     }
 
-    /// フォロー中ユーザーの最新ストーリーを取得（24時間以内の画像付き投稿）
-    func loadFollowedStories(limit: Int = 20) async {
-        guard let userId = currentUserId else { return }
-        do {
-            // 1) フォロー中のユーザーID一覧
-            let followsRes = try await supabase
-                .from("follows")
-                .select("following_id")
-                .eq("follower_id", value: userId)
-                .eq("status", value: "accepted")
-                .execute()
-
-            struct FollowRow: Decodable { let following_id: String }
-            let followingRows = try JSONDecoder().decode([FollowRow].self, from: followsRes.data)
-            let followingIds = followingRows.map { $0.following_id }
-            guard !followingIds.isEmpty else {
-                await MainActor.run { self.stories = [] }
-                return
-            }
-
-            // 2) 24時間以内の画像付き投稿を取得（プロフィール名・アバター付き）
-            // 注意: in() フィルタはSDKにより表記が異なるため、orクエリで代替
-            let sinceISO = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-24*60*60))
-            let orFilter = followingIds.map { "user_id.eq.\($0)" }.joined(separator: ",")
-            let postsRes = try await supabase
-                .from("posts")
-                .select("id,user_id,content,image_url,created_at,profiles(display_name,username,avatar_url)")
-                .or(orFilter)
-                .not("image_url", operator: .is, value: "null")
-                .gte("created_at", value: sinceISO)
-                .order("created_at", ascending: false)
-                .limit(limit)
-                .execute()
-
-            struct Row: Decodable {
-                let user_id: String
-                let content: String?
-                let image_url: String?
-                let created_at: Date
-                let profiles: DatabaseProfile?
-            }
-
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let rows = try decoder.decode([Row].self, from: postsRes.data)
-
-            var built: [Story] = []
-            for row in rows {
-                let name = row.profiles?.display_name ?? row.profiles?.username ?? "ユーザー"
-                // 可能ならアバターと画像をフェッチ（失敗は無視して軽量に）
-                var avatarData: Data? = nil
-                if let avatar = row.profiles?.avatar_url, let url = URL(string: avatar) {
-                    if let data = try? await URLSession.shared.data(from: url).0 { avatarData = data }
-                }
-                var imageData = Data()
-                if let iu = row.image_url, let url = URL(string: iu) {
-                    if let data = try? await URLSession.shared.data(from: url).0 { imageData = data }
-                }
-                let story = Story(
-                    userId: row.user_id,
-                    userName: name,
-                    userAvatarData: avatarData,
-                    imageData: imageData,
-                    text: row.content,
-                    createdAt: row.created_at
-                )
-                built.append(story)
-            }
-
-            await MainActor.run { self.stories = built }
-        } catch {
-            SecureLogger.shared.error("Failed to load followed stories: \(error.localizedDescription)")
-        }
-    }
     
     // MARK: - Profile Creation
     
@@ -243,7 +170,7 @@ final class MyPageViewModel: BaseViewModel {
     private func createProfileFromAuthData() async {
         // Supabaseのセッションから実際のユーザーIDを取得
         do {
-            let session = try await (await supabase).auth.session
+            let session = try await supabase.auth.session
             let userId = session.user.id.uuidString
             let _ = session.user.userMetadata["username"]?.stringValue ?? 
                          session.user.email?.components(separatedBy: "@").first ?? "user"
@@ -445,17 +372,17 @@ final class MyPageViewModel: BaseViewModel {
             print("🖼️ Uploading avatar for user: \(userId) to avatars/\(fileName)")
 
             // Upload to 'avatars' bucket (SDK default options)
-            try await (await supabase).storage
+            try await supabase.storage
                 .from("avatars")
                 .upload(fileName, data: jpegData)
 
-            let publicURL = try (await supabase).storage
+            let publicURL = try supabase.storage
                 .from("avatars")
                 .getPublicURL(path: fileName)
                 .absoluteString
 
             // Update profiles.avatar_url
-            try await (await supabase)
+            try await supabase
                 .from("profiles")
                 .update(["avatar_url": AnyJSON.string(publicURL)])
                 .eq("id", value: userId)

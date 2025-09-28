@@ -38,6 +38,15 @@ class AuthManager: AuthServiceProtocol {
     private var loginAttempts: [String: (count: Int, lastAttempt: Date)] = [:]
     
     private init() {
+        // 開発環境でのログインスキップチェック
+        #if DEBUG
+        if isDevelopmentLoginSkipEnabled() {
+            enableDevelopmentAuth()
+            logger.info("AuthManager initialized with development login skip")
+            return
+        }
+        #endif
+
         // 初期化時は現在のセッションをチェック
         Task {
             let _ = await checkCurrentUser()
@@ -407,4 +416,45 @@ class AuthManager: AuthServiceProtocol {
             // プロフィール作成に失敗してもアカウント作成は成功させる
         }
     }
+
+    // MARK: - Development Login Skip
+
+    #if DEBUG
+    /// 開発環境でのログインスキップが有効かチェック
+    private func isDevelopmentLoginSkipEnabled() -> Bool {
+        // UserDefaultsまたは環境変数でチェック
+        return UserDefaults.standard.bool(forKey: "DEV_SKIP_LOGIN")
+    }
+
+    /// 開発環境用の認証状態を設定
+    func enableDevelopmentAuth() {
+        let devUser = AppUser(
+            id: "dev-user-\(UUID().uuidString.prefix(8))",
+            email: "dev@globe.app",
+            username: "dev_user",
+            createdAt: ISO8601DateFormatter().string(from: Date())
+        )
+
+        currentUser = devUser
+        isAuthenticated = true
+        logger.info("Development authentication enabled for user: \(devUser.id)")
+    }
+
+    /// 開発環境ログインスキップの有効化
+    func enableDevelopmentLoginSkip() {
+        UserDefaults.standard.set(true, forKey: "DEV_SKIP_LOGIN")
+        logger.info("Development login skip enabled")
+
+        // 即座に認証状態を設定
+        enableDevelopmentAuth()
+    }
+
+    /// 開発環境ログインスキップの無効化
+    func disableDevelopmentLoginSkip() {
+        UserDefaults.standard.removeObject(forKey: "DEV_SKIP_LOGIN")
+        currentUser = nil
+        isAuthenticated = false
+        logger.info("Development login skip disabled")
+    }
+    #endif
 }

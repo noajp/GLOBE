@@ -17,7 +17,7 @@ struct MainTabView: View {
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var shouldShowPostAfterDelay = false
     @State private var tappedLocation: CLLocationCoordinate2D?
-    @State private var vTipPoint: CGPoint?
+    @State private var vTipPoint: CGPoint = CGPoint.zero
 
 
     // カスタムデザイン用の色定義
@@ -37,7 +37,7 @@ struct MainTabView: View {
                     showingCreatePost: $showingCreatePost,
                     shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
                     tappedLocation: $tappedLocation,
-                    vTipPoint: $vTipPoint
+                    vTipPoint: .constant(CGPoint.zero) // TEMPORARILY DISABLED
                 )
                     .environmentObject(appSettings)
                     .ignoresSafeArea(.all)
@@ -74,17 +74,17 @@ struct MainTabView: View {
                         mapManager: mapManager,
                         initialLocation: tappedLocation
                     )
-                    // ポップアップ位置を画面中央やや下に調整
-                    .offset(y: -20)
+                    // ポップアップ位置を画面中央やや上に調整
+                    .offset(y: -80)
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
                     .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
                 }
             }
-            // 吹き出しVのスクリーン座標を受け取ってMapへ渡す
-            .onPreferenceChange(VTipPreferenceKey.self) { point in
-                self.vTipPoint = point
-            }
+            // TEMPORARILY DISABLED - VTipPreferenceKey causes crashes
+            // .onPreferenceChange(VTipPreferenceKey.self) { point in
+            //     self.vTipPoint = point
+            // }
         )
         .fullScreenCover(isPresented: $showingAuth) {
             AuthenticationView()
@@ -113,6 +113,11 @@ struct MainTabView: View {
             // 位置情報サービスを開始
             locationManager.startLocationServices()
 
+            #if DEBUG
+            // 開発環境でのログインスキップ（デバッグビルドのみ）
+            authManager.enableDevelopmentAuth()
+            // 開発環境では認証画面を表示しない
+            #else
             // アプリ起動時に認証状態をチェック - 次のレンダリングサイクルで実行
             Task { @MainActor in
                 if !authManager.isAuthenticated {
@@ -122,6 +127,14 @@ struct MainTabView: View {
                     await mapManager.fetchInitialPostsIfNeeded()
                 }
             }
+            #endif
+
+            // 開発環境でも投稿を読み込み
+            #if DEBUG
+            Task { @MainActor in
+                await mapManager.fetchInitialPostsIfNeeded()
+            }
+            #endif
         }
         .onChange(of: authManager.isAuthenticated) { _, authed in
             if authed {
