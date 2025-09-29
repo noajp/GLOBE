@@ -46,15 +46,12 @@ struct PostPopupView: View {
     
     // Computed properties to reduce complexity
     private var isButtonDisabled: Bool {
-        let hasText = !postText.isEmpty
-        let disabled = !hasText
-        print("🔘 PostPopup - isButtonDisabled calculated: \(disabled) (hasText=\(hasText))")
-        return disabled
+        postText.isEmpty || postText.count > maxTextLength
     }
 
     // 投稿ボタンがアクティブになる条件を集約
     private var isPostActionEnabled: Bool {
-        !isButtonDisabled && !isSubmitting
+        !postText.isEmpty && postText.count <= maxTextLength && !isSubmitting
     }
     
     private var maxTextLength: Int {
@@ -162,9 +159,9 @@ struct PostPopupView: View {
     private var headerView: some View {
         Rectangle()
             .fill(Color.clear)
-            .frame(width: 280, height: 56)
+            .frame(width: 280, height: 52)
             .overlay(
-                HStack(alignment: .center, spacing: 12) {
+                HStack(alignment: .center, spacing: 10) {
                     headerCloseButton
 
                     Spacer(minLength: 0)
@@ -187,9 +184,9 @@ struct PostPopupView: View {
                             createPost()
                         }
                     )
-                    .frame(width: 150)
+                    .frame(width: 90)
                 }
-                .padding(.horizontal, 16)
+                .padding(.horizontal, 12)
                 .padding(.vertical, 4)
             )
             .zIndex(1) // ensure header stays above other layers for hit testing

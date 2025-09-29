@@ -78,8 +78,9 @@ struct NeumorphicActionButton: View {
         Button(action: action) {
             decoratedButtonContent
         }
-        .buttonStyle(.plain) // 既定のハイライトを無効化して質感を保つ
+        .buttonStyle(PlainButtonStyle()) // 既定のハイライトを無効化して質感を保つ
         .disabled(!isEnabled)
+        .contentShape(Rectangle()) // タップ領域を明確に定義
         .accessibilityLabel(Text(title))
         .accessibilityHint(Text(isEnabled ? "タップしてアクションを実行" : "入力が完了すると有効になります"))
         .accessibilityElement(children: .combine)
@@ -102,27 +103,24 @@ struct NeumorphicActionButton: View {
         HStack(spacing: contentSpacing) {
             if arrowPosition == .leading {
                 arrowCircle
-            }
-
-            Text(title)
-                .font(titleFont)
-                .foregroundColor(titleColor)
-                .padding(.leading, 4)
-
-            Spacer(minLength: 0)
-
-            if arrowPosition == .trailing {
+                Text(title)
+                    .font(titleFont)
+                    .foregroundColor(titleColor)
+            } else {
+                Text(title)
+                    .font(titleFont)
+                    .foregroundColor(titleColor)
                 arrowCircle
             }
         }
+        .frame(maxWidth: .infinity, alignment: arrowPosition == .leading ? .leading : .trailing)
         .padding(.vertical, verticalPadding)
         .padding(.leading, leadingPadding)
         .padding(.trailing, trailingPadding)
         .background(capsuleBackground)
         .compositingGroup()
-        .shadow(color: Color.black.opacity(isEnabled ? 0.18 : 0.05), radius: shadowRadius, x: 0, y: shadowOffsetY)
-        .shadow(color: Color.white.opacity(isEnabled ? 0.5 : 0.2), radius: highlightShadowRadius, x: -2, y: -2)
-        .opacity(isEnabled ? 1 : 0.65)
+        .shadow(color: Color.black.opacity(0.25), radius: 2, x: 0, y: 1)
+        .opacity(isEnabled ? 1 : 0.5)
         .animation(.easeInOut(duration: 0.2), value: isEnabled)
     }
 
@@ -143,7 +141,7 @@ struct NeumorphicActionButton: View {
             .fill(arrowBackground)
             .overlay(arrowOverlay)
             .frame(width: circleSize, height: circleSize)
-            .shadow(color: Color.black.opacity(isEnabled ? 0.25 : 0.1), radius: arrowShadowRadius, x: 0, y: arrowShadowOffsetY)
+            .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
             .allowsHitTesting(false) // タップ判定はオーバーレイ側に委譲
     }
 
@@ -167,7 +165,7 @@ struct NeumorphicActionButton: View {
 
     private var arrowOverlay: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 16, weight: .semibold))
+            .font(.system(size: 12, weight: .semibold))
             .foregroundColor(.white)
             .shadow(color: Color.black.opacity(0.3), radius: 2, x: 0, y: 1)
             .rotationEffect(.degrees(arrowRotationDegrees))
@@ -182,58 +180,62 @@ struct NeumorphicActionButton: View {
     private var contentSpacing: CGFloat {
         switch size {
         case .regular: return 14
-        case .compact: return 10
+        case .compact: return 8
         }
     }
 
     private var circleSize: CGFloat {
         switch size {
-        case .regular: return 36
-        case .compact: return 30
+        case .regular: return 28
+        case .compact: return 20
         }
     }
 
     private var verticalPadding: CGFloat {
         switch size {
-        case .regular: return 10
-        case .compact: return 8
+        case .regular: return 8
+        case .compact: return 5
         }
     }
 
     private var leadingPadding: CGFloat {
         switch size {
         case .regular: return 22
-        case .compact: return 16
+        case .compact: return 12
         }
     }
 
     private var trailingPadding: CGFloat {
         switch size {
         case .regular: return 8
-        case .compact: return 6
+        case .compact: return 10
         }
     }
 
     private var overlayWidth: CGFloat {
-        circleSize + 16
+        circleSize + 20
     }
 
     private var overlayHeight: CGFloat {
-        circleSize + verticalPadding * 2
+        circleSize + 16
     }
 
-    private var overlayInsets: EdgeInsets {
-        if arrowPosition == .leading {
-            return EdgeInsets(top: 0, leading: leadingPadding - 4, bottom: 0, trailing: 0)
-        } else {
-            return EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: trailingPadding - 2)
+    private var overlayOffset: CGSize {
+        let halfWidth = overlayWidth / 2
+        switch arrowPosition {
+        case .leading:
+            let target = leadingPadding + circleSize / 2
+            return CGSize(width: target - halfWidth, height: 0)
+        case .trailing:
+            let target = trailingPadding + circleSize / 2
+            return CGSize(width: -(halfWidth - target), height: 0)
         }
     }
 
     private var backgroundGradient: LinearGradient {
         let colors: [Color] = isEnabled
-            ? [Color.white.opacity(0.95), Color.white.opacity(0.75)]
-            : [Color.white.opacity(0.55), Color.white.opacity(0.4)]
+            ? [Color.white, Color.white.opacity(0.95)]
+            : [Color.white.opacity(0.7), Color.white.opacity(0.6)]
 
         return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
     }
@@ -242,7 +244,7 @@ struct NeumorphicActionButton: View {
         LinearGradient(
             colors: [
                 Color.white.opacity(isEnabled ? 0.9 : 0.4),
-                Color.black.opacity(isEnabled ? 0.15 : 0.05)
+                Color.black.opacity(isEnabled ? 0.2 : 0.1)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -250,49 +252,48 @@ struct NeumorphicActionButton: View {
     }
 
     private var arrowBackground: LinearGradient {
-        let baseOpacity: Double = isEnabled ? 0.95 : 0.5
         return LinearGradient(
-            colors: [Color.black.opacity(baseOpacity), Color.black.opacity(isEnabled ? 0.7 : 0.45)],
+            colors: isEnabled ? [Color.black, Color.black.opacity(0.85)] : [Color.black.opacity(0.6), Color.black.opacity(0.5)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
 
     private var titleColor: Color {
-        isEnabled ? Color.black.opacity(0.78) : Color.black.opacity(0.35)
+        isEnabled ? Color.black : Color.black.opacity(0.5)
     }
 
     private var titleFont: Font {
         switch size {
-        case .regular: return .system(size: 16, weight: .semibold)
-        case .compact: return .system(size: 14, weight: .semibold)
+        case .regular: return .system(size: 14, weight: .semibold)
+        case .compact: return .system(size: 11, weight: .semibold)
         }
     }
 
     private var shadowRadius: CGFloat {
         switch size {
         case .regular: return isEnabled ? 9 : 4
-        case .compact: return isEnabled ? 6 : 3
+        case .compact: return isEnabled ? 5 : 2
         }
     }
 
     private var shadowOffsetY: CGFloat {
         switch size {
         case .regular: return isEnabled ? 8 : 4
-        case .compact: return isEnabled ? 6 : 3
+        case .compact: return isEnabled ? 4 : 2
         }
     }
 
     private var highlightShadowRadius: CGFloat {
-        size == .regular ? 3 : 2
+        size == .regular ? 3 : 1.6
     }
 
     private var arrowShadowRadius: CGFloat {
-        size == .regular ? 6 : 4
+        size == .regular ? 6 : 3.5
     }
 
     private var arrowShadowOffsetY: CGFloat {
-        size == .regular ? 4 : 3
+        size == .regular ? 4 : 2.5
     }
 }
 
