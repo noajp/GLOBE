@@ -51,6 +51,11 @@ struct PostPopupView: View {
         print("🔘 PostPopup - isButtonDisabled calculated: \(disabled) (hasText=\(hasText))")
         return disabled
     }
+
+    // 投稿ボタンがアクティブになる条件を集約
+    private var isPostActionEnabled: Bool {
+        !isButtonDisabled && !isSubmitting
+    }
     
     private var maxTextLength: Int {
         30  // Maximum 30 characters for all posts
@@ -156,63 +161,56 @@ struct PostPopupView: View {
     // MARK: - Header View
     private var headerView: some View {
         Rectangle()
-            .fill(.clear)
-            .frame(width: 280, height: 44) // Adjusted for smaller popup
+            .fill(Color.clear)
+            .frame(width: 280, height: 56)
             .overlay(
-                ZStack {
-                    // X button - TOP LEFT (same size as chevron button)
-                    Button(action: {
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        isPresented = false
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.black)
-                            .padding(6)
-                    }
-                    .background(.white.opacity(0.9))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-                    .position(x: 20, y: 22) // ABSOLUTE POSITION - LEFT SIDE
+                HStack(alignment: .center, spacing: 12) {
+                    headerCloseButton
 
-                    // POST button - base layer (white background)
-                    Button(action: createPost) {
-                        Text("POST")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.black)
-                            .padding(.vertical, 7)
-                            .padding(.leading, 16) // Move text to the right
-                            .padding(.trailing, 8) // Less padding on the right
-                    }
-                    .background(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.3), lineWidth: 1))
-                    .disabled(isButtonDisabled || isSubmitting)
-                    .position(x: 240, y: 22)
+                    Spacer(minLength: 0)
 
-                    // Chevron button - overlaid on top of POST button
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            showPrivacyDropdown.toggle()
+                    // 投稿実行ボタン（ニューモーフィックスタイル + プライバシートグル）
+                    NeumorphicActionButton(
+                        title: "POST",
+                        isEnabled: isPostActionEnabled,
+                        arrowPosition: .leading,
+                        size: .compact,
+                        arrowRotationDegrees: showPrivacyDropdown ? 90 : 0,
+                        secondaryActionAccessibilityLabel: "プライバシー設定を開く",
+                        secondaryAction: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showPrivacyDropdown.toggle()
+                            }
+                        },
+                        action: {
+                            guard isPostActionEnabled else { return }
+                            createPost()
                         }
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(9)
-                            .rotationEffect(.degrees(showPrivacyDropdown ? 90 : 0))
-                    }
-                    .background(.black)
-                    .clipShape(Circle())
-                    .glassEffect(.clear, in: Circle())
-                    .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
-                    .position(x: 218, y: 22) // Positioned on top of POST button
-                    .onAppear {
-                        print("🔘 PostPopup - Button state on appear: disabled=\(isButtonDisabled)")
-                    }
+                    )
+                    .frame(width: 150)
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 4)
             )
             .zIndex(1) // ensure header stays above other layers for hit testing
+    }
+
+    // ヘッダー左上のクローズボタン
+    private var headerCloseButton: some View {
+        Button(action: {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            isPresented = false
+        }) {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.black)
+                .padding(6)
+        }
+        .background(Color.white.opacity(0.9))
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 2)
+        .accessibilityLabel(Text("投稿を閉じる"))
     }
     
     
@@ -516,4 +514,3 @@ struct PostPopupView: View {
 //         value = nextValue()
 //     }
 // }
-
