@@ -123,7 +123,7 @@ struct PostPin: View {
     }
     
     private var cardWidth: CGFloat {
-        return 135 // PostPopupView (270) の1/2サイズ
+        return 135 // CreatePostView (270) の1/2サイズ
     }
 
     private var cardHeight: CGFloat {
@@ -286,19 +286,15 @@ struct PostPin: View {
                     .padding(.bottom, verticalPadding)
             }
 
-            // 動的スペーサー（文字のみの場合は小さく）
-            if hasImageContent || post.isAnonymous {
-                Spacer()
-            } else {
-                Spacer(minLength: 4)
-            }
+            // Spacer to push action bar to bottom
+            Spacer(minLength: 2)
 
             // MARK: - Bottom Action Bar (Likes and Comments) - Hidden for anonymous posts
             if !post.isAnonymous {
                 HStack {
                     Spacer()
 
-                    HStack(spacing: 20) {
+                    HStack(spacing: 16) {
                         // Like button
                         Button(action: {
                             if let userId = authManager.currentUser?.id {
@@ -310,7 +306,7 @@ struct PostPin: View {
                             }
                         }) {
                             Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                .font(.system(size: 12))
+                                .font(.system(size: 11))
                                 .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.9))
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -320,15 +316,14 @@ struct PostPin: View {
                             showingComments = true
                         }) {
                             Image(systemName: "bubble.left")
-                                .font(.system(size: 12))
+                                .font(.system(size: 11))
                                 .foregroundColor(.white.opacity(0.9))
                         }
                         .buttonStyle(PlainButtonStyle())
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.bottom, 6)
-                .padding(.top, 2)
+                .padding(.bottom, 16)
             }
             }
             .frame(width: cardWidth, height: cardHeight + 12, alignment: .top) // Added tail height
@@ -431,7 +426,7 @@ struct ScalablePostPin: View {
     }
     
     private var baseCardSize: CGFloat {
-        135  // PostPopupView (270) の1/2サイズ
+        135  // CreatePostView (270) の1/2サイズ
     }
 
     private var cardWidth: CGFloat {
@@ -616,8 +611,11 @@ struct ScalablePostPin: View {
                     .padding(.bottom, (isSingleLine ? 2 : 4) * fontScale)
             }
 
+            // Spacer to push action bar to bottom
+            Spacer(minLength: 2 * fontScale)
+
             if showHeaderMeta {
-                HStack(spacing: 2 * fontScale) {
+                HStack(spacing: 12 * fontScale) {
                     Button(action: {
                         print("❤️ ScalablePostPin - Like tapped post: \(post.id)")
                         if let userId = authManager.currentUser?.id {
@@ -646,8 +644,8 @@ struct ScalablePostPin: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 4 * fontScale)
-                .padding(.bottom, max(6, (6 + borderWidth) * fontScale))
+                .padding(.trailing, 8 * fontScale)
+                .padding(.bottom, 16 * fontScale)
                 .contentShape(Rectangle())
             }
         }  // Close VStack

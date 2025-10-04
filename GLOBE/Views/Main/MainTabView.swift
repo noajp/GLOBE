@@ -69,7 +69,7 @@ struct MainTabView: View {
         .overlay(
             Group {
                 if showingCreatePost {
-                    PostPopupView(
+                    CreatePostView(
                         isPresented: $showingCreatePost,
                         mapManager: mapManager,
                         initialLocation: tappedLocation

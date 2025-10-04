@@ -29,33 +29,23 @@ struct UserProfileView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Unified header with glass effect
-            LiquidGlassCard(
-                id: "profile-header",
-                cornerRadius: 0,
-                tint: Color.white.opacity(0.02),
-                strokeColor: Color.clear,
-                highlightColor: Color.white.opacity(0.15),
-                contentPadding: EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0),
-                contentBackdropOpacity: 0.05
-            ) {
-                UnifiedHeader(
-                    title: "PROFILE",
-                    showBackButton: true,
-                    onBack: {
-                        isPresented = false
-                    }
-                )
-                .padding(.top) // Add top safe area padding
-            }
-            
+            // Unified header at the very top
+            UnifiedHeader(
+                title: "PROFILE",
+                showBackButton: true,
+                onBack: {
+                    isPresented = false
+                }
+            )
+            .padding(.top) // Add top safe area padding
+
             // Profile content in scrollview
             ScrollView(showsIndicators: false) {
                 profileContent
             }
-            .background(Color.clear)
+            .background(MinimalDesign.Colors.background)
         }
-        .background(Color.clear)
+        .background(MinimalDesign.Colors.background)
         .onAppear {
             Task {
                 await loadUserProfile()
@@ -79,9 +69,6 @@ struct UserProfileView: View {
             // Profile Section
             profileSection
 
-            // Posts Grid
-            postsGrid
-
             // Bottom padding for tab bar
             Color.clear
                 .frame(height: 110)
@@ -91,22 +78,10 @@ struct UserProfileView: View {
     
     // MARK: - Profile Section
     private var profileSection: some View {
-        LiquidGlassCard(
-            id: "profile-\(userId)",
-            cornerRadius: 20,
-            tint: Color.white.opacity(0.03),
-            strokeColor: Color.white.opacity(0.15),
-            highlightColor: Color.white.opacity(0.25),
-            contentPadding: EdgeInsets(top: 20, leading: 16, bottom: 20, trailing: 16),
-            contentBackdropOpacity: 0.05,
-            shadowColor: Color.black.opacity(0.1),
-            shadowRadius: 8,
-            shadowOffsetY: 3
-        ) {
             VStack(spacing: 16) {
                 HStack(alignment: .top, spacing: 16) {
-                    // Profile Image with glass effect
-                    profileImageWithGlass
+                    // Profile Image
+                    profileImage
 
                     // Profile Info
                     VStack(alignment: .leading, spacing: 8) {
@@ -115,19 +90,19 @@ struct UserProfileView: View {
                             if let displayName = profile.displayName, !displayName.isEmpty {
                                 Text(displayName)
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(MinimalDesign.Colors.primary)
                                     .lineLimit(1)
                             } else {
                                 Text(profile.username)
                                     .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(MinimalDesign.Colors.primary)
                                     .lineLimit(1)
                             }
 
-                            // User ID
-                            Text("ID: \(profile.id.prefix(8))")
+                            // User ID with @ prefix
+                            Text("@\(profile.id.prefix(8))")
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(.white.opacity(0.7))
+                                .foregroundColor(MinimalDesign.Colors.secondary)
                                 .lineLimit(1)
                         } else if !isLoading {
                             // Fallback to passed parameters if profile not loaded
@@ -152,20 +127,19 @@ struct UserProfileView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                // Stats Section with glass effect
-                statsWithGlass
+                // Stats Section
+                statsSection
 
                 // Bio Section
                 if let profile = userProfile, let bio = profile.bio, !bio.isEmpty {
                     Text(bio)
                         .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.white.opacity(0.9))
+                        .foregroundColor(MinimalDesign.Colors.secondary)
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-        }
         .padding(.horizontal, 16)
         .padding(.top, MinimalDesign.Spacing.sm)
     }
@@ -261,6 +235,27 @@ struct UserProfileView: View {
     }
 
     // MARK: - Stats with Glass Effect
+    private var statsSection: some View {
+        HStack(spacing: 16) {
+            statItem(count: userPosts.count, label: "投稿")
+            statItem(count: userProfile?.followingCount ?? 0, label: "フォロー中")
+            statItem(count: userProfile?.followerCount ?? 0, label: "フォロワー")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func statItem(count: Int, label: String) -> some View {
+        VStack(spacing: 4) {
+            Text("\(count)")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(MinimalDesign.Colors.primary)
+            Text(label)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundColor(MinimalDesign.Colors.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private var statsWithGlass: some View {
         HStack(spacing: 32) {
             GlassStatItem(value: userProfile?.postCount ?? userPosts.count, label: "Posts")
