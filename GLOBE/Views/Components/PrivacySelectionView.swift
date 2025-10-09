@@ -61,23 +61,23 @@ struct PrivacySelectionView: View {
                 VStack(spacing: 30) {
                     // 全体公開ボタン
                     Button(action: {
-                        createPost(isFollowersOnly: false)
+                        createPost(isAnonymous: false)
                     }) {
                         VStack(spacing: 12) {
                             ZStack {
                                 Circle()
                                     .fill(Color.blue.opacity(0.2))
                                     .frame(width: 80, height: 80)
-                                
+
                                 Image(systemName: "globe")
                                     .font(.system(size: 36))
                                     .foregroundColor(.blue)
                             }
-                            
+
                             Text("全体に公開")
                                 .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(.white)
-                            
+
                             Text("誰でも見ることができます")
                                 .font(.system(size: 14))
                                 .foregroundColor(.gray)
@@ -93,27 +93,27 @@ struct PrivacySelectionView: View {
                         )
                     }
                     .disabled(isPosting)
-                    
-                    // フォロワーのみボタン
+
+                    // 匿名投稿ボタン
                     Button(action: {
-                        createPost(isFollowersOnly: true)
+                        createPost(isAnonymous: true)
                     }) {
                         VStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.green.opacity(0.2))
+                                    .fill(Color.purple.opacity(0.2))
                                     .frame(width: 80, height: 80)
-                                
-                                Image(systemName: "person.2.fill")
+
+                                Image(systemName: "theatermasks.fill")
                                     .font(.system(size: 36))
-                                    .foregroundColor(.green)
+                                    .foregroundColor(.purple)
                             }
-                            
-                            Text("フォロワーのみ")
+
+                            Text("匿名で投稿")
                                 .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(.white)
-                            
-                            Text("フォロワーだけが見ることができます")
+
+                            Text("あなたの情報は表示されません")
                                 .font(.system(size: 14))
                                 .foregroundColor(.gray)
                         }
@@ -123,7 +123,7 @@ struct PrivacySelectionView: View {
                                 .fill(Color.white.opacity(0.05))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 20)
-                                        .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                                        .stroke(Color.purple.opacity(0.3), lineWidth: 1)
                                 )
                         )
                     }
@@ -147,21 +147,22 @@ struct PrivacySelectionView: View {
         }
     }
     
-    private func createPost(isFollowersOnly: Bool) {
+    private func createPost(isAnonymous: Bool) {
         isPosting = true
-        
+
         print("🚀 PrivacySelection - Starting post creation")
         print("📝 Content: '\(postText)'")
         print("📍 Location: \(location.latitude), \(location.longitude)")
-        print("🔐 Privacy: \(isFollowersOnly ? "Followers only" : "Public")")
-        
+        print("🔐 Privacy: \(isAnonymous ? "Anonymous" : "Public")")
+
         Task { @MainActor in
             do {
                 try await postManager.createPost(
                     content: postText,
                     imageData: selectedImageData,
                     location: location,
-                    locationName: locationName
+                    locationName: locationName,
+                    isAnonymous: isAnonymous
                 )
                 
                 print("✅ PrivacySelection - Post created successfully")

@@ -5,16 +5,59 @@ import SwiftUI
 
 class MapManager: ObservableObject {
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503), // 東京
-        span: MKCoordinateSpan(latitudeDelta: 1.0, longitudeDelta: 1.0) // 日本周辺表示
+        center: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503), // 東京 (fallback)
+        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) // 半径約2km圏内（中距離モード）
     )
     @Published var posts: [Post] = []
     @Published var adjustedPostPositions: [UUID: CLLocationCoordinate2D] = [:]
     @Published var postOpacities: [UUID: Double] = [:]
+    @Published var postClusters: [PostCluster] = []
+
+    // MARK: - Zoom Level Thresholds
+    private let nearDistanceThreshold = 0.01   // ~1km (400m-1km): show all posts with collision avoidance
+    private let midDistanceThreshold = 0.05    // ~5km (1km-5km): show high-engagement posts only
+    // 5km+: show clusters
+
+    enum DisplayMode {
+        case nearDistance   // 400m-1km: all posts with collision avoidance
+        case midDistance    // 1km-5km: high-engagement posts only
+        case farDistance    // 5km+: clusters
+    }
+
+    var currentDisplayMode: DisplayMode {
+        let span = region.span.latitudeDelta
+        if span <= nearDistanceThreshold {
+            return .nearDistance
+        } else if span <= midDistanceThreshold {
+            return .midDistance
+        } else {
+            return .farDistance
+        }
+    }
 
     /// 密集度フィルタリングを適用した表示対象投稿
     var visiblePosts: [Post] {
-        return posts.filter { shouldShowPost($0) }
+        switch currentDisplayMode {
+        case .nearDistance:
+            // Show all posts with collision avoidance
+            return posts
+
+        case .midDistance:
+            // Show all posts, but prioritize high-engagement posts
+            // Separate into high-engagement and regular posts (including anonymous)
+            let highEngagement = posts.filter { !$0.isAnonymous && $0.likeCount > 0 }
+            let regular = posts.filter { $0.isAnonymous || $0.likeCount == 0 }
+
+            // Show top 30 high-engagement + up to 30 regular posts (total 60 max)
+            let sortedHighEngagement = highEngagement.sorted { $0.likeCount > $1.likeCount }.prefix(30)
+            let limitedRegular = regular.prefix(30)
+
+            return Array(sortedHighEngagement) + Array(limitedRegular)
+
+        case .farDistance:
+            // Don't show individual posts - use clusters instead
+            return []
+        }
     }
     
     // MapCameraPosition updates for modern Map view
@@ -32,11 +75,43 @@ class MapManager: ObservableObject {
         setupPostSubscription()
     }
 
+    /// Set initial region to user's current location
+    func setInitialRegionToCurrentLocation(_ location: CLLocationCoordinate2D) {
+        let initialRegion = MKCoordinateRegion(
+            center: location,
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02) // 半径約2km（中距離モード）
+        )
+        self.region = initialRegion
+        self.shouldUpdateMapPosition = MapCameraPosition.region(initialRegion)
+    }
+
     private var didFetchInitial = false
     func fetchInitialPostsIfNeeded() async {
         guard !didFetchInitial else { return }
         didFetchInitial = true
-        await postManager.fetchPosts()
+        // Fetch posts within current viewport instead of all posts
+        await fetchPostsInViewport()
+    }
+
+    /// Fetch posts within the current map viewport
+    func fetchPostsInViewport() async {
+        let center = region.center
+        let span = region.span
+
+        // Calculate bounding box
+        let minLat = center.latitude - span.latitudeDelta / 2
+        let maxLat = center.latitude + span.latitudeDelta / 2
+        let minLng = center.longitude - span.longitudeDelta / 2
+        let maxLng = center.longitude + span.longitudeDelta / 2
+
+        // Fetch posts within bounding box
+        await postManager.fetchPostsInBounds(
+            minLat: minLat,
+            maxLat: maxLat,
+            minLng: minLng,
+            maxLng: maxLng,
+            zoomLevel: span.latitudeDelta
+        )
     }
     
     private func setupPostSubscription() {
@@ -44,27 +119,21 @@ class MapManager: ObservableObject {
         postManager.$posts
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newPosts in
-                print("🗺️ MapManager: Received \(newPosts.count) posts from PostManager")
-                for (index, post) in newPosts.enumerated() {
-                    print("🗺️ MapManager Post \(index): \(post.id) at (\(post.location.latitude), \(post.location.longitude)) - '\(post.text)'")
-                }
                 self?.posts = newPosts
                 self?.adjustPostPositions()
                 self?.calculatePostOpacities()
+                self?.updateClusters()
                 self?.objectWillChange.send()
-                print("🗺️ MapManager: Updated posts and sent objectWillChange")
             }
             .store(in: &cancellables)
     }
 
     func refreshPosts() {
-        print("🗺️ MapManager: Manually refreshing posts")
         posts = postManager.posts
         objectWillChange.send()
     }
 
     func addTestPost() {
-        print("🗺️ MapManager: Adding test post")
         let testPost = Post(
             location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
             locationName: "テスト位置",
@@ -74,14 +143,9 @@ class MapManager: ObservableObject {
         )
         posts.append(testPost)
         objectWillChange.send()
-        print("🗺️ MapManager: Test post added, total posts: \(posts.count)")
     }
     
     func focusOnLocation(_ coordinate: CLLocationCoordinate2D, zoomLevel: Double = 0.001) {
-        print("🗺🔥 MapManager: focusOnLocation called with coordinate: \(coordinate)")
-        print("🗺🔥 MapManager: Current region center: \(region.center)")
-        print("🗺🔥 MapManager: zoomLevel: \(zoomLevel)")
-
         let newRegion = MKCoordinateRegion(
             center: coordinate,
             span: MKCoordinateSpan(latitudeDelta: zoomLevel, longitudeDelta: zoomLevel) // デフォルトは約100m範囲
@@ -100,10 +164,6 @@ class MapManager: ObservableObject {
                 self.objectWillChange.send()
             }
         }
-
-        print("🗺🔥 MapManager: Updated region center: \(newRegion.center)")
-        print("🗺🔥 MapManager: Region span: \(newRegion.span)")
-        print("🗺🔥 MapManager: shouldUpdateMapPosition set to new region")
     }
     
     // 期限切れ投稿を削除
@@ -131,10 +191,13 @@ class MapManager: ObservableObject {
     // MARK: - Card Position Adjustment (Collision Prevention)
 
     private func adjustPostPositions() {
-        print("🗺️ MapManager: Adjusting post positions for \(posts.count) posts")
-
         // 新しい調整済み位置をクリア
         adjustedPostPositions.removeAll()
+
+        // Only apply collision avoidance in near distance mode
+        guard currentDisplayMode == .nearDistance else {
+            return
+        }
 
         // 投稿を作成日時順（新しいものが後）でソート
         let sortedPosts = posts.sorted { $0.createdAt < $1.createdAt }
@@ -159,15 +222,12 @@ class MapManager: ObservableObject {
                         avoiding: Array(adjustedPostPositions.values),
                         minDistance: minDistance
                     )
-                    print("🗺️ MapManager: Adjusted position for post \(post.id.uuidString.prefix(8))")
                     break
                 }
             }
 
             adjustedPostPositions[post.id] = adjustedLocation
         }
-
-        print("🗺️ MapManager: Position adjustment complete")
     }
 
     private func minimumCardDistance() -> Double {
@@ -235,7 +295,6 @@ class MapManager: ObservableObject {
     // MARK: - Opacity-Based Overlap Management
 
     private func calculatePostOpacities() {
-        print("🗺️ MapManager: Calculating post opacities for \(posts.count) posts")
 
         postOpacities.removeAll()
 
@@ -243,11 +302,7 @@ class MapManager: ObservableObject {
             let overlapCount = countOverlappingPosts(around: post.location)
             let opacity = calculateOpacity(overlapCount: overlapCount)
             postOpacities[post.id] = opacity
-
-            print("📍 Post[\(post.id.uuidString.prefix(8))] Overlaps: \(overlapCount), Opacity: \(String(format: "%.2f", opacity))")
         }
-
-        print("🗺️ MapManager: Opacity calculation complete")
     }
 
     private func countOverlappingPosts(around location: CLLocationCoordinate2D) -> Int {
@@ -319,9 +374,6 @@ class MapManager: ObservableObject {
         // 3. スコアが閾値を超えた投稿のみを表示対象とする
         let postScore = calculatePostScore(post)
 
-        // デバッグログ
-        print("🔍 Post[\(post.id.uuidString.prefix(8))] Density:\(density), Score:\(String(format: "%.3f", postScore)), Threshold:\(String(format: "%.3f", threshold)), Show:\(postScore >= threshold)")
-
         return postScore >= threshold
     }
 
@@ -344,9 +396,6 @@ class MapManager: ObservableObject {
         // 最終的な閾値を MIN_THRESHOLD と MAX_THRESHOLD の間にマッピング
         let threshold = MIN_THRESHOLD + (MAX_THRESHOLD - MIN_THRESHOLD) * combinedFactor
 
-        // デバッグログ
-        print("📊 Threshold Calc - Zoom:\(String(format: "%.3f", zoomLevel)) -> ZoomFactor:\(String(format: "%.3f", zoomFactor)), DensityFactor:\(String(format: "%.3f", densityFactor)), Combined:\(String(format: "%.3f", combinedFactor)), Threshold:\(String(format: "%.3f", threshold))")
-
         return threshold
     }
 
@@ -368,6 +417,43 @@ class MapManager: ObservableObject {
 
         return coordinate.latitude >= minLat && coordinate.latitude <= maxLat &&
                coordinate.longitude >= minLon && coordinate.longitude <= maxLon
+    }
+
+    // MARK: - Clustering Algorithm
+
+    func updateClusters() {
+        guard currentDisplayMode == .farDistance else {
+            postClusters = []
+            return
+        }
+
+        // Simple grid-based clustering
+        let clusterRadius = 0.05 // ~5km clustering radius
+
+        var clusteredPosts: [[Post]] = []
+        var remainingPosts = posts
+
+        while !remainingPosts.isEmpty {
+            let currentPost = remainingPosts.removeFirst()
+            var cluster = [currentPost]
+
+            // Find all posts within clustering radius
+            remainingPosts.removeAll { post in
+                let distance = distanceBetweenCoordinates(currentPost.location, post.location)
+                let distanceInDegrees = distance / 111000.0 // Convert meters to degrees (approximate)
+
+                if distanceInDegrees <= clusterRadius {
+                    cluster.append(post)
+                    return true
+                }
+                return false
+            }
+
+            clusteredPosts.append(cluster)
+        }
+
+        // Create PostCluster objects
+        postClusters = clusteredPosts.map { PostCluster(posts: $0) }
     }
 
     deinit {

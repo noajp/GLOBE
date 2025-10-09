@@ -62,23 +62,62 @@ struct MapContentView: View {
                     .annotationTitles(.hidden)
                 }
             }
+
+            // Cluster annotations for far distance view
+            ForEach(mapManager.postClusters) { cluster in
+                Annotation("", coordinate: cluster.location) {
+                    ClusterPin(postCount: cluster.postCount) {
+                        // TODO: Expand cluster to show individual posts
+                        // For now, zoom in to the cluster location
+                        mapManager.focusOnLocation(cluster.location, zoomLevel: 0.01)
+                    }
+                }
+                .annotationTitles(.hidden)
+            }
         }
         .mapStyle(.hybrid(elevation: .realistic))
-        .onMapCameraChange(frequency: .onEnd) { context in
+        .mapControls {
+            MapCompass()
+                .mapControlVisibility(.hidden)
+        }
+        .onMapCameraChange(frequency: .continuous) { context in
             // Update MapManager's region when map camera changes
+            // Limit maximum zoom level (minimum span = 0.004 ≈ 400m)
+            let minSpan = 0.004
+
+            // Clamp the span values to minimum
+            let latDelta = max(context.region.span.latitudeDelta, minSpan)
+            let lngDelta = max(context.region.span.longitudeDelta, minSpan)
+
+            // If user tries to zoom beyond limit, enforce the limit
+            if context.region.span.latitudeDelta < minSpan || context.region.span.longitudeDelta < minSpan {
+                let restrictedRegion = MKCoordinateRegion(
+                    center: context.camera.centerCoordinate,
+                    span: MKCoordinateSpan(latitudeDelta: minSpan, longitudeDelta: minSpan)
+                )
+                mapCameraPosition = .region(restrictedRegion)
+            }
+
             let newRegion = MKCoordinateRegion(
                 center: context.camera.centerCoordinate,
                 span: MKCoordinateSpan(
-                    latitudeDelta: context.region.span.latitudeDelta,
-                    longitudeDelta: context.region.span.longitudeDelta
+                    latitudeDelta: latDelta,
+                    longitudeDelta: lngDelta
                 )
             )
 
-            print("🗺️ Map Camera Changed - New Zoom Level: \(newRegion.span.latitudeDelta)")
             mapManager.region = newRegion
+        }
+        .onMapCameraChange(frequency: .onEnd) { context in
+            // Fetch posts when user stops moving map
+            Task {
+                await mapManager.fetchPostsInViewport()
+            }
 
-            // Trigger visibility recalculation with new region
-            mapManager.objectWillChange.send()
+            // Update clusters when zoom stops
+            Task { @MainActor in
+                mapManager.updateClusters()
+            }
 
             // Temporarily disable 3D correction to prevent crashes
             // TODO: Re-implement with safer approach
@@ -104,7 +143,6 @@ struct MapContentView: View {
         }
         .onChange(of: mapManager.shouldUpdateMapPosition) { _, newPosition in
             if let newPosition = newPosition {
-                print("🗺️ MapContentView: Received position update from MapManager")
                 withAnimation(.easeInOut(duration: 0.8)) {
                     mapCameraPosition = newPosition
                 }

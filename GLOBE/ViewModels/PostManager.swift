@@ -26,10 +26,27 @@ class PostManager: PostServiceProtocol {
         // SupabaseServiceの投稿をPostManagerに同期
         await MainActor.run {
             self.posts = supabaseService.posts
-            print("📝 PostManager: Synced \(self.posts.count) posts from SupabaseService")
-            for (index, post) in self.posts.enumerated() {
-                print("📝 PostManager Post \(index): \(post.id) at (\(post.location.latitude), \(post.location.longitude)) - '\(post.text)'")
-            }
+        }
+    }
+
+    /// Fetch posts within a geographic bounding box
+    func fetchPostsInBounds(
+        minLat: Double,
+        maxLat: Double,
+        minLng: Double,
+        maxLng: Double,
+        zoomLevel: Double
+    ) async {
+        await supabaseService.fetchPostsInBounds(
+            minLat: minLat,
+            maxLat: maxLat,
+            minLng: minLng,
+            maxLng: maxLng,
+            zoomLevel: zoomLevel
+        )
+        // Sync posts from SupabaseService
+        await MainActor.run {
+            self.posts = supabaseService.posts
         }
     }
 
