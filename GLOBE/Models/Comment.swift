@@ -7,16 +7,17 @@
 import Foundation
 
 struct Comment: Identifiable, Equatable {
-    let id = UUID()
+    let id: UUID
     let postId: UUID
     let createdAt: Date
     let text: String
     let authorName: String
     let authorId: String
-    
-    init(postId: UUID, text: String, authorName: String, authorId: String) {
+
+    init(id: UUID = UUID(), postId: UUID, text: String, authorName: String, authorId: String, createdAt: Date = Date()) {
+        self.id = id
         self.postId = postId
-        self.createdAt = Date()
+        self.createdAt = createdAt
         self.text = text
         self.authorName = authorName
         self.authorId = authorId

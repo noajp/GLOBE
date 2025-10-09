@@ -69,7 +69,7 @@ struct PostPin: View {
     private let customBlack = Color.black
     private let iconExtraOffset: CGFloat = 8
     private let bottomPadding: CGFloat = 0
-    private let cardCornerRadius: CGFloat = 14
+    private let cardCornerRadius: CGFloat = 8
     let post: Post
     let onTap: () -> Void
     @StateObject private var commentService = CommentService.shared
@@ -130,31 +130,43 @@ struct PostPin: View {
         // 動的高さ計算
         let baseHeight: CGFloat = 40 // 最小高さ
 
+        // 画像がある場合の高さ
+        let imageHeight: CGFloat = hasImageContent ? (cardWidth - 12) : 0
+
+        // ヘッダー（アバター・ID）の高さ - 非匿名投稿は常に表示
+        let headerHeight: CGFloat = post.isAnonymous ? 0 : 26
+
+        // アクションバー（いいね・コメント）の高さ - 非匿名投稿のみ
+        let actionBarHeight: CGFloat = post.isAnonymous ? 0 : 16
+
         // テキストがある場合の高さ計算
+        let textHeight: CGFloat
         if !post.text.isEmpty {
             let textFont = UIFont.systemFont(ofSize: 9, weight: .medium)
-            let textHeight = measuredTextHeight(for: post.text, width: contentWidth - 16, font: textFont)
-
-            // ヘッダー（アバター・ID）の高さ
-            let headerHeight: CGFloat = post.isAnonymous ? 0 : 30
-
-            // テキスト部分の高さ（上下パディング含む）
-            let textAreaHeight = textHeight + 16
-
-            // アクション部分（いいね・コメント）の高さ
-            let actionHeight: CGFloat = post.isAnonymous ? 0 : 30
-
-            // 画像がある場合の追加高さ
-            let imageHeight: CGFloat = hasImageContent ? (cardWidth - 20) : 0
-
-            let calculatedHeight = headerHeight + textAreaHeight + actionHeight + imageHeight
-
-            return max(baseHeight, calculatedHeight)
+            let measuredHeight = measuredTextHeight(for: post.text, width: contentWidth - 16, font: textFont)
+            let topPadding: CGFloat = hasImageContent ? 2 : 4
+            let bottomPadding: CGFloat = 2
+            textHeight = measuredHeight + topPadding + bottomPadding
+        } else {
+            textHeight = 0
         }
 
-        // テキストがない場合は画像のみまたは最小高さ
-        if hasImageContent {
-            return cardWidth // 正方形
+        // 画像のみの場合
+        if hasImageContent && post.text.isEmpty {
+            let height = imageHeight + headerHeight + actionBarHeight + 6
+            return height
+        }
+
+        // 画像 + テキストの場合
+        if hasImageContent && !post.text.isEmpty {
+            let height = imageHeight + headerHeight + textHeight + actionBarHeight + 1
+            return height
+        }
+
+        // テキストのみの場合
+        if !post.text.isEmpty {
+            let height = headerHeight + textHeight + actionBarHeight + 1
+            return height
         }
 
         return baseHeight
@@ -189,6 +201,24 @@ struct PostPin: View {
             .padding(.horizontal, 8)
     }
 
+    private var actionBar: some View {
+        HStack(spacing: 6) {
+            Spacer()
+
+            // Like button
+            Button(action: {
+                if let userId = authManager.currentUser?.id {
+                    let _ = likeService.toggleLike(for: post, userId: userId)
+                }
+            }) {
+                Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(likeService.isLiked(post.id) ? .red.opacity(0.7) : .white.opacity(0.6))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+
     var body: some View {
         let hasImage = (post.imageData != nil) || (post.imageUrl != nil)
         let hasText = !post.text.isEmpty
@@ -199,7 +229,6 @@ struct PostPin: View {
                 // Main content
                 VStack(alignment: .leading, spacing: 2) {
                 // MARK: - Content Area (Photo and/or Text)
-                VStack(alignment: .leading, spacing: 2) {
                 // Photo content
             if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                 let inset: CGFloat = isPhotoOnly ? 2 : 6
@@ -229,16 +258,14 @@ struct PostPin: View {
                 .onTapGesture { showingImageViewer = true }
 
             }
-            }
-            .padding(.horizontal, 8)
 
             // MARK: - Header with Avatar and ID (After photo) - Hidden for anonymous posts
             if !post.isAnonymous {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     // Avatar
                     Circle()
                         .fill(Color.white.opacity(0.1)) // More transparent avatar background
-                        .frame(width: 20, height: 20)
+                        .frame(width: 18, height: 18)
                         .overlay(
                             Group {
                                 if let avatarUrl = post.authorAvatarUrl,
@@ -272,89 +299,51 @@ struct PostPin: View {
                         .truncationMode(.tail)
 
                     Spacer()
+
+                    // Delete button - inline with avatar
+                    let isOwner = post.authorId == authManager.currentUser?.id
+                    if isOwner {
+                        Button(action: {
+                            showingDeleteAlert = true
+                        }) {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
                 }
                 .padding(.horizontal, 8)
-                .padding(.top, hasImageContent ? 2 : 6)
-                .padding(.bottom, 2)
+                .padding(.top, hasImageContent ? 2 : 4)
+                .padding(.bottom, 1)
             }
 
             // MARK: - Text Content (After header)
             if !post.text.isEmpty {
-                let verticalPadding: CGFloat = post.isAnonymous ? 6 : 4
+                let verticalPadding: CGFloat = post.isAnonymous ? 4 : 2
                 captionText(post.text)
-                    .padding(.top, hasImageContent ? 4 : verticalPadding)
-                    .padding(.bottom, verticalPadding)
+                    .padding(.top, hasImageContent ? 2 : verticalPadding)
+                    .padding(.bottom, 2)
             }
 
-            // Spacer to push action bar to bottom
-            Spacer(minLength: 2)
-
-            // MARK: - Bottom Action Bar (Likes and Comments) - Hidden for anonymous posts
+            // MARK: - Bottom Action Bar (Likes and Comments)
             if !post.isAnonymous {
-                HStack {
-                    Spacer()
-
-                    HStack(spacing: 16) {
-                        // Like button
-                        Button(action: {
-                            if let userId = authManager.currentUser?.id {
-                                let newLikeState = likeService.toggleLike(for: post, userId: userId)
-                                if newLikeState {
-                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                                    impactFeedback.impactOccurred()
-                                }
-                            }
-                        }) {
-                            Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
-                                .font(.system(size: 11))
-                                .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.9))
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        // Comment button
-                        Button(action: {
-                            showingComments = true
-                        }) {
-                            Image(systemName: "bubble.left")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 16)
+                actionBar
+                    .padding(.horizontal, 6)
+                    .padding(.bottom, 0)
+                    .padding(.top, 1)
             }
             }
             .frame(width: cardWidth, height: cardHeight + 12, alignment: .top) // Added tail height
             .padding(.bottom, bottomPadding)
-
-                // Delete button overlay - always show for own posts
-                // Debug: Check if current user owns this post
-                let isOwner = post.authorId == authManager.currentUser?.id
-                if isOwner {
-                    let _ = print("🗑️ PostPin - Showing delete for post: \(post.id), isAnonymous: \(post.isAnonymous), authorId: \(post.authorId), currentUserId: \(authManager.currentUser?.id ?? "nil")")
-                    Menu {
-                        Button(role: .destructive) {
-                            showingDeleteAlert = true
-                        } label: {
-                            Label("Delete Post", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(8)
-                }
-            }
             // Apply transparent Liquid Glass effect with speech bubble
             .glassEffect(.clear, in: PostCardBubbleShape(cornerRadius: cardCornerRadius, tailWidth: 25, tailHeight: 12))
         }  // Close GlassEffectContainer
         .onAppear {
             commentService.loadComments(for: post.id)
-            likeService.initializePost(post)
+            Task {
+                await likeService.loadLikes(for: post.id, userId: authManager.currentUser?.id)
+            }
         }
         .fullScreenCover(isPresented: $showingUserProfile) {
             UserProfileView(
@@ -392,7 +381,7 @@ struct PostPin: View {
 // Scalable PostPin that adjusts size based on map zoom level
 struct ScalablePostPin: View {
     private let customBlack = Color.black // Temporary fix: use solid black instead of MinimalDesign color
-    private let cardCornerRadius: CGFloat = 14
+    private let cardCornerRadius: CGFloat = 8
     let post: Post
     let mapSpan: Double
     @StateObject private var commentService = CommentService.shared
@@ -528,7 +517,7 @@ struct ScalablePostPin: View {
 
     @ViewBuilder
     private var cardView: some View {
-        let dynamicCornerRadius: CGFloat = max(12, cardCornerRadius * fontScale)
+        let dynamicCornerRadius: CGFloat = cardCornerRadius
 
         ZStack(alignment: .topTrailing) {
             VStack(alignment: .leading, spacing: stackSpacing) {
@@ -630,7 +619,7 @@ struct ScalablePostPin: View {
                     }) {
                         Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
                             .font(.system(size: 10 * fontScale))
-                            .foregroundColor(likeService.isLiked(post.id) ? .red : .white.opacity(0.8))
+                            .foregroundColor(likeService.isLiked(post.id) ? Color(red: 1.0, green: 0.3, blue: 0.3) : .white.opacity(0.8))
                     }
                     .buttonStyle(PlainButtonStyle())
 
@@ -651,23 +640,23 @@ struct ScalablePostPin: View {
         }  // Close VStack
         .frame(width: cardWidth, height: dynamicHeight + 10 * fontScale) // Added tail height
 
-            // Delete button overlay - always show for own posts
-            if post.authorId == authManager.currentUser?.id {
-                Menu {
-                    Button(role: .destructive) {
-                        showingDeleteAlert = true
-                    } label: {
-                        Label("Delete Post", systemImage: "trash")
-                    }
+        // Delete button overlay - always show for own posts
+        if post.authorId == authManager.currentUser?.id {
+            Menu {
+                Button(role: .destructive) {
+                    showingDeleteAlert = true
                 } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 12 * fontScale, weight: .bold))
-                        .foregroundColor(.white)
+                    Label("Delete Post", systemImage: "trash")
                 }
-                .buttonStyle(PlainButtonStyle())
-                .padding(8 * fontScale)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 12 * fontScale, weight: .bold))
+                    .foregroundColor(.white)
             }
-        }  // Close ZStack
+            .buttonStyle(PlainButtonStyle())
+            .padding(8 * fontScale)
+        }
+        }  // Close ZStack (alignment: .topTrailing)
         // Apply transparent Liquid Glass effect with speech bubble
         .glassEffect(.clear, in: PostCardBubbleShape(cornerRadius: dynamicCornerRadius, tailWidth: 20 * fontScale, tailHeight: 10 * fontScale))
         .overlay(alignment: .bottom) {
@@ -712,9 +701,10 @@ struct ScalablePostPin: View {
                 .offset(y: diameter / 2 + 12)
                 .zIndex(10)
             }
-        }
-    }
-}
+        }  // Close overlay
+    }  // Close cardView
+    }  // Close body
+}  // End of ScalablePostPin struct
 
 
 //======================================================================

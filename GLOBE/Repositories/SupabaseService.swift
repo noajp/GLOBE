@@ -34,6 +34,87 @@ private init() {
         return []
     }
     
+    /// Fetch posts within a geographic bounding box with smart zoom-based filtering
+    func fetchPostsInBounds(
+        minLat: Double,
+        maxLat: Double,
+        minLng: Double,
+        maxLng: Double,
+        zoomLevel: Double
+    ) async {
+        await MainActor.run { isLoading = true }
+        defer { Task { @MainActor in isLoading = false } }
+
+        do {
+            // Determine limit based on zoom level
+            // Zoomed in (small delta) -> more posts, Zoomed out (large delta) -> fewer posts
+            let limit: Int
+            if zoomLevel < 0.01 { // Very zoomed in (street level)
+                limit = 200
+            } else if zoomLevel < 0.1 { // City level
+                limit = 100
+            } else if zoomLevel < 1.0 { // Metro area
+                limit = 50
+            } else { // Country/continent level
+                limit = 25
+            }
+
+            let selectColumns = "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at,like_count"
+
+            let response = try await supabaseClient
+                .from("posts")
+                .select(selectColumns)
+                .gte("latitude", value: minLat)
+                .lte("latitude", value: maxLat)
+                .gte("longitude", value: minLng)
+                .lte("longitude", value: maxLng)
+                .order("like_count", ascending: false) // Popular posts first
+                .limit(limit)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let dbPosts = try decoder.decode([DatabasePost].self, from: response.data)
+
+            await MainActor.run {
+                self.posts = dbPosts.map { dbPost in
+                    let name: String
+                    let avatar: String?
+                    if dbPost.is_anonymous ?? false {
+                        name = "匿名ユーザー"
+                        avatar = nil
+                    } else {
+                        name = "ユーザー"
+                        avatar = nil
+                    }
+                    return Post(
+                        id: dbPost.id,
+                        createdAt: dbPost.created_at,
+                        expiresAt: dbPost.expires_at,
+                        location: CLLocationCoordinate2D(
+                            latitude: dbPost.latitude,
+                            longitude: dbPost.longitude
+                        ),
+                        locationName: dbPost.location_name,
+                        imageData: nil,
+                        imageUrl: dbPost.image_url,
+                        text: dbPost.content,
+                        authorName: name,
+                        authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
+                        isAnonymous: dbPost.is_anonymous ?? false,
+                        authorAvatarUrl: avatar
+                    )
+                }
+            }
+        } catch {
+            let nsError = error as NSError
+            secureLogger.error("Failed to fetch posts in bounds: \(nsError.localizedDescription)")
+            await MainActor.run {
+                self.error = nsError.localizedDescription
+            }
+        }
+    }
+
     func fetchPosts() async {
         await MainActor.run { isLoading = true }
         defer { Task { @MainActor in isLoading = false } }
@@ -172,10 +253,7 @@ private init() {
                 }
             }
             
-            let expiryInterval: TimeInterval = (imageData == nil ? 3 * 60 * 60 : 24 * 60 * 60)
-            let expiresAtDate = Date().addingTimeInterval(expiryInterval)
-            let expiresAtString = ISO8601DateFormatter().string(from: expiresAtDate)
-
+            // 投稿の有効期限を無効化（永続化）
             var postData: [String: AnyJSON] = [
                 "user_id": .string(userUUID.uuidString),
                 "content": .string(content),
@@ -184,12 +262,11 @@ private init() {
                 "latitude": .double(latitude),
                 "longitude": .double(longitude),
                 "is_public": .bool(true),  // 常に公開（匿名でも投稿内容は公開）
-                "expires_at": .string(expiresAtString)
+                "expires_at": .null  // 有効期限なし
             ]
 
             postData["is_anonymous"] = .bool(isAnonymous)
-            print("📝 SupabaseService - Creating post with isAnonymous: \(isAnonymous), isPublic: true")
-            
+
             _ = try await supabaseClient
                 .from("posts")
                 .insert(postData)
@@ -215,13 +292,13 @@ private init() {
                         avatarUrl = url
                     }
                 } catch {
-                    print("⚠️ Failed to fetch avatar URL: \(error)")
+                    // Failed to fetch avatar URL, continue without it
                 }
             }
             
             let newPost = Post(
                 createdAt: Date(),
-                expiresAt: expiresAtDate,
+                expiresAt: nil,  // 有効期限なし
                 location: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
                 locationName: locationName,
                 imageData: imageData,

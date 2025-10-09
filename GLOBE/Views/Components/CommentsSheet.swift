@@ -142,14 +142,21 @@ struct CommentsSheet: View {
         guard !newCommentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard let user = authManager.currentUser else { return }
         
-        let comment = Comment(
-            postId: post.id,
-            text: newCommentText.trimmingCharacters(in: .whitespacesAndNewlines),
-            authorName: user.email?.components(separatedBy: "@").first ?? "匿名ユーザー",
-            authorId: user.id
-        )
-        
-        commentService.addComment(comment)
+        let commentText = newCommentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let authorName = user.email?.components(separatedBy: "@").first ?? "匿名ユーザー"
+
+        Task {
+            do {
+                try await commentService.addComment(
+                    to: post.id,
+                    content: commentText,
+                    authorId: user.id,
+                    authorName: authorName
+                )
+            } catch {
+                print("❌ Failed to add comment: \(error)")
+            }
+        }
         newCommentText = ""
         isComposingComment = false
         

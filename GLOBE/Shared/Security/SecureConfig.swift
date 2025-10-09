@@ -137,14 +137,22 @@ struct SecureConfig {
         if let keychainURL = getFromKeychain(key: .supabaseURL), !isPlaceholder(keychainURL) {
             return keychainURL
         }
-        if let url = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String, !isPlaceholder(url) {
-            return url
+
+        if let url = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String {
+            if !isPlaceholder(url) {
+                return url
+            }
         }
+
         if let secrets = loadSecretsPlist(), let url = secrets["SUPABASE_URL"], !isPlaceholder(url) {
             return url
         }
+
         SecureLogger.shared.error("No Supabase URL (sync) found in secure locations")
-        return ""
+
+        // Development fallback - hardcoded URL (always enabled for now)
+        let fallbackURL = "https://kkznkqshpdzlhtuawasm.supabase.co"
+        return fallbackURL
     }
 
     var supabaseAnonKey: String {
@@ -152,7 +160,7 @@ struct SecureConfig {
         if let keychainKey = getFromKeychain(key: .supabaseAnonKey) {
             return keychainKey
         }
-        
+
         // Fallback to Info.plist
         if let key = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String, !isPlaceholder(key) {
             return key
@@ -163,10 +171,13 @@ struct SecureConfig {
             saveToKeychain(key: .supabaseAnonKey, value: key)
             return key
         }
-        
+
         // Emergency fallback - should not happen in production
         SecureLogger.shared.error("No Supabase Anon Key found in Keychain or Info.plist")
-        return ""
+
+        // Development fallback - hardcoded key (always enabled for now)
+        let fallbackKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtrem5rcXNocGR6bGh0dWF3YXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTA5NzAsImV4cCI6MjA3MDg4Njk3MH0.BXF3JVvs0M7Mgp9whEwFXd6PRfEwEMcCbKfnRBROEBM"
+        return fallbackKey
     }
     
     // MARK: - Configuration Methods

@@ -18,6 +18,7 @@ struct MainTabView: View {
     @State private var shouldShowPostAfterDelay = false
     @State private var tappedLocation: CLLocationCoordinate2D?
     @State private var vTipPoint: CGPoint = CGPoint.zero
+    @State private var hasSetInitialLocation = false
 
 
     // カスタムデザイン用の色定義
@@ -45,6 +46,10 @@ struct MainTabView: View {
                 LiquidGlassBottomTabBar(
                     onProfileTapped: {
                         if authManager.isAuthenticated {
+                            // 投稿作成カードが開いている場合は閉じる
+                            if showingCreatePost {
+                                showingCreatePost = false
+                            }
                             showingProfile = true
                         } else {
                             showingAuth = true
@@ -53,6 +58,10 @@ struct MainTabView: View {
                     onPostTapped: {
                         print("➕ LiquidGlassBottomTabBar: post tapped")
                         if authManager.isAuthenticated {
+                            // プロフィールポップアップが開いている場合は閉じる
+                            if showingProfile {
+                                showingProfile = false
+                            }
                             tappedLocation = mapManager.region.center
                             showingCreatePost = true
                         } else {
@@ -80,6 +89,12 @@ struct MainTabView: View {
                     .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
                     .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
                 }
+
+                if showingProfile {
+                    ProfilePopupView(isPresented: $showingProfile)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.3), value: showingProfile)
+                }
             }
             // TEMPORARILY DISABLED - VTipPreferenceKey causes crashes
             // .onPreferenceChange(VTipPreferenceKey.self) { point in
@@ -88,9 +103,6 @@ struct MainTabView: View {
         )
         .fullScreenCover(isPresented: $showingAuth) {
             AuthenticationView()
-        }
-        .fullScreenCover(isPresented: $showingProfile) {
-            MyPageView()
         }
 
         .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
@@ -135,6 +147,14 @@ struct MainTabView: View {
                 await mapManager.fetchInitialPostsIfNeeded()
             }
             #endif
+        }
+        .onChange(of: locationManager.location) { _, newLocation in
+            // 現在位置が取得できたら初回のみ地図の中心を設定
+            if !hasSetInitialLocation, let location = newLocation?.coordinate {
+                mapManager.setInitialRegionToCurrentLocation(location)
+                hasSetInitialLocation = true
+                print("📍 MainTabView: Set initial location to \(location)")
+            }
         }
         .onChange(of: authManager.isAuthenticated) { _, authed in
             if authed {

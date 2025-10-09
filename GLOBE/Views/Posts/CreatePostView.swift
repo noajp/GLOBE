@@ -11,7 +11,6 @@ import Combine
 
 // MARK: - Post Privacy Options
 enum PostPrivacyType: Equatable, Sendable {
-    case followersOnly
     case publicPost
     case anonymous
 }
@@ -74,7 +73,7 @@ struct CreatePostView: View {
 
     private var maxTextLength: Int {
         // 画像の有無で制限値を変更
-        return selectedImageData != nil ? 15 : 30
+        return selectedImageData != nil ? 30 : 60
     }
     
     var body: some View {
@@ -86,10 +85,10 @@ struct CreatePostView: View {
                     VStack(spacing: 0) {
                         postCreationView
                     }
-                    .frame(width: 280, height: selectedImageData != nil ? 360 : 210)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 12))
+                    .frame(width: 280, height: selectedImageData != nil ? 300 : 200)
+                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 10))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.white.opacity(0.3), lineWidth: 1)
                     )
 
@@ -183,12 +182,12 @@ struct CreatePostView: View {
             .overlay(alignment: .topLeading) {
                 headerCloseButton
                     .padding(.leading, 8)
-                    .padding(.top, 8)
+                    .padding(.top, 14)
             }
             .overlay(alignment: .topTrailing) {
                 postActionButton
                     .padding(.trailing, 4)
-                    .padding(.top, 8)
+                    .padding(.top, 14)
             }
     }
 
@@ -229,10 +228,14 @@ struct CreatePostView: View {
             // POST button - separate and simple
             Button(action: {
                 print("📝 POST button pressed...")
+                print("📝 selectedImageData: \(selectedImageData != nil ? "YES" : "NO")")
+                print("📝 postText: '\(postText)', isEmpty: \(postText.isEmpty), count: \(postText.count)")
+                print("📝 maxTextLength: \(maxTextLength)")
+
                 // 画像がある場合はテキストなしでもOK
                 let hasValidContent = selectedImageData != nil || (!postText.isEmpty && postText.count <= maxTextLength)
                 guard hasValidContent else {
-                    print("❌ POST validation failed")
+                    print("❌ POST validation failed - no image and text is empty/invalid")
                     return
                 }
                 createPost()
@@ -324,21 +327,34 @@ struct CreatePostView: View {
                 }
             } else {
                 // 画像がない時のみテキスト入力を表示
-                TextField("text", text: Binding(
-                    get: { postText },
-                    set: { newValue in
-                        postText = newValue
+                ZStack(alignment: .topLeading) {
+                    if postText.isEmpty {
+                        Text("text")
+                            .font(.system(size: 16))
+                            .foregroundColor(.white.opacity(0.5))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 8)
                     }
-                ), axis: .vertical)
-                .font(.system(size: 16))
-                .foregroundColor(weightedCharacterCount > Double(maxTextLength) ? .red : .white)
-                .lineLimit(10)
-                .textFieldStyle(PlainTextFieldStyle())
-                .scrollContentBackground(.hidden)
+
+                    TextEditor(text: Binding(
+                        get: { postText },
+                        set: { newValue in
+                            // 文字数制限を適用 - 超えたら入力を無視
+                            if newValue.count <= maxTextLength {
+                                postText = newValue
+                            }
+                        }
+                    ))
+                    .font(.system(size: 16))
+                    .foregroundColor(weightedCharacterCount > Double(maxTextLength) ? .red : .white)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                }
+                .frame(height: 80) // 固定高さでスクロール可能に
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
     
     // MARK: - Bottom Section View 
@@ -364,8 +380,8 @@ struct CreatePostView: View {
                         cameraActionButton
                     }
                 }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 6)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
             }
     }
 
@@ -397,8 +413,7 @@ struct CreatePostView: View {
 
     private var privacyDescriptionLabel: some View {
         Text(
-            selectedPrivacyType == .publicPost ? "Post publicly" :
-            selectedPrivacyType == .followersOnly ? "Post to followers" : "Post anonymously"
+            selectedPrivacyType == .publicPost ? "Post publicly" : "Post anonymously"
         )
         .font(.system(size: 11, weight: .medium))
         .foregroundColor(.white.opacity(0.85))
@@ -509,7 +524,6 @@ struct CreatePostView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     privacyPopupOption(.anonymous, "person.fill.questionmark", .black, "Post anonymously", "Your identity will be hidden")
                     privacyPopupOption(.publicPost, "globe", .black, "Post publicly", "Everyone can see this post")
-                    privacyPopupOption(.followersOnly, "person.2.fill", .black, "Post to followers", "Only your followers can see this")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)

@@ -45,15 +45,6 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
         // Set availability flag based on current status
         isLocationAvailable = (authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways)
         
-        // Check location services availability on background thread to avoid UI warnings
-        DispatchQueue.global(qos: .utility).async {
-            let servicesEnabled = CLLocationManager.locationServicesEnabled()
-            print("📱 MapLocationService: Location Services Enabled: \(servicesEnabled)")
-        }
-        
-        print("🔍 MapLocationService: Initial setup - Authorization: \(authorizationStatusText) (\(authorizationStatus.rawValue))")
-        print("📍 MapLocationService: Accuracy Authorized: \(manager.accuracyAuthorization == .fullAccuracy)")
-        
         // Don't automatically start services here - wait for explicit request
         // This prevents UI unresponsiveness warnings during initialization
     }
@@ -61,15 +52,12 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
     // MARK: - Public Methods
     /// Main method to request location - handles permissions automatically
     func requestLocation() {
-        print("📍 MapLocationService: Requesting location - Current status: \(authorizationStatusText)")
-        
         // First check if location services are enabled at system level
         // Move to background thread to avoid UI warning
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            
+
             guard CLLocationManager.locationServicesEnabled() else {
-                print("❌ Location Services are disabled at system level")
                 return
             }
             
@@ -82,23 +70,19 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
     private func handleLocationRequest() {
         switch authorizationStatus {
         case .notDetermined:
-            print("🔑 Requesting authorization from user")
             manager.requestWhenInUseAuthorization()
-            print("✅ Permission request sent")
-            
+
         case .authorizedWhenInUse, .authorizedAlways:
-            print("✅ Already authorized, starting location services")
             startLocationServices()
-            
+
         case .denied:
-            print("🚫 Permission denied - user needs to enable in Settings")
-            print("ℹ️ Guide user to: Settings > Privacy & Security > Location Services > GLOBE")
-            
+            break
+
         case .restricted:
-            print("🚫 Permission restricted - parental controls or MDM")
-            
+            break
+
         @unknown default:
-            print("❓ Unknown authorization status")
+            break
         }
     }
     
@@ -108,17 +92,13 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
     }
     
     func startLocationServices() {
-        print("✅ MapLocationService: Starting location services - Status: \(authorizationStatusText)")
-        
         // Only start if we have proper authorization
         guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
-            print("⚠️ MapLocationService: Cannot start location services - not authorized (status: \(authorizationStatus.rawValue))")
             return
         }
-        
+
         // Start continuous location updates (this doesn't cause UI warnings)
         manager.startUpdatingLocation()
-        print("📍 Started continuous location updates")
         
         // Only request one-time location if we haven't received updates recently
         // This reduces the number of requestLocation() calls that cause UI warnings
@@ -128,7 +108,6 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
                 guard let self = self else { return }
                 // Final check before requesting location
                 if self.authorizationStatus == .authorizedWhenInUse || self.authorizationStatus == .authorizedAlways {
-                    print("📍 Requesting one-time location update")
                     self.manager.requestLocation()
                 }
             }
@@ -136,7 +115,6 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
     }
     
     func stopLocationServices() {
-        print("⛔️ MapLocationService: Stopping location services")
         manager.stopUpdatingLocation()
     }
     
@@ -147,29 +125,24 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
             
             let oldStatus = self.authorizationStatus
             self.authorizationStatus = manager.authorizationStatus
-            
-            print("🔐 MapLocationService: Authorization changed from \(oldStatus.rawValue) to \(self.authorizationStatus.rawValue)")
-            
+
             switch self.authorizationStatus {
             case .authorizedWhenInUse, .authorizedAlways:
                 self.isLocationAvailable = true
                 // Only start if we weren't already authorized
                 if oldStatus != .authorizedWhenInUse && oldStatus != .authorizedAlways {
-                    print("✅ Starting location services after authorization")
                     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                         self?.startLocationServices()
                     }
                 }
-                
+
             case .denied, .restricted:
                 self.isLocationAvailable = false
                 self.stopLocationServices()
                 self.location = nil
-                print("🚫 Location access denied/restricted")
-                
+
             case .notDetermined:
                 self.isLocationAvailable = false
-                print("⏳ MapLocationService: Waiting for user decision")
                 
             @unknown default:
                 self.isLocationAvailable = false
@@ -183,9 +156,7 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
-            print("📍 MapLocationService: Updated location - \(newLocation.coordinate.latitude), \(newLocation.coordinate.longitude)")
-            
+
             // Update current location
             self.location = newLocation
             
@@ -200,34 +171,30 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
             )
             let span = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
             self.region = MKCoordinateRegion(center: center, span: span)
-            
+
             if !self.hasSetInitialRegion {
                 self.hasSetInitialRegion = true
-                print("🗺 MapLocationService: Set initial region to user location")
             }
-            
+
             // Trigger objectWillChange for any additional observers (following provided pattern)
             self.objectWillChange.send()
         }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        print("❌ MapLocationService: Location error - \(error.localizedDescription)")
-        
         if let clError = error as? CLError {
             switch clError.code {
             case .denied:
-                print("🚫 Location access denied")
                 isLocationAvailable = false
-                
+
             case .locationUnknown:
-                print("📍 Location unknown, will retry")
-                
+                break
+
             case .network:
-                print("🌐 Network error")
-                
+                break
+
             default:
-                print("⚠️ Other location error: \(clError.code.rawValue)")
+                break
             }
         }
     }
@@ -235,32 +202,24 @@ class MapLocationService: NSObject, ObservableObject, CLLocationManagerDelegate 
     // MARK: - Helper Methods
     func centerOnUserLocation() {
         guard let location = location else {
-            print("⚠️ MapLocationService: No location available to center on")
             return
         }
-        
+
         withAnimation {
             region = MKCoordinateRegion(
                 center: location.coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
             )
         }
-        
-        print("🎯 MapLocationService: Centered on user location")
     }
     
     // MARK: - Debug Methods
     #if DEBUG
     func debugLocationStatus() {
-        print("📍 MapLocationService Debug Status:")
-        print("  - Authorization: \(authorizationStatusText) (\(authorizationStatus.rawValue))")
-        print("  - Location Services: \(CLLocationManager.locationServicesEnabled() ? "ON" : "OFF")")
-        print("  - Current Location: \(location?.coordinate.latitude ?? 0.0), \(location?.coordinate.longitude ?? 0.0)")
-        print("  - Is Available: \(isLocationAvailable)")
+        // Debug info available in debugger
     }
-    
+
     func forcePermissionRequest() {
-        print("🔧 DEBUG: Force requesting permission")
         manager.requestWhenInUseAuthorization()
     }
     #endif
