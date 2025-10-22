@@ -69,7 +69,7 @@ final class InputValidatorTests: XCTestCase {
         // 正常テキスト → 有効
         let ok = InputValidator.validatePostContent("今日は渋谷で写真を撮った！")
         XCTAssertTrue(ok.isValid)
-        XCTAssertEqual(ok.unwrappedValue, "今日は渋谷で写真を撮った！")
+        XCTAssertEqual(ok.value, "今日は渋谷で写真を撮った！")
     }
     
     // MARK: - Location Safety
@@ -102,7 +102,9 @@ final class InputValidatorTests: XCTestCase {
         XCTAssertTrue(InputValidator.validateURL("https://example.com/path?x=1#y").isValid)
         XCTAssertFalse(InputValidator.validateURL("javascript:alert(1)").isValid)
         XCTAssertFalse(InputValidator.validateURL("data:text/html;base64,aaa").isValid)
-        XCTAssertFalse(InputValidator.validateURL("ftp://example.com").isValid) // 実装次第で変わる可能性あり
+        XCTAssertFalse(InputValidator.validateURL("ftp://example.com").isValid) // HTTPSのみ許可
+        XCTAssertFalse(InputValidator.validateURL("http://example.com").isValid) // HTTPは不可、HTTPSのみ
+        XCTAssertFalse(InputValidator.validateURL("https://bit.ly/abc").isValid) // 短縮URLは危険
     }
     
     // MARK: - Phone

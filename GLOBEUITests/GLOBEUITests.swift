@@ -2,6 +2,10 @@
 // MARK: - GLOBEUITests.swift
 // Purpose: UI/E2Eテスト（ユーザーフロー・画面遷移・主要機能のエンドツーエンドテスト）
 // Path: GLOBEUITests/GLOBEUITests.swift
+//
+// NOTE: このアプリは標準のTabBarではなくLiquidGlassBottomTabBarという
+// カスタムコンポーネントを使用しているため、タブバー関連のテストが
+// 失敗する可能性があります。
 //======================================================================
 
 import XCTest
@@ -134,7 +138,7 @@ final class GLOBEUITests: XCTestCase {
     func testMainNavigation_tabBarNavigation() throws {
         let tabBar = app.tabBars.firstMatch
         guard tabBar.exists else {
-            XCTSkip("Tab bar not found - app may not use tab navigation")
+            throw XCTSkip("Tab bar not found - app may not use tab navigation")
         }
 
         XCTAssertTrue(waitForElementToBeHittable(tabBar), "Tab bar should be interactive")
@@ -167,7 +171,7 @@ final class GLOBEUITests: XCTestCase {
     func testMainNavigation_backButtonFunctionality() throws {
         let tabBar = app.tabBars.firstMatch
         guard tabBar.exists else {
-            XCTSkip("Tab bar not found")
+            throw XCTSkip("Tab bar not found")
         }
 
         // Navigate to profile if available

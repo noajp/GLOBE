@@ -178,16 +178,16 @@ struct CreatePostView: View {
     private var headerView: some View {
         Rectangle()
             .fill(Color.clear)
-            .frame(width: 280, height: 52)
+            .frame(width: 280, height: 32)
             .overlay(alignment: .topLeading) {
                 headerCloseButton
                     .padding(.leading, 8)
-                    .padding(.top, 14)
+                    .padding(.top, 6)
             }
             .overlay(alignment: .topTrailing) {
                 postActionButton
                     .padding(.trailing, 4)
-                    .padding(.top, 14)
+                    .padding(.top, 6)
             }
     }
 
@@ -339,6 +339,11 @@ struct CreatePostView: View {
                     TextEditor(text: Binding(
                         get: { postText },
                         set: { newValue in
+                            // 改行数を5行までに制限
+                            let lineCount = newValue.components(separatedBy: "\n").count
+                            if lineCount > 5 {
+                                return // 5行を超える改行は無視
+                            }
                             // 文字数制限を適用 - 超えたら入力を無視
                             if newValue.count <= maxTextLength {
                                 postText = newValue
@@ -350,18 +355,18 @@ struct CreatePostView: View {
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
                 }
-                .frame(height: 80) // 固定高さでスクロール可能に
+                .frame(height: 120) // 固定高さでスクロール可能に
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
     }
     
-    // MARK: - Bottom Section View 
+    // MARK: - Bottom Section View
     private var bottomSectionView: some View {
         Rectangle()
             .fill(.clear)
-            .frame(width: 280, height: 56)
+            .frame(width: 280, height: 36)
             .overlay(alignment: .bottom) {
                 HStack(alignment: .center) {
                     locationActionButton
@@ -381,7 +386,7 @@ struct CreatePostView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .padding(.bottom, 6)
             }
     }
 
@@ -664,13 +669,5 @@ struct CreatePostView: View {
 }
 
 
-// MARK: - Speech Bubble Shape - TEMPORARILY DISABLED DUE TO CRASHES
-// Replaced with separate RoundedRectangle and Triangle components
-
-// MARK: - V Tip Preference - TEMPORARILY DISABLED
-// struct VTipPreferenceKey: PreferenceKey {
-//     static var defaultValue: CGPoint = CGPoint.zero
-//     static func reduce(value: inout CGPoint, nextValue: () -> CGPoint) {
-//         value = nextValue()
-//     }
-// }
+// MARK: - Speech Bubble Shape
+// Replaced with separate RoundedRectangle and Triangle components for stability

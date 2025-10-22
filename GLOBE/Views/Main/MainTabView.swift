@@ -50,7 +50,8 @@ struct MainTabView: View {
                             if showingCreatePost {
                                 showingCreatePost = false
                             }
-                            showingProfile = true
+                            // プロフィールをトグル（開いている場合は閉じる）
+                            showingProfile.toggle()
                         } else {
                             showingAuth = true
                         }
@@ -62,16 +63,39 @@ struct MainTabView: View {
                             if showingProfile {
                                 showingProfile = false
                             }
-                            tappedLocation = mapManager.region.center
-                            showingCreatePost = true
+                            // 投稿作成カードをトグル（開いている場合は閉じる）
+                            if showingCreatePost {
+                                showingCreatePost = false
+                            } else {
+                                tappedLocation = mapManager.region.center
+                                showingCreatePost = true
+                            }
                         } else {
                             showingAuth = true
+                        }
+                    },
+                    onLocationTapped: {
+                        print("📍 LiquidGlassBottomTabBar: location tapped")
+                        // 投稿作成カードやプロフィールが開いている場合は閉じる
+                        if showingCreatePost {
+                            showingCreatePost = false
+                        }
+                        if showingProfile {
+                            showingProfile = false
+                        }
+
+                        // Request location permission if needed
+                        locationManager.startLocationServices()
+
+                        // Move to current location if available
+                        if let currentLocation = locationManager.location?.coordinate {
+                            mapManager.focusOnLocation(currentLocation, zoomLevel: 0.0008)
                         }
                     }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .trailing, vertical: .bottom))
-                .padding(.trailing, max(safeInsets.trailing, 0) + 16)
-                .padding(.bottom, 60)
+                .padding(.trailing, max(safeInsets.trailing, 0) + 20)
+                .padding(.bottom, 0)
             }
             .ignoresSafeArea(.keyboard)
         }
@@ -87,7 +111,6 @@ struct MainTabView: View {
                     .offset(y: -80)
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
-                    .allowsHitTesting(true) // ポップアップ自体のみタッチを受け付ける
                 }
 
                 if showingProfile {

@@ -29,6 +29,10 @@ struct MapContentView: View {
         )
     )
 
+    // Debouncing for data fetching
+    @State private var fetchDebounceTask: Task<Void, Never>?
+    @State private var lastUpdateTime: Date = Date()
+
     var body: some View {
         Map(position: $mapCameraPosition, interactionModes: .all) {
             // User location marker
@@ -81,6 +85,11 @@ struct MapContentView: View {
                 .mapControlVisibility(.hidden)
         }
         .onMapCameraChange(frequency: .continuous) { context in
+            // Throttle updates to reduce stuttering (max 10 updates per second)
+            let now = Date()
+            guard now.timeIntervalSince(lastUpdateTime) > 0.1 else { return }
+            lastUpdateTime = now
+
             // Update MapManager's region when map camera changes
             // Limit maximum zoom level (minimum span = 0.004 ≈ 400m)
             let minSpan = 0.004
@@ -89,13 +98,16 @@ struct MapContentView: View {
             let latDelta = max(context.region.span.latitudeDelta, minSpan)
             let lngDelta = max(context.region.span.longitudeDelta, minSpan)
 
-            // If user tries to zoom beyond limit, enforce the limit
+            // スムーズに制限を適用（カクつき防止）
             if context.region.span.latitudeDelta < minSpan || context.region.span.longitudeDelta < minSpan {
-                let restrictedRegion = MKCoordinateRegion(
-                    center: context.camera.centerCoordinate,
-                    span: MKCoordinateSpan(latitudeDelta: minSpan, longitudeDelta: minSpan)
-                )
-                mapCameraPosition = .region(restrictedRegion)
+                // アニメーションなしで静かに制限
+                DispatchQueue.main.async {
+                    let restrictedRegion = MKCoordinateRegion(
+                        center: context.camera.centerCoordinate,
+                        span: MKCoordinateSpan(latitudeDelta: minSpan, longitudeDelta: minSpan)
+                    )
+                    mapCameraPosition = .region(restrictedRegion)
+                }
             }
 
             let newRegion = MKCoordinateRegion(
@@ -108,15 +120,23 @@ struct MapContentView: View {
 
             mapManager.region = newRegion
         }
-        .onMapCameraChange(frequency: .onEnd) { context in
-            // Fetch posts when user stops moving map
-            Task {
-                await mapManager.fetchPostsInViewport()
-            }
+        .onMapCameraChange { context in
+            // Cancel previous fetch task
+            fetchDebounceTask?.cancel()
 
-            // Update clusters when zoom stops
-            Task { @MainActor in
-                mapManager.updateClusters()
+            // Debounce: wait 0.5 seconds before fetching
+            fetchDebounceTask = Task {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+
+                guard !Task.isCancelled else { return }
+
+                // Fetch posts when user stops moving map
+                await mapManager.fetchPostsInViewport()
+
+                // Update clusters after fetching
+                await MainActor.run {
+                    mapManager.updateClusters()
+                }
             }
 
             // Temporarily disable 3D correction to prevent crashes

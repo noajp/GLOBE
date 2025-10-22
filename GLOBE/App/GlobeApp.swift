@@ -57,8 +57,6 @@ struct GlobeApp: App {
         ]
         SecItemDelete(keyQuery as CFDictionary)
         SecItemAdd(keyQuery as CFDictionary, nil)
-
-        print("✅ Supabase configuration initialized in Keychain")
     }
 
     private func clearKeychainAndReloadConfig() {
@@ -83,8 +81,8 @@ struct GlobeApp: App {
            let currentURL = String(data: data, encoding: .utf8) {
             // 間違ったURLが保存されている場合のみクリア
             if currentURL.contains("lhsdzjkdhiefbhzmwxbj") {
-                print("🔧 Found incorrect URL in Keychain, clearing...")
-                
+                // Clear incorrect configuration
+
                 // 両方のキーを削除
                 let keysToDelete = ["supabase_url", "supabase_anon_key"]
                 for key in keysToDelete {
@@ -99,7 +97,6 @@ struct GlobeApp: App {
                 // 正しい設定を読み込み（同期アクセサ）
                 _ = SecureConfig.shared.supabaseURLSync()
                 _ = SecureConfig.shared.supabaseAnonKey
-                print("🔧 Reloaded correct Supabase configuration")
             }
         }
     }

@@ -23,7 +23,6 @@ final class MyPageViewModel: ObservableObject {
     // MARK: - Dependencies
 
     private let authService: any AuthServiceProtocol
-    private var supabase: SupabaseClient { supabaseSync }
 
     // MARK: - Private Properties
 
@@ -36,12 +35,13 @@ final class MyPageViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private func handleAuthStateChange() {
-        if authService.isAuthenticated {
-            Task {
-                await loadUserDataIfNeeded()
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            if self.authService.isAuthenticated {
+                await self.loadUserDataIfNeeded()
+            } else {
+                self.clearUserData()
             }
-        } else {
-            clearUserData()
         }
     }
 
@@ -70,18 +70,23 @@ final class MyPageViewModel: ObservableObject {
         authService.isAuthenticatedPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.handleAuthStateChange()
+                guard let self = self else { return }
+                self.handleAuthStateChange()
             }
             .store(in: &cancellables)
     }
 
     private func loadInitialData() {
-        Task {
-            // まずプロフィールと認証情報を同期
-            await syncProfileWithAuthData()
-            await loadUserDataIfNeeded()
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            do {
+                // まずプロフィールと認証情報を同期
+                await self.syncProfileWithAuthData()
+                await self.loadUserDataIfNeeded()
+            } catch {
+                logger.error("Error during initial data load: \(error.localizedDescription)")
+            }
         }
-
     }
     
     // MARK: - Public Methods
@@ -102,7 +107,7 @@ final class MyPageViewModel: ObservableObject {
 
         do {
             // Load profile directly from Supabase
-            let profileResult = try await supabase
+            let profileResult = try await (await supabase)
                 .from("profiles")
                 .select()
                 .eq("id", value: userId)
@@ -117,11 +122,13 @@ final class MyPageViewModel: ObservableObject {
                 // プロフィールが存在しない場合、認証情報から作成
                 SecureLogger.shared.warning("Profile not found, creating from auth data")
                 await createProfileFromAuthData()
+                hasLoadedInitially = true
+                isLoading = false
                 return
             }
 
             // Load user posts directly from Supabase
-            let postsResult = try await supabase
+            let postsResult = try await (await supabase)
                 .from("posts")
                 .select()
                 .eq("user_id", value: userId)
@@ -170,15 +177,15 @@ final class MyPageViewModel: ObservableObject {
     private func createProfileFromAuthData() async {
         // Supabaseのセッションから実際のユーザーIDを取得
         do {
-            let session = try await supabase.auth.session
+            let session = try await (await supabase).auth.session
             let userId = session.user.id.uuidString
-            let _ = session.user.userMetadata["username"]?.stringValue ?? 
+            let _ = session.user.userMetadata["username"]?.stringValue ??
                          session.user.email?.components(separatedBy: "@").first ?? "user"
-            
-            print("🔄 MyPageViewModel: Checking profile for user: \(userId)")
-            
+
+            logger.info("Checking profile for user: \(userId)")
+
             // まずプロフィールが既に存在するか確認
-            let existingProfile = try await supabase
+            let existingProfile = try await (await supabase)
                 .from("profiles")
                 .select()
                 .eq("id", value: userId)
@@ -188,16 +195,16 @@ final class MyPageViewModel: ObservableObject {
             let profiles = try? decoder.decode([UserProfile].self, from: existingProfile.data)
             
             if let profile = profiles?.first {
-                print("ℹ️ MyPageViewModel: Profile already exists for user: \(userId)")
+                logger.info("Profile already exists for user: \(userId)")
                 userProfile = profile
             } else {
                 // プロフィールが存在しない場合、handle_new_userトリガーが作成するのを待つ
-                print("⏳ MyPageViewModel: Waiting for profile to be created by database trigger...")
-                
+                logger.warning("Waiting for profile to be created by database trigger...")
+
                 // 少し待ってから再度確認
                 try await Task.sleep(nanoseconds: 1_000_000_000) // 1秒待機
-                
-                let retryProfile = try await supabase
+
+                let retryProfile = try await (await supabase)
                     .from("profiles")
                     .select()
                     .eq("id", value: userId)
@@ -205,19 +212,28 @@ final class MyPageViewModel: ObservableObject {
                 
                 let retryProfiles = try? decoder.decode([UserProfile].self, from: retryProfile.data)
                 if let profile = retryProfiles?.first {
-                    print("✅ MyPageViewModel: Profile found after retry")
+                    logger.info("Profile found after retry")
                     userProfile = profile
+
+                    // プロフィールが見つかった場合のみ、投稿データを読み込む
+                    let postsResult = try await (await supabase)
+                        .from("posts")
+                        .select()
+                        .eq("user_id", value: userId)
+                        .order("created_at", ascending: false)
+                        .execute()
+
+                    let posts = try? JSONDecoder().decode([Post].self, from: postsResult.data)
+                    userPosts = posts ?? []
+                    postsCount = userPosts.count
                 } else {
-                    print("⚠️ MyPageViewModel: Profile still not found after retry")
+                    logger.warning("Profile still not found after retry")
                     errorMessage = "プロフィールの作成を待っています。しばらくしてから再度お試しください。"
                 }
             }
             
-            // データを再読み込み
-            await loadUserData()
-            
         } catch {
-            print("❌ MyPageViewModel: Failed during profile check: \(error)")
+            logger.error("Failed during profile check: \(error.localizedDescription)")
             if error.localizedDescription.contains("sessionMissing") {
                 errorMessage = "セッションが無効です。再度ログインしてください。"
                 // AuthManagerに再認証を促す
@@ -234,45 +250,54 @@ final class MyPageViewModel: ObservableObject {
     func syncProfileWithAuthData() async {
         guard let currentUser = authService.currentUser,
               let userId = currentUserId else {
-            print("❌ MyPageViewModel: No current user for sync")
+            logger.warning("No current user for sync")
             return
         }
-        
-        print("🔄 MyPageViewModel: Syncing profile with auth data")
+
+        logger.info("Syncing profile with auth data")
         
         do {
             // 現在のプロフィール情報を取得
-            let profileData = try await supabase
+            let profileData = try await (await supabase)
                 .from("profiles")
                 .select()
                 .eq("id", value: userId)
                 .execute()
-            
+
             let profiles: [UserProfile] = try JSONDecoder().decode([UserProfile].self, from: profileData.data)
-            
+
             if let existingProfile = profiles.first {
                 // プロフィールが存在する場合、認証情報と一致しているかチェック
                 let authUsername = currentUser.username ?? currentUser.email?.components(separatedBy: "@").first ?? "user"
-                
+
                 if existingProfile.username != authUsername {
-                    print("⚠️ MyPageViewModel: Username mismatch detected. Auth: \(authUsername), Profile: \(existingProfile.username)")
-                    
+                    logger.warning("Username mismatch detected. Auth: \(authUsername), Profile: \(existingProfile.username)")
+
                     // 認証情報に基づいてプロフィールを更新
                     let updateDict: [String: AnyJSON] = [
                         "username": AnyJSON.string(authUsername),
                         "display_name": AnyJSON.string(existingProfile.displayName ?? authUsername)
                     ]
-                    
-                    try await supabase
+
+                    try await (await supabase)
                         .from("profiles")
                         .update(updateDict)
                         .eq("id", value: userId)
                         .execute()
-                    
-                    print("✅ MyPageViewModel: Profile synced with auth username: \(authUsername)")
-                    
-                    // データを再読み込み
-                    await loadUserData()
+
+                    logger.info("Profile synced with auth username: \(authUsername)")
+
+                    // 更新されたプロフィールをローカルに反映
+                    userProfile = UserProfile(
+                        id: existingProfile.id,
+                        username: authUsername,
+                        displayName: existingProfile.displayName ?? authUsername,
+                        bio: existingProfile.bio,
+                        avatarUrl: existingProfile.avatarUrl,
+                        postCount: existingProfile.postCount,
+                        followerCount: existingProfile.followerCount,
+                        followingCount: existingProfile.followingCount
+                    )
                 }
             } else {
                 // プロフィールが存在しない場合は作成
@@ -280,7 +305,7 @@ final class MyPageViewModel: ObservableObject {
             }
             
         } catch {
-            print("❌ MyPageViewModel: Failed to sync profile: \(error)")
+            logger.error("Failed to sync profile: \(error.localizedDescription)")
         }
     }
     
@@ -321,25 +346,25 @@ final class MyPageViewModel: ObservableObject {
                 "bio": validatedBio.isEmpty ? AnyJSON.null : AnyJSON.string(validatedBio),
                 "updated_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))
             ]
-            
-            try await supabase
+
+            try await (await supabase)
                 .from("profiles")
                 .update(updateDict)
                 .eq("id", value: userId)
                 .execute()
-            
+
             userProfile = updatedProfile
             logger.info("Profile updated successfully username=\(validatedUsername) displayName=\(validatedDisplayName)")
-            
+
         } catch {
             logger.error("Failed to update profile: \(error.localizedDescription)")
             errorMessage = "プロフィールの更新に失敗しました: \(error.localizedDescription)"
         }
     }
-    
+
     func deletePost(_ post: Post) async {
         do {
-            try await supabase
+            try await (await supabase)
                 .from("posts")
                 .delete()
                 .eq("id", value: post.id.uuidString)
@@ -348,7 +373,7 @@ final class MyPageViewModel: ObservableObject {
             await loadUserData() // Reload all data
             
         } catch {
-            print("❌ Error deleting post: \(error)")
+            logger.error("Error deleting post: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }
@@ -369,20 +394,20 @@ final class MyPageViewModel: ObservableObject {
             }
 
             let fileName = "\(userId)/avatar_\(UUID().uuidString).jpg"
-            print("🖼️ Uploading avatar for user: \(userId) to avatars/\(fileName)")
+            logger.info("Uploading avatar for user to avatars/\(fileName)")
 
             // Upload to 'avatars' bucket (SDK default options)
-            try await supabase.storage
+            try await (await supabase).storage
                 .from("avatars")
                 .upload(fileName, data: jpegData)
 
-            let publicURL = try supabase.storage
+            let publicURL = try (await supabase).storage
                 .from("avatars")
                 .getPublicURL(path: fileName)
                 .absoluteString
 
             // Update profiles.avatar_url
-            try await supabase
+            try await (await supabase)
                 .from("profiles")
                 .update(["avatar_url": AnyJSON.string(publicURL)])
                 .eq("id", value: userId)
