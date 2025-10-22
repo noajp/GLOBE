@@ -31,7 +31,66 @@ private init() {
     // MARK: - Posts
     
     func fetchUserPosts(userId: String) async -> [Post] {
-        return []
+        secureLogger.info("Fetching posts for user: \(userId)")
+
+        do {
+            // UUIDとして有効か確認
+            guard let userUUID = UUID(uuidString: userId) else {
+                secureLogger.warning("Invalid user ID format: \(userId)")
+                return []
+            }
+
+            let selectColumns = "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at,like_count"
+
+            let response = try await supabaseClient
+                .from("posts")
+                .select(selectColumns)
+                .eq("user_id", value: userUUID.uuidString)
+                .order("created_at", ascending: false)
+                .limit(100)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let dbPosts = try decoder.decode([DatabasePost].self, from: response.data)
+
+            let posts = dbPosts.map { dbPost in
+                let name: String
+                let avatar: String?
+                if dbPost.is_anonymous ?? false {
+                    name = "匿名ユーザー"
+                    avatar = nil
+                } else {
+                    name = "ユーザー"
+                    avatar = nil
+                }
+                return Post(
+                    id: dbPost.id,
+                    createdAt: dbPost.created_at,
+                    expiresAt: dbPost.expires_at,
+                    location: CLLocationCoordinate2D(
+                        latitude: dbPost.latitude,
+                        longitude: dbPost.longitude
+                    ),
+                    locationName: dbPost.location_name,
+                    imageData: nil,
+                    imageUrl: dbPost.image_url,
+                    text: dbPost.content,
+                    authorName: name,
+                    authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
+                    isAnonymous: dbPost.is_anonymous ?? false,
+                    authorAvatarUrl: avatar
+                )
+            }
+
+            secureLogger.info("Successfully fetched \(posts.count) posts for user \(userId)")
+            return posts
+
+        } catch {
+            let nsError = error as NSError
+            secureLogger.error("Failed to fetch user posts: \(nsError.localizedDescription)")
+            return []
+        }
     }
     
     /// Fetch posts within a geographic bounding box with smart zoom-based filtering
@@ -47,16 +106,16 @@ private init() {
 
         do {
             // Determine limit based on zoom level
-            // Zoomed in (small delta) -> more posts, Zoomed out (large delta) -> fewer posts
+            // Zoomed in (small delta) -> fewer posts needed, Zoomed out (large delta) -> more posts needed
             let limit: Int
             if zoomLevel < 0.01 { // Very zoomed in (street level)
-                limit = 200
-            } else if zoomLevel < 0.1 { // City level
                 limit = 100
+            } else if zoomLevel < 0.1 { // City level
+                limit = 500
             } else if zoomLevel < 1.0 { // Metro area
-                limit = 50
+                limit = 2000
             } else { // Country/continent level
-                limit = 25
+                limit = 5000
             }
 
             let selectColumns = "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at,like_count"

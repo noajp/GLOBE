@@ -13,15 +13,19 @@ class MapManager: ObservableObject {
     @Published var postOpacities: [UUID: Double] = [:]
     @Published var postClusters: [PostCluster] = []
 
+    // Caching for fetched regions
+    private var lastFetchedRegion: MKCoordinateRegion?
+    private var lastFetchedZoomLevel: Double?
+
     // MARK: - Zoom Level Thresholds
     private let nearDistanceThreshold = 0.01   // ~1km (400m-1km): show all posts with collision avoidance
-    private let midDistanceThreshold = 0.05    // ~5km (1km-5km): show high-engagement posts only
-    // 5km+: show clusters
+    private let midDistanceThreshold = 0.2     // ~20km (1km-20km): show high-engagement posts only
+    // 20km+: show clusters
 
     enum DisplayMode {
         case nearDistance   // 400m-1km: all posts with collision avoidance
-        case midDistance    // 1km-5km: high-engagement posts only
-        case farDistance    // 5km+: clusters
+        case midDistance    // 1km-20km: high-engagement posts only
+        case farDistance    // 20km+: clusters
     }
 
     var currentDisplayMode: DisplayMode {
@@ -98,11 +102,33 @@ class MapManager: ObservableObject {
         let center = region.center
         let span = region.span
 
-        // Calculate bounding box
-        let minLat = center.latitude - span.latitudeDelta / 2
-        let maxLat = center.latitude + span.latitudeDelta / 2
-        let minLng = center.longitude - span.longitudeDelta / 2
-        let maxLng = center.longitude + span.longitudeDelta / 2
+        // Check if we should skip fetching (similar region and zoom level)
+        if let lastRegion = lastFetchedRegion, let lastZoom = lastFetchedZoomLevel {
+            // Calculate distance between centers
+            let centerDistance = sqrt(
+                pow(center.latitude - lastRegion.center.latitude, 2) +
+                pow(center.longitude - lastRegion.center.longitude, 2)
+            )
+
+            // Calculate zoom level difference
+            let zoomDiff = abs(span.latitudeDelta - lastZoom) / lastZoom
+
+            // Skip if region moved less than 30% and zoom changed less than 30%
+            if centerDistance < (span.latitudeDelta * 0.3) && zoomDiff < 0.3 {
+                // Region is similar to cached, skip fetch
+                return
+            }
+        }
+
+        // Calculate bounding box with padding for smooth panning
+        let padding = 0.2 // 20% padding
+        let paddedLatDelta = span.latitudeDelta * (1 + padding)
+        let paddedLngDelta = span.longitudeDelta * (1 + padding)
+
+        let minLat = center.latitude - paddedLatDelta / 2
+        let maxLat = center.latitude + paddedLatDelta / 2
+        let minLng = center.longitude - paddedLngDelta / 2
+        let maxLng = center.longitude + paddedLngDelta / 2
 
         // Fetch posts within bounding box
         await postManager.fetchPostsInBounds(
@@ -112,6 +138,10 @@ class MapManager: ObservableObject {
             maxLng: maxLng,
             zoomLevel: span.latitudeDelta
         )
+
+        // Update cache
+        lastFetchedRegion = region
+        lastFetchedZoomLevel = span.latitudeDelta
     }
     
     private func setupPostSubscription() {
@@ -119,11 +149,22 @@ class MapManager: ObservableObject {
         postManager.$posts
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newPosts in
-                self?.posts = newPosts
-                self?.adjustPostPositions()
-                self?.calculatePostOpacities()
-                self?.updateClusters()
-                self?.objectWillChange.send()
+                guard let self = self else { return }
+                self.posts = newPosts
+
+                // Only update expensive calculations when display mode requires them
+                switch self.currentDisplayMode {
+                case .nearDistance:
+                    self.adjustPostPositions()
+                    self.calculatePostOpacities()
+                case .midDistance:
+                    // No position adjustment needed for mid distance
+                    break
+                case .farDistance:
+                    self.updateClusters()
+                }
+
+                self.objectWillChange.send()
             }
             .store(in: &cancellables)
     }
@@ -427,33 +468,29 @@ class MapManager: ObservableObject {
             return
         }
 
-        // Simple grid-based clustering
-        let clusterRadius = 0.05 // ~5km clustering radius
+        // Dynamic clustering radius based on zoom level
+        let currentSpan = region.span.latitudeDelta
+        let gridSize = max(0.05, currentSpan * 0.3) // Grid cell size
 
-        var clusteredPosts: [[Post]] = []
-        var remainingPosts = posts
+        // Grid-based clustering (much faster than distance-based)
+        var grid: [String: [Post]] = [:]
 
-        while !remainingPosts.isEmpty {
-            let currentPost = remainingPosts.removeFirst()
-            var cluster = [currentPost]
+        for post in posts {
+            // Calculate grid cell coordinates
+            let gridLat = Int(post.location.latitude / gridSize)
+            let gridLng = Int(post.location.longitude / gridSize)
+            let gridKey = "\(gridLat),\(gridLng)"
 
-            // Find all posts within clustering radius
-            remainingPosts.removeAll { post in
-                let distance = distanceBetweenCoordinates(currentPost.location, post.location)
-                let distanceInDegrees = distance / 111000.0 // Convert meters to degrees (approximate)
-
-                if distanceInDegrees <= clusterRadius {
-                    cluster.append(post)
-                    return true
-                }
-                return false
+            // Add post to grid cell
+            if grid[gridKey] != nil {
+                grid[gridKey]?.append(post)
+            } else {
+                grid[gridKey] = [post]
             }
-
-            clusteredPosts.append(cluster)
         }
 
-        // Create PostCluster objects
-        postClusters = clusteredPosts.map { PostCluster(posts: $0) }
+        // Create clusters from grid cells
+        postClusters = grid.values.map { PostCluster(posts: $0) }
     }
 
     deinit {

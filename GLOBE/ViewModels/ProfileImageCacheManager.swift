@@ -29,7 +29,13 @@ final class ProfileImageCacheManager: ObservableObject {
     /// Preload current user's profile image on app launch
     func preloadCurrentUserProfileImage() async {
         guard let userId = AuthManager.shared.currentUser?.id else { return }
-        
+
+        // Skip preloading for dev/test users (not valid UUIDs)
+        if userId.hasPrefix("dev-user-") || userId.hasPrefix("test-user-") {
+            // Dev/test user - skip preload
+            return
+        }
+
         do {
             // Fetch user profile to get avatar URL
             let profileData = try await SupabaseManager.shared.client
@@ -37,20 +43,19 @@ final class ProfileImageCacheManager: ObservableObject {
                 .select("avatar_url")
                 .eq("id", value: userId)
                 .execute()
-            
+
             if let profiles = try? JSONDecoder().decode([[String: String?]].self, from: profileData.data),
                let profile = profiles.first,
                let avatarUrlString = profile["avatar_url"],
                let avatarUrl = avatarUrlString,
                !avatarUrl.isEmpty,
                let url = URL(string: avatarUrl) {
-                
+
                 // Preload the image
                 _ = await loadImage(from: url, cacheKey: userId)
-                print("✅ ProfileImageCache: Preloaded current user profile image")
             }
         } catch {
-            print("❌ ProfileImageCache: Failed to preload profile image: \(error)")
+            // Failed to preload profile image
         }
     }
     
@@ -95,7 +100,7 @@ final class ProfileImageCacheManager: ObservableObject {
                     return image
                 }
             } catch {
-                print("❌ ProfileImageCache: Failed to load image: \(error)")
+                // Failed to load image
             }
             return nil
         }

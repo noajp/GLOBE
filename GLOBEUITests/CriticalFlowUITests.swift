@@ -2,6 +2,10 @@
 // MARK: - CriticalFlowUITests.swift
 // Purpose: Critical user flow UI tests for GLOBE app
 // Path: GLOBEUITests/CriticalFlowUITests.swift
+//
+// NOTE: このアプリは標準のTabBarではなくLiquidGlassBottomTabBarという
+// カスタムコンポーネントを使用しているため、タブバー関連のテストが
+// 失敗する可能性があります。
 //======================================================================
 
 import XCTest
@@ -83,7 +87,7 @@ final class CriticalFlowUITests: XCTestCase {
 
         let tabBar = app.tabBars.firstMatch
         guard tabBar.exists else {
-            XCTSkip("App doesn't use tab navigation")
+            throw XCTSkip("App doesn't use tab navigation")
         }
 
         let tabs = tabBar.buttons
@@ -337,12 +341,12 @@ final class CriticalFlowUITests: XCTestCase {
     func testPerformanceCriticalFlow_TabSwitchingSpeed() throws {
         let tabBar = app.tabBars.firstMatch
         guard tabBar.exists else {
-            XCTSkip("No tab bar found")
+            throw XCTSkip("No tab bar found")
         }
 
         let tabs = tabBar.buttons
         guard tabs.count > 1 else {
-            XCTSkip("Need multiple tabs for switching test")
+            throw XCTSkip("Need multiple tabs for switching test")
         }
 
         measure {

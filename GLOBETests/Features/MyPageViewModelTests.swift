@@ -6,6 +6,7 @@
 
 import XCTest
 import Combine
+import CoreLocation
 @testable import GLOBE
 
 @MainActor
@@ -38,7 +39,6 @@ final class MyPageViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.postsCount, 0)
         XCTAssertEqual(viewModel.followersCount, 0)
         XCTAssertEqual(viewModel.followingCount, 0)
-        XCTAssertTrue(viewModel.stories.isEmpty)
         XCTAssertFalse(viewModel.isLoading)
         XCTAssertNil(viewModel.errorMessage)
     }
@@ -219,9 +219,27 @@ final class MyPageViewModelTests: XCTestCase {
     func testViewModel_postsCountUpdate_reflectsPostsArray() {
         // Given
         let mockPosts = [
-            Post.mockPost(id: UUID(), authorId: "user1"),
-            Post.mockPost(id: UUID(), authorId: "user1"),
-            Post.mockPost(id: UUID(), authorId: "user1")
+            Post(
+                id: UUID(),
+                location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+                text: "Test post 1",
+                authorName: "Test User",
+                authorId: "user1"
+            ),
+            Post(
+                id: UUID(),
+                location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+                text: "Test post 2",
+                authorName: "Test User",
+                authorId: "user1"
+            ),
+            Post(
+                id: UUID(),
+                location: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+                text: "Test post 3",
+                authorName: "Test User",
+                authorId: "user1"
+            )
         ]
 
         // When
@@ -233,26 +251,4 @@ final class MyPageViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.postsCount, 3)
     }
 
-    // MARK: - Stories Management Tests
-    func testViewModel_storiesUpdate_updatesCorrectly() {
-        // Given
-        let mockStories = [
-            Story(
-                userId: "user1",
-                userName: "User 1",
-                userAvatarData: nil,
-                imageData: Data(),
-                text: "Story 1",
-                createdAt: Date()
-            )
-        ]
-
-        // When
-        viewModel.stories = mockStories
-
-        // Then
-        XCTAssertEqual(viewModel.stories.count, 1)
-        XCTAssertEqual(viewModel.stories.first?.userId, "user1")
-        XCTAssertEqual(viewModel.stories.first?.userName, "User 1")
-    }
 }

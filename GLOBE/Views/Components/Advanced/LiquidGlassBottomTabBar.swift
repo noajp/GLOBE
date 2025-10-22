@@ -1,6 +1,6 @@
 //======================================================================
 // MARK: - LiquidGlassBottomTabBar.swift
-// Purpose: Bottom tab bar with liquid glass effect containing profile and post buttons
+// Purpose: Bottom tab bar with liquid glass effect containing profile, post, and location buttons
 // Path: GLOBE/Views/Components/Advanced/LiquidGlassBottomTabBar.swift
 //======================================================================
 
@@ -9,13 +9,14 @@ import SwiftUI
 struct LiquidGlassBottomTabBar: View {
     let onProfileTapped: () -> Void
     let onPostTapped: () -> Void
+    let onLocationTapped: () -> Void
 
-    private let buttonWidth: CGFloat = 40
-    private let buttonHeight: CGFloat = 40
+    private let buttonWidth: CGFloat = 44
+    private let buttonHeight: CGFloat = 44
 
     var body: some View {
         GlassEffectContainer {
-            VStack(spacing: 12) {
+            HStack(spacing: 20) {
                 Button(action: onProfileTapped) {
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 20, weight: .medium))
@@ -35,9 +36,20 @@ struct LiquidGlassBottomTabBar: View {
                         .clipShape(Circle())
                         .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
                 }
+
+                Button(action: onLocationTapped) {
+                    Image(systemName: "location.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.black.opacity(0.9))
+                        .frame(width: buttonWidth, height: buttonHeight)
+                        .background(.white.opacity(0.9))
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.3), lineWidth: 1))
+                }
             }
-            .padding(.vertical, 10)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(height: 60)
         }
         .coordinatedGlassEffect(id: "bottom-tab-bar")
         .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
@@ -64,10 +76,13 @@ struct LiquidGlassBottomTabBar: View {
             },
             onPostTapped: {
                 print("Post tapped")
+            },
+            onLocationTapped: {
+                print("Location tapped")
             }
         )
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .trailing, vertical: .center))
-        .padding(.trailing, 20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .center, vertical: .bottom))
+        .padding(.bottom, 40)
     }
     .glassContainer()
 }

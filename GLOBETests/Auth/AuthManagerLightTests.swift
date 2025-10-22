@@ -16,12 +16,12 @@ final class AuthManagerLightTests: XCTestCase {
         // 必須キーの存在
         XCTAssertNotNil(info["is_simulator"])
         XCTAssertNotNil(info["is_jailbroken"])
-        // 値が"true"/"false"のいずれか
+        // 値がBool型であることを確認
         if let v = info["is_simulator"] {
-            XCTAssertTrue(["true", "false"].contains(v))
+            XCTAssertTrue(v is Bool, "is_simulator should be Bool type")
         }
         if let v = info["is_jailbroken"] {
-            XCTAssertTrue(["true", "false"].contains(v))
+            XCTAssertTrue(v is Bool, "is_jailbroken should be Bool type")
         }
     }
 
