@@ -6,7 +6,6 @@
 ![iOS](https://img.shields.io/badge/iOS-17.0+-blue.svg)
 ![SwiftUI](https://img.shields.io/badge/SwiftUI-5.0-green.svg)
 ![Supabase](https://img.shields.io/badge/Supabase-2.0-black.svg)
-![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 
 **Share your moments on the map, discover stories around you**
 
@@ -462,10 +461,6 @@ xcrun simctl spawn booted log stream --predicate 'subsystem == "com.yourcompany.
 - [CLAUDE.md](./CLAUDE.md) - Claude AI向け詳細仕様
 - [refactoring.md](./refactoring.md) - リファクタリングTODOリスト
 - [test-strategy.md](./test-strategy.md) - テスト戦略計画
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 👥 Team
 
