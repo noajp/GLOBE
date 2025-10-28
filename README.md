@@ -82,13 +82,17 @@ open GLOBE.xcodeproj
    - [Supabase](https://supabase.com)でプロジェクトを作成
    - プロジェクトURLとAnon Keyを取得
 
-2. **Configure Info.plist**:
-   ```xml
-   <key>SupabaseURL</key>
-   <string>YOUR_SUPABASE_URL</string>
-   <key>SupabaseAnonKey</key>
-   <string>YOUR_SUPABASE_ANON_KEY</string>
+2. **Configure Credentials**:
+   ```bash
+   # Info.plist を Secrets.plist にコピー
+   cp Info.plist GLOBE/Secrets.plist
+
+   # Secrets.plist を編集して実際の認証情報を入力
+   # YOUR_SUPABASE_URL_HERE → あなたのSupabase URL
+   # YOUR_SUPABASE_ANON_KEY_HERE → あなたのAnon Key
    ```
+
+   **重要:** `Secrets.plist` は `.gitignore` に含まれており、Gitにコミットされません。
 
 3. **Database Migration**:
    ```sql

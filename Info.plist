@@ -9,7 +9,13 @@
 	<!--
 	SECURITY NOTE:
 	Real credentials should NEVER be committed to Git.
-	For development: Use Secrets.plist (excluded from Git)
+
+	SETUP INSTRUCTIONS:
+	1. Copy this file to GLOBE/Secrets.plist
+	2. Replace YOUR_SUPABASE_URL_HERE with your actual Supabase URL
+	3. Replace YOUR_SUPABASE_ANON_KEY_HERE with your actual Anon Key
+	4. Secrets.plist is gitignored and will not be committed
+
 	For production: Credentials will be stored in Keychain only
 	-->
 </dict>
