@@ -26,6 +26,8 @@ struct CreatePostView: View {
     @StateObject private var mapLocationService = MapLocationService()
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var postManager = PostManager.shared
+
+    private let logger = SecureLogger.shared
     
     // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
@@ -72,8 +74,8 @@ struct CreatePostView: View {
     }
 
     private var maxTextLength: Int {
-        // 画像の有無で制限値を変更
-        return selectedImageData != nil ? 30 : 60
+        // 画像の有無に関わらず60文字まで
+        return 60
     }
     
     var body: some View {
@@ -211,6 +213,8 @@ struct CreatePostView: View {
     private var postActionButton: some View {
         HStack(spacing: 6) {
             // Chevron button - separate and simple
+            // COMMENTED OUT for v1.0 release - anonymous posts only
+            /*
             Button(action: {
                 print("🔄 Privacy dropdown button pressed...")
                 DispatchQueue.main.async {
@@ -224,18 +228,17 @@ struct CreatePostView: View {
                     .background(Circle().fill(.black))
             }
             .padding(.leading, 4)
+            */
 
             // POST button - separate and simple
             Button(action: {
-                print("📝 POST button pressed...")
-                print("📝 selectedImageData: \(selectedImageData != nil ? "YES" : "NO")")
-                print("📝 postText: '\(postText)', isEmpty: \(postText.isEmpty), count: \(postText.count)")
-                print("📝 maxTextLength: \(maxTextLength)")
+                logger.info("POST button pressed")
+                logger.info("Post validation - hasImage=\(selectedImageData != nil), textLength=\(postText.count)")
 
                 // 画像がある場合はテキストなしでもOK
-                let hasValidContent = selectedImageData != nil || (!postText.isEmpty && postText.count <= maxTextLength)
+                let hasValidContent = selectedImageData != nil || (!postText.isEmpty && weightedCharacterCount <= Double(maxTextLength))
                 guard hasValidContent else {
-                    print("❌ POST validation failed - no image and text is empty/invalid")
+                    logger.warning("POST validation failed - no valid content")
                     return
                 }
                 createPost()
@@ -243,14 +246,12 @@ struct CreatePostView: View {
                 Text("POST")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.black)
-                    .padding(.leading, 0)
-                    .padding(.trailing, 10)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 6)
             }
         }
         .background(simpleWhiteBackground)
         .clipShape(Capsule())
-        .frame(width: 80)
     }
 
     private var simpleWhiteBackground: some View {
@@ -344,8 +345,17 @@ struct CreatePostView: View {
                             if lineCount > 5 {
                                 return // 5行を超える改行は無視
                             }
-                            // 文字数制限を適用 - 超えたら入力を無視
-                            if newValue.count <= maxTextLength {
+                            // 重み付き文字数制限を適用
+                            let newWeightedCount = newValue.reduce(0.0) { count, character in
+                                let scalar = character.unicodeScalars.first
+                                guard let unicodeScalar = scalar else { return count + 1.0 }
+                                let isAsianCharacter = (0x3040...0x309F).contains(unicodeScalar.value) ||
+                                                       (0x30A0...0x30FF).contains(unicodeScalar.value) ||
+                                                       (0x4E00...0x9FFF).contains(unicodeScalar.value) ||
+                                                       (0xAC00...0xD7AF).contains(unicodeScalar.value)
+                                return count + (isAsianCharacter ? 1.0 : 0.5)
+                            }
+                            if newWeightedCount <= Double(maxTextLength) {
                                 postText = newValue
                             }
                         }
@@ -452,7 +462,7 @@ struct CreatePostView: View {
     }
 
     private func handleCameraButton() {
-        print("📷 CreatePostView: Camera button pressed")
+        logger.info("Camera button pressed")
         showingCamera = true
     }
 
@@ -587,7 +597,7 @@ struct CreatePostView: View {
     // MARK: - Action Methods
 
     private func createPost() {
-        print("🚀 CreatePost: Starting post creation")
+        logger.info("Starting post creation")
 
         // Capture values before closing UI
         let text = postText
@@ -596,10 +606,7 @@ struct CreatePostView: View {
         let loc = mapManager.region.center
         let imageData = selectedImageData
 
-        print("📍 CreatePost: Location (bubble tip) - \(loc.latitude), \(loc.longitude)")
-        print("📝 CreatePost: Text - \(text)")
-        print("🔒 CreatePost: Privacy - \(privacy)")
-        print("📷 CreatePost: Has image - \(imageData != nil)")
+        logger.info("Post metadata - hasImage=\(imageData != nil), privacy=\(privacy)")
 
         // Close UI immediately
         isPresented = false
@@ -614,9 +621,9 @@ struct CreatePostView: View {
                     locationName: nil,
                     isAnonymous: privacy == .anonymous
                 )
-                print("✅ CreatePost: Post created successfully")
+                logger.info("Post created successfully")
             } catch {
-                print("❌ CreatePost: Failed to create post - \(error)")
+                logger.error("Failed to create post: \(error.localizedDescription)")
             }
         }
     }

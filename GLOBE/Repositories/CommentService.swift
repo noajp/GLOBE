@@ -16,6 +16,7 @@ class CommentService: ObservableObject {
     @Published var commentCounts: [UUID: Int] = [:]
 
     private var supabase: SupabaseClient { supabaseSync }
+    private let logger = SecureLogger.shared
 
     private init() {}
 
@@ -71,7 +72,7 @@ class CommentService: ObservableObject {
             commentCounts[postId] = comments[postId]?.count ?? 0
         }
 
-        print("✅ CommentService: Added comment to post \(postId)")
+        logger.info("Comment added successfully")
     }
 
     // MARK: - Load Comments
@@ -106,9 +107,9 @@ class CommentService: ObservableObject {
                     commentCounts[postId] = loadedComments.count
                 }
 
-                print("✅ CommentService: Loaded \(loadedComments.count) comments for post \(postId)")
+                logger.info("Loaded \(loadedComments.count) comments")
             } catch {
-                print("❌ CommentService: Failed to load comments: \(error)")
+                logger.error("Failed to load comments: \(error.localizedDescription)")
                 await MainActor.run {
                     if comments[postId] == nil {
                         comments[postId] = []

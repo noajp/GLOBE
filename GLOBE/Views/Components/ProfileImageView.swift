@@ -22,6 +22,8 @@ struct ProfileImageView: View {
     }
 
     var body: some View {
+        // COMMENTED OUT for v1.0 release - profile images disabled
+        /*
         Group {
             if let cachedImage = cachedImage {
                 Image(uiImage: cachedImage)
@@ -47,6 +49,12 @@ struct ProfileImageView: View {
         .onChange(of: avatarUrl) { _, _ in
             loadProfileImage()
         }
+        */
+
+        // v1.0: Always show placeholder
+        profilePlaceholder
+            .frame(width: size, height: size)
+            .clipShape(Circle())
     }
 
     private var profilePlaceholder: some View {

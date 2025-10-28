@@ -57,7 +57,7 @@ struct MainTabView: View {
                         }
                     },
                     onPostTapped: {
-                        print("➕ LiquidGlassBottomTabBar: post tapped")
+                        SecureLogger.shared.info("Post button tapped in tab bar")
                         if authManager.isAuthenticated {
                             // プロフィールポップアップが開いている場合は閉じる
                             if showingProfile {
@@ -75,7 +75,7 @@ struct MainTabView: View {
                         }
                     },
                     onLocationTapped: {
-                        print("📍 LiquidGlassBottomTabBar: location tapped")
+                        SecureLogger.shared.info("Location button tapped in tab bar")
                         // 投稿作成カードやプロフィールが開いている場合は閉じる
                         if showingCreatePost {
                             showingCreatePost = false
@@ -176,7 +176,7 @@ struct MainTabView: View {
             if !hasSetInitialLocation, let location = newLocation?.coordinate {
                 mapManager.setInitialRegionToCurrentLocation(location)
                 hasSetInitialLocation = true
-                print("📍 MainTabView: Set initial location to \(location)")
+                SecureLogger.shared.info("Initial location set to user's current location")
             }
         }
         .onChange(of: authManager.isAuthenticated) { _, authed in

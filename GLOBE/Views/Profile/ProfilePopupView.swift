@@ -51,11 +51,13 @@ struct ProfilePopupView: View {
 
                                 // プロフィール情報
                                 HStack(alignment: .top, spacing: 10) {
-                                    // Profile Image
+                                    // Profile Image - COMMENTED OUT for v1.0 release
+                                    /*
                                     ProfileImageView(
                                         userProfile: viewModel.userProfile,
                                         size: 44
                                     )
+                                    */
 
                                     // Profile Info
                                     VStack(alignment: .leading, spacing: 2) {
@@ -96,12 +98,13 @@ struct ProfilePopupView: View {
                                                 .padding(.leading, 6)
                                         }
                                     }
+                                    .frame(height: 38, alignment: .top)
 
                                     Spacer()
 
                                     // Edit/Save/Cancel Buttons
-                                    if isEditing {
-                                        HStack(spacing: 4) {
+                                    HStack(spacing: 4) {
+                                        if isEditing {
                                             Button(action: {
                                                 // キャンセル
                                                 isEditing = false
@@ -110,15 +113,13 @@ struct ProfilePopupView: View {
                                                     .font(.system(size: 9, weight: .medium))
                                                     .foregroundColor(.gray)
                                                     .lineLimit(1)
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 3)
+                                                    .frame(width: 45, height: 31)
                                             }
                                             .buttonStyle(PlainButtonStyle())
                                             .background(
                                                 RoundedRectangle(cornerRadius: 4)
                                                     .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
                                             )
-                                            .fixedSize()
 
                                             Button(action: {
                                                 // 保存
@@ -136,41 +137,38 @@ struct ProfilePopupView: View {
                                                     .font(.system(size: 9, weight: .medium))
                                                     .foregroundColor(.black)
                                                     .lineLimit(1)
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 3)
+                                                    .frame(width: 41, height: 31)
                                             }
                                             .buttonStyle(PlainButtonStyle())
                                             .background(
                                                 RoundedRectangle(cornerRadius: 4)
                                                     .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
                                             )
-                                            .fixedSize()
+                                        } else {
+                                            Button(action: {
+                                                // 編集モードに切り替え
+                                                editingDisplayName = viewModel.userProfile?.displayName ?? viewModel.userProfile?.username ?? ""
+                                                editingBio = viewModel.userProfile?.bio ?? ""
+                                                isEditing = true
+                                            }) {
+                                                Text("Edit")
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundColor(.black)
+                                                    .lineLimit(1)
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 6)
+                                            }
+                                            .buttonStyle(PlainButtonStyle())
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 4)
+                                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                            )
                                         }
-                                    } else {
-                                        Button(action: {
-                                            // 編集モードに切り替え
-                                            editingDisplayName = viewModel.userProfile?.displayName ?? viewModel.userProfile?.username ?? ""
-                                            editingBio = viewModel.userProfile?.bio ?? ""
-                                            isEditing = true
-                                        }) {
-                                            Text("Edit")
-                                                .font(.system(size: 11, weight: .medium))
-                                                .foregroundColor(.black)
-                                                .lineLimit(1)
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 5)
-                                                .background(Color.clear)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 5)
-                                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                                )
-                                        }
-                                        .buttonStyle(PlainButtonStyle())
-                                        .fixedSize()
                                     }
+                                    .frame(width: 90, height: 31)
                                 }
 
-                                // BIO Section
+                                // BIO Section - シンプルな固定位置
                                 if isEditing || (viewModel.userProfile?.bio != nil && !viewModel.userProfile!.bio!.isEmpty) {
                                     ZStack(alignment: .topLeading) {
                                         if isEditing {
@@ -179,14 +177,16 @@ struct ProfilePopupView: View {
                                                 Text("Bio")
                                                     .font(.system(size: 11, weight: .regular))
                                                     .foregroundColor(.gray.opacity(0.5))
-                                                    .padding(.leading, 11)
-                                                    .padding(.top, 12)
+                                                    .padding(.leading, 5)
+                                                    .padding(.top, 8)
                                             }
                                             TextEditor(text: $editingBio)
                                                 .font(.system(size: 11, weight: .regular))
                                                 .foregroundColor(.black)
                                                 .scrollContentBackground(.hidden)
                                                 .background(Color.clear)
+                                                .padding(.horizontal, -5)
+                                                .padding(.vertical, -8)
                                         } else {
                                             if let bio = viewModel.userProfile?.bio, !bio.isEmpty {
                                                 Text(bio)

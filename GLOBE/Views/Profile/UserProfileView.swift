@@ -28,103 +28,90 @@ struct UserProfileView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            GlassEffectContainer {
-                ZStack {
-                    // 背景タップで閉じる（透明度を下げて地図を見やすく）
-                    Color.black.opacity(0.2)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            isPresented = false
-                        }
-
-                    // プロフィールカードポップアップ（画面の下半分）
-                    VStack(spacing: 0) {
-                        Spacer()
-
-                        VStack(spacing: 16) {
-                            HStack(alignment: .top, spacing: 16) {
-                                // Profile Image
-                                ProfileImageView(
-                                    userProfile: userProfile,
-                                    size: 70
-                                )
-
-                                // Profile Info
-                                VStack(alignment: .leading, spacing: 8) {
-                                    // Display Name
-                                    if let displayName = userProfile?.displayName, !displayName.isEmpty {
-                                        Text(displayName)
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(MinimalDesign.Colors.primary)
-                                            .lineLimit(1)
-                                    } else if let username = userProfile?.username {
-                                        Text(username)
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(MinimalDesign.Colors.primary)
-                                            .lineLimit(1)
-                                    }
-
-                                    // User ID with @ prefix
-                                    if let userId = userProfile?.id {
-                                        Text("@\(userId.prefix(8))")
-                                            .font(.system(size: 12, weight: .regular))
-                                            .foregroundColor(.gray)
-                                            .lineLimit(1)
-                                    }
-
-                                    Spacer(minLength: 8)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(.horizontal, MinimalDesign.Spacing.sm)
-
-                            // Bio Section
-                            if let bio = userProfile?.bio, !bio.isEmpty {
-                                Text(bio)
-                                    .font(.system(size: 14, weight: .regular))
-                                    .foregroundColor(MinimalDesign.Colors.primary)
-                                    .multilineTextAlignment(.leading)
-                                    .lineLimit(3)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, MinimalDesign.Spacing.sm)
-                            }
-
-                            Spacer()
-                        }
-                        .padding(.top, 20)
-                        .padding(.horizontal, 20)
-                        .frame(height: geometry.size.height * 0.5)
-                        .frame(maxWidth: .infinity)
-                        .glassEffect(.clear, in: UnevenRoundedRectangle(
-                            topLeadingRadius: 24,
-                            bottomLeadingRadius: 0,
-                            bottomTrailingRadius: 0,
-                            topTrailingRadius: 24
-                        ))
-                        .overlay(
-                            UnevenRoundedRectangle(
-                                topLeadingRadius: 24,
-                                bottomLeadingRadius: 0,
-                                bottomTrailingRadius: 0,
-                                topTrailingRadius: 24
-                            )
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                        .shadow(radius: 10)
-                        .padding(.horizontal, 0)
-                        .padding(.bottom, 0)
-                    }
-
-                    // Loading overlay
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(1.5)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .background(.ultraThinMaterial.opacity(0.8))
-                    }
+        ZStack {
+            // 背景タップで閉じる（地図が見えるように透明）
+            Color.clear
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isPresented = false
                 }
+
+            // プロフィールカード
+            VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    // プロフィール情報
+                    HStack(alignment: .top, spacing: 10) {
+                        // Profile Image - COMMENTED OUT for v1.0 release
+                        /*
+                        ProfileImageView(
+                            userProfile: userProfile,
+                            size: 44
+                        )
+                        */
+
+                        // Profile Info
+                        VStack(alignment: .leading, spacing: 2) {
+                            // Display Name
+                            if let displayName = userProfile?.displayName, !displayName.isEmpty {
+                                Text(displayName)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                            } else if let username = userProfile?.username {
+                                Text(username)
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                            }
+
+                            // User ID with @ prefix
+                            if let userId = userProfile?.id {
+                                Text("@\(userId.prefix(8))")
+                                    .font(.system(size: 10, weight: .regular))
+                                    .foregroundColor(.white.opacity(0.7))
+                                    .lineLimit(1)
+                                    .padding(.leading, 6)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.bottom, 8)
+
+                    // Bio Section
+                    if let bio = userProfile?.bio, !bio.isEmpty {
+                        Text(bio)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .frame(height: 44)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 12)
+                .padding(.bottom, 12)
+            }
+            .frame(width: 280, height: 170)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(radius: 10)
+
+            // Loading overlay
+            if isLoading {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(1.5)
             }
         }
         .onAppear {
@@ -140,8 +127,11 @@ struct UserProfileView: View {
         defer { isLoading = false }
 
         do {
+            // Get Supabase client
+            let client = await SupabaseManager.shared.client
+
             // プロフィールデータを取得
-            let profileData = try await supabase
+            let profileData = try await client
                 .from("profiles")
                 .select()
                 .eq("id", value: userId)
@@ -154,19 +144,19 @@ struct UserProfileView: View {
                 await MainActor.run {
                     userProfile = profile
                 }
-                print("✅ UserProfileView: Profile loaded for \(profile.username)")
+                SecureLogger.shared.info("UserProfileView: Profile loaded for user \(profile.username)")
             } else {
                 await MainActor.run {
                     errorMessage = "プロフィールが見つかりませんでした"
                 }
-                print("❌ UserProfileView: Profile not found for userId: \(userId)")
+                SecureLogger.shared.warning("UserProfileView: Profile not found for userId: \(userId)")
             }
 
         } catch {
             await MainActor.run {
                 errorMessage = "プロフィールの読み込みに失敗しました: \(error.localizedDescription)"
             }
-            print("❌ UserProfileView: Failed to load profile: \(error)")
+            SecureLogger.shared.error("UserProfileView: Failed to load profile: \(error.localizedDescription)")
         }
     }
 }

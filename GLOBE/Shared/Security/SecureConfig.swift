@@ -148,11 +148,8 @@ struct SecureConfig {
             return url
         }
 
-        SecureLogger.shared.error("No Supabase URL (sync) found in secure locations")
-
-        // Development fallback - hardcoded URL (always enabled for now)
-        let fallbackURL = "https://kkznkqshpdzlhtuawasm.supabase.co"
-        return fallbackURL
+        SecureLogger.shared.error("No Supabase URL found in any configuration source")
+        return ""
     }
 
     var supabaseAnonKey: String {
@@ -172,12 +169,9 @@ struct SecureConfig {
             return key
         }
 
-        // Emergency fallback - should not happen in production
-        SecureLogger.shared.error("No Supabase Anon Key found in Keychain or Info.plist")
-
-        // Development fallback - hardcoded key (always enabled for now)
-        let fallbackKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtrem5rcXNocGR6bGh0dWF3YXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTA5NzAsImV4cCI6MjA3MDg4Njk3MH0.BXF3JVvs0M7Mgp9whEwFXd6PRfEwEMcCbKfnRBROEBM"
-        return fallbackKey
+        // No fallback - configuration must be provided
+        SecureLogger.shared.error("No Supabase Anon Key found in any configuration source")
+        return ""
     }
     
     // MARK: - Configuration Methods

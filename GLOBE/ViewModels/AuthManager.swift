@@ -18,6 +18,14 @@ enum SecuritySeverity {
     case critical
 }
 
+// MARK: - Login Attempt Persistence Model
+
+/// Codable wrapper for login attempt data (for Keychain persistence)
+private struct LoginAttemptData: Codable {
+    let count: Int
+    let lastAttempt: Date
+}
+
 @MainActor
 class AuthManager: AuthServiceProtocol {
     static let shared = AuthManager()
@@ -36,8 +44,13 @@ class AuthManager: AuthServiceProtocol {
     
     /// ログイン試行回数の追跡
     private var loginAttempts: [String: (count: Int, lastAttempt: Date)] = [:]
-    
+
+    /// Keychain key for storing login attempts
+    private let loginAttemptsKey = "login_attempts_data"
+
     private init() {
+        // Load persisted login attempts from Keychain
+        loadLoginAttempts()
         // 開発環境でのログインスキップチェック
         #if DEBUG
         if isDevelopmentLoginSkipEnabled() {
@@ -291,7 +304,7 @@ class AuthManager: AuthServiceProtocol {
         let now = Date()
         if let attempt = loginAttempts[email] {
             let timeSinceLastAttempt = now.timeIntervalSince(attempt.lastAttempt)
-            
+
             if timeSinceLastAttempt > lockoutDuration {
                 // ロックアウト期間を過ぎているのでリセット
                 loginAttempts[email] = (count: 1, lastAttempt: now)
@@ -303,16 +316,93 @@ class AuthManager: AuthServiceProtocol {
             // 初回試行
             loginAttempts[email] = (count: 1, lastAttempt: now)
         }
-        
+
         let currentCount = loginAttempts[email]?.count ?? 0
+        saveLoginAttempts()  // Persist to Keychain
         logger.warning("Failed login recorded for: \(email) (attempts: \(currentCount))")
     }
     
     private func resetLoginAttempts(for email: String) {
         loginAttempts.removeValue(forKey: email)
+        saveLoginAttempts()
         logger.info("Login attempts reset for: \(email)")
     }
-    
+
+    // MARK: - Login Attempts Persistence
+
+    /// Load login attempts from Keychain
+    private func loadLoginAttempts() {
+        let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: loginAttemptsKey,
+            kSecAttrService as String: service,
+            kSecReturnData as String: true
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        if status == errSecSuccess, let data = result as? Data {
+            do {
+                let decoder = JSONDecoder()
+                let decoded = try decoder.decode([String: LoginAttemptData].self, from: data)
+
+                // Convert back to tuple format and filter expired entries
+                let now = Date()
+                loginAttempts = decoded.compactMapValues { attemptData in
+                    let timeSinceLastAttempt = now.timeIntervalSince(attemptData.lastAttempt)
+                    // Only keep entries that haven't expired (within lockout duration)
+                    guard timeSinceLastAttempt < lockoutDuration else { return nil }
+                    return (count: attemptData.count, lastAttempt: attemptData.lastAttempt)
+                }
+
+                logger.info("Loaded \(loginAttempts.count) persisted login attempt records")
+            } catch {
+                logger.error("Failed to decode login attempts: \(error.localizedDescription)")
+            }
+        } else if status != errSecItemNotFound {
+            logger.warning("Keychain read failed for login attempts: \(status)")
+        }
+    }
+
+    /// Save login attempts to Keychain
+    private func saveLoginAttempts() {
+        // Convert tuple dictionary to Codable format
+        let encodable = loginAttempts.mapValues { LoginAttemptData(count: $0.count, lastAttempt: $0.lastAttempt) }
+
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(encodable)
+
+            let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: loginAttemptsKey,
+                kSecAttrService as String: service
+            ]
+
+            // Try to update first
+            let updateQuery: [String: Any] = [kSecValueData as String: data]
+            var status = SecItemUpdate(query as CFDictionary, updateQuery as CFDictionary)
+
+            // If item doesn't exist, create it
+            if status == errSecItemNotFound {
+                var createQuery = query
+                createQuery[kSecValueData as String] = data
+                status = SecItemAdd(createQuery as CFDictionary, nil)
+            }
+
+            if status == errSecSuccess {
+                logger.info("Login attempts persisted to Keychain")
+            } else {
+                logger.error("Failed to save login attempts to Keychain: \(status)")
+            }
+        } catch {
+            logger.error("Failed to encode login attempts: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Session Validation
     
     func validateSession() async throws -> Bool {

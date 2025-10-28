@@ -64,7 +64,7 @@ class PostManager: PostServiceProtocol {
         }
 
         // 文字数制限チェックとトリミング
-        let maxLength = 30  // 画像の有無に関わらず30文字まで
+        let maxLength = 60  // 画像の有無に関わらず60文字まで
         let trimmedContent = content.count > maxLength ? String(content.prefix(maxLength)) : content
 
         // コンテンツの検証とサニタイズ

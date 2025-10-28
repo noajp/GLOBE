@@ -8,6 +8,7 @@ import SwiftUI
 import Combine
 import Supabase
 
+@MainActor
 final class ProfileImageCacheManager: ObservableObject {
     // MARK: - Singleton
     static let shared = ProfileImageCacheManager()

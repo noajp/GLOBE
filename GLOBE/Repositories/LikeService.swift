@@ -16,6 +16,7 @@ class LikeService: ObservableObject {
     @Published var likeCounts: [UUID: Int] = [:]
 
     private var supabase: SupabaseClient { supabaseSync }
+    private let logger = SecureLogger.shared
 
     private init() {
     }
@@ -51,7 +52,7 @@ class LikeService: ObservableObject {
                     likedPosts.remove(postId)
                     likeCounts[postId] = max(0, (likeCounts[postId] ?? 0) - 1)
                 }
-                print("❌ LikeService: Failed to toggle like: \(error)")
+                logger.error("Failed to toggle like: \(error.localizedDescription)")
             }
         }
 
@@ -70,7 +71,7 @@ class LikeService: ObservableObject {
             .insert(likeData)
             .execute()
 
-        print("✅ LikeService: Liked post \(postId)")
+        logger.info("Post liked successfully")
     }
 
     private func unlikePost(postId: UUID, userId: String) async throws {
@@ -81,7 +82,7 @@ class LikeService: ObservableObject {
             .eq("post_id", value: postId.uuidString)
             .execute()
 
-        print("✅ LikeService: Unliked post \(postId)")
+        logger.info("Post unliked successfully")
     }
 
     // MARK: - Load Likes
@@ -121,9 +122,9 @@ class LikeService: ObservableObject {
                 }
             }
 
-            print("✅ LikeService: Loaded likes for post \(postId): count=\(count)")
+            logger.info("Loaded likes for post - count=\(count)")
         } catch {
-            print("❌ LikeService: Failed to load likes: \(error)")
+            logger.error("Failed to load likes: \(error.localizedDescription)")
         }
     }
 

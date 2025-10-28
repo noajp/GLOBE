@@ -166,7 +166,19 @@ private init() {
                 }
             }
         } catch {
+            // Task cancellation is normal behavior when user navigates or zooms map
+            if Task.isCancelled {
+                secureLogger.info("fetchPostsInBounds cancelled (user navigated/zoomed map)")
+                return
+            }
+
             let nsError = error as NSError
+            // Don't log cancellation errors as errors
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                secureLogger.info("fetchPostsInBounds cancelled")
+                return
+            }
+
             secureLogger.error("Failed to fetch posts in bounds: \(nsError.localizedDescription)")
             await MainActor.run {
                 self.error = nsError.localizedDescription

@@ -3,6 +3,7 @@ import MapKit
 import Combine
 import SwiftUI
 
+@MainActor
 class MapManager: ObservableObject {
     @Published var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503), // 東京 (fallback)

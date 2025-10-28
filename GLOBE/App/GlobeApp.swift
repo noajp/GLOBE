@@ -9,9 +9,6 @@ struct GlobeApp: App {
 
         // Supabase設定を初期化
         initializeSupabaseConfig()
-
-        // Keychainの古い設定をクリアして、Secrets.plistから再読み込み
-        clearKeychainAndReloadConfig()
         
         #if DEBUG
         consoleLogger.forceLog("=== GLOBE APP INITIALIZATION STARTED ===")
@@ -31,10 +28,17 @@ struct GlobeApp: App {
     }
     
     private func initializeSupabaseConfig() {
-        // Supabase設定を直接Keychainに保存
+        // Supabase設定をInfo.plistから読み込んでKeychainに保存
         let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
-        let supabaseURL = "https://kkznkqshpdzlhtuawasm.supabase.co"
-        let supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtrem5rcXNocGR6bGh0dWF3YXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzMTA5NzAsImV4cCI6MjA3MDg4Njk3MH0.BXF3JVvs0M7Mgp9whEwFXd6PRfEwEMcCbKfnRBROEBM"
+
+        // Info.plistから読み込み
+        guard let supabaseURL = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
+              let supabaseAnonKey = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String,
+              !supabaseURL.isEmpty,
+              !supabaseAnonKey.isEmpty else {
+            SecureLogger.shared.warning("Supabase configuration not found in Info.plist")
+            return
+        }
 
         // URLをKeychainに保存
         let urlData = supabaseURL.data(using: .utf8)!
@@ -59,47 +63,6 @@ struct GlobeApp: App {
         SecItemAdd(keyQuery as CFDictionary, nil)
     }
 
-    private func clearKeychainAndReloadConfig() {
-        // 開発環境でのみ、間違ったURLが保存されている場合にクリア
-        let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
-        let urlKey = "supabase_url"
-        
-        // 現在のKeychainの値を確認
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: urlKey,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
-        if status == errSecSuccess,
-           let data = result as? Data,
-           let currentURL = String(data: data, encoding: .utf8) {
-            // 間違ったURLが保存されている場合のみクリア
-            if currentURL.contains("lhsdzjkdhiefbhzmwxbj") {
-                // Clear incorrect configuration
-
-                // 両方のキーを削除
-                let keysToDelete = ["supabase_url", "supabase_anon_key"]
-                for key in keysToDelete {
-                    let deleteQuery: [String: Any] = [
-                        kSecClass as String: kSecClassGenericPassword,
-                        kSecAttrAccount as String: key,
-                        kSecAttrService as String: service
-                    ]
-                    SecItemDelete(deleteQuery as CFDictionary)
-                }
-                
-                // 正しい設定を読み込み（同期アクセサ）
-                _ = SecureConfig.shared.supabaseURLSync()
-                _ = SecureConfig.shared.supabaseAnonKey
-            }
-        }
-    }
     
     var body: some Scene {
         WindowGroup {

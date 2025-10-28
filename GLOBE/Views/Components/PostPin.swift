@@ -262,7 +262,8 @@ struct PostPin: View {
             // MARK: - Header with Avatar and ID (After photo) - Hidden for anonymous posts
             if !post.isAnonymous {
                 HStack(spacing: 4) {
-                    // Avatar
+                    // Avatar - COMMENTED OUT for v1.0 release
+                    /*
                     Circle()
                         .fill(Color.white.opacity(0.1)) // More transparent avatar background
                         .frame(width: 18, height: 18)
@@ -290,13 +291,17 @@ struct PostPin: View {
                         .onTapGesture {
                             showingUserProfile = true
                         }
+                    */
 
-                    // User ID
+                    // User ID (タップ可能)
                     Text("@\(post.authorName)")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.white.opacity(0.8))
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .onTapGesture {
+                            showingUserProfile = true
+                        }
 
                     Spacer()
 
@@ -351,7 +356,7 @@ struct PostPin: View {
                 userId: post.authorId,
                 isPresented: $showingUserProfile
             )
-            .transition(.move(edge: .trailing))
+            .presentationBackground(.clear)
         }
         .fullScreenCover(isPresented: $showingImageViewer) {
             if let data = post.imageData, let ui = UIImage(data: data) {
@@ -392,6 +397,7 @@ struct ScalablePostPin: View {
     @State private var showingComments = false
     @State private var showingDeleteAlert = false
     private var borderWidth: CGFloat { 1.2 }
+    private let logger = SecureLogger.shared
     
     private var scaleFactor: CGFloat {
         let baseSpan: Double = 0.01
@@ -493,7 +499,7 @@ struct ScalablePostPin: View {
                         userId: post.authorId,
                         isPresented: $showingUserProfile
                     )
-                    .transition(.move(edge: .trailing))
+                    .presentationBackground(.clear)
                 }
                 .fullScreenCover(isPresented: $showingImageViewer) {
                     if let data = post.imageData, let ui = UIImage(data: data) {
@@ -524,7 +530,7 @@ struct ScalablePostPin: View {
             if showHeaderMeta && !hasImage {
                 HStack(spacing: 3 * fontScale) {
                     Button(action: {
-                        print("👤 ScalablePostPin - Header icon tapped user: \(post.authorId)")
+                        logger.info("Profile icon tapped in post header")
                         showingUserProfile = true
                     }) {
                         Circle()
@@ -539,7 +545,7 @@ struct ScalablePostPin: View {
                     .buttonStyle(PlainButtonStyle())
 
                     Button(action: {
-                        print("🆔 ScalablePostPin - ID tapped user: \(post.authorId)")
+                        logger.info("User ID tapped in post header")
                         showingUserProfile = true
                     }) {
                         VStack(alignment: .leading, spacing: 1 * fontScale) {
@@ -606,7 +612,7 @@ struct ScalablePostPin: View {
             if showHeaderMeta {
                 HStack(spacing: 12 * fontScale) {
                     Button(action: {
-                        print("❤️ ScalablePostPin - Like tapped post: \(post.id)")
+                        logger.info("Like button tapped")
                         if let userId = authManager.currentUser?.id {
                             let newLikeState = likeService.toggleLike(for: post, userId: userId)
                             if newLikeState {
@@ -614,7 +620,7 @@ struct ScalablePostPin: View {
                                 impactFeedback.impactOccurred()
                             }
                         } else {
-                            print("⚠️ ScalablePostPin - Like ignored (no current user)")
+                            logger.warning("Like action ignored - user not authenticated")
                         }
                     }) {
                         Image(systemName: likeService.isLiked(post.id) ? "heart.fill" : "heart")
@@ -624,7 +630,7 @@ struct ScalablePostPin: View {
                     .buttonStyle(PlainButtonStyle())
 
                         Button(action: {
-                            print("💬 ScalablePostPin - Comment tapped post: \(post.id)")
+                            logger.info("Comment button tapped")
                         }) {
                         Image(systemName: "bubble.left")
                             .font(.system(size: 10 * fontScale))
@@ -667,7 +673,7 @@ struct ScalablePostPin: View {
                 let diameter = min(maxDiameter, minDiameter + (scaleFactor - 0.9) * 40)
 
                 Button(action: {
-                    print("🎯 ScalablePostPin - Profile icon tapped for user: \(post.authorId)")
+                    logger.info("Profile avatar tapped")
                     showingUserProfile = true
                 }) {
                     if let urlString = post.authorAvatarUrl, let url = URL(string: urlString) {
