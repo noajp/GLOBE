@@ -33,7 +33,7 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(selectedTab == .post ? .black : .white)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -52,7 +52,7 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "location.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(selectedTab == .location ? .black : .white)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -71,7 +71,7 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(selectedTab == .profile ? .black : .white)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
