@@ -18,6 +18,7 @@ struct LiquidGlassBottomTabBar: View {
     let onLocationTapped: () -> Void
 
     @State private var selectedTab: TabType = .post
+    @Namespace private var namespace
 
     private let buttonWidth: CGFloat = 32
     private let buttonHeight: CGFloat = 32
@@ -32,8 +33,15 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(selectedTab == .post ? .black : .white)
+                        .foregroundStyle(selectedTab == .post ? .blue : .black)
                         .frame(width: buttonWidth, height: buttonHeight)
+                }
+                .background {
+                    if selectedTab == .post {
+                        Circle()
+                            .fill(Color.gray.opacity(0.2))
+                            .matchedGeometryEffect(id: "tab_selection", in: namespace)
+                    }
                 }
 
                 // Location Button
@@ -43,8 +51,15 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "location.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(selectedTab == .location ? .black : .white)
+                        .foregroundStyle(selectedTab == .location ? .blue : .black)
                         .frame(width: buttonWidth, height: buttonHeight)
+                }
+                .background {
+                    if selectedTab == .location {
+                        Circle()
+                            .fill(Color.gray.opacity(0.2))
+                            .matchedGeometryEffect(id: "tab_selection", in: namespace)
+                    }
                 }
 
                 // Profile Button
@@ -54,14 +69,22 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "person.circle.fill")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(selectedTab == .profile ? .black : .white)
+                        .foregroundStyle(selectedTab == .profile ? .blue : .black)
                         .frame(width: buttonWidth, height: buttonHeight)
+                }
+                .background {
+                    if selectedTab == .profile {
+                        Circle()
+                            .fill(Color.gray.opacity(0.2))
+                            .matchedGeometryEffect(id: "tab_selection", in: namespace)
+                    }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 6)
             .frame(height: 40)
         }
+        .animation(.smooth(duration: 0.3), value: selectedTab)
         .coordinatedGlassEffect(id: "bottom-tab-bar")
         .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
     }
