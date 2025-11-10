@@ -4,31 +4,64 @@ import UIKit
 
 struct CameraPreviewView: View {
     @Binding var capturedImage: UIImage?
+    @Environment(\.dismiss) private var dismiss
     @State private var isCapturing = false
     @State private var cameraPosition: AVCaptureDevice.Position = .back
-    
+
     var body: some View {
         ZStack {
-            CameraPreview(capturedImage: $capturedImage, position: cameraPosition)
-                .ignoresSafeArea()
-            
+            // 全画面黒背景
+            Color.black.ignoresSafeArea()
+
+            // カメラプレビュー（角丸マスク付き）
+            GeometryReader { geometry in
+                let previewSize: CGFloat = min(geometry.size.width, geometry.size.height) * 0.85
+
+                VStack(spacing: 0) {
+                    Spacer()
+                        .frame(height: geometry.size.height * 0.15) // 上側のスペースを15%に
+                    CameraPreview(capturedImage: $capturedImage, position: cameraPosition)
+                        .frame(width: previewSize, height: previewSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(Color.white.opacity(0.3), lineWidth: 2)
+                        )
+                    Spacer() // 下側は自動調整
+                }
+                .frame(maxWidth: .infinity)
+            }
+
             VStack {
                 HStack {
+                    // 閉じるボタン
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(12)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding([.top, .leading], 16)
+
                     Spacer()
-                    // Flip camera (front/back)
+
+                    // カメラ切り替えボタン
                     Button(action: { toggleCamera() }) {
                         Image(systemName: "arrow.triangle.2.circlepath.camera")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
-                            .padding(10)
-                            .background(Color.black.opacity(0.35))
-                            .clipShape(Capsule())
+                            .padding(12)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
                     }
                     .padding([.top, .trailing], 16)
                 }
+
                 Spacer()
-                
-                // Capture button
+
+                // 撮影ボタン
                 Button(action: {
                     isCapturing = true
                     NotificationCenter.default.post(name: NSNotification.Name("CapturePhoto"), object: nil)
@@ -37,13 +70,13 @@ struct CameraPreviewView: View {
                         Circle()
                             .fill(Color.white)
                             .frame(width: 70, height: 70)
-                        
+
                         Circle()
                             .stroke(Color.white, lineWidth: 4)
                             .frame(width: 80, height: 80)
                     }
                 }
-                .padding(.bottom, 30)
+                .padding(.bottom, 50)
             }
         }
     }

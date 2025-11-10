@@ -12,7 +12,7 @@ struct MainTabView: View {
     @StateObject private var appSettings = AppSettings.shared
     @State private var showingCreatePost = false
     @State private var showingAuth = false
-    @State private var showingProfile = false
+    @State private var showingSettings = false
     @State private var shouldMoveToCurrentLocation = false
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var shouldShowPostAfterDelay = false
@@ -44,25 +44,18 @@ struct MainTabView: View {
                     .ignoresSafeArea(.all)
 
                 LiquidGlassBottomTabBar(
-                    onProfileTapped: {
-                        if authManager.isAuthenticated {
-                            // 投稿作成カードが開いている場合は閉じる
-                            if showingCreatePost {
-                                showingCreatePost = false
-                            }
-                            // プロフィールをトグル（開いている場合は閉じる）
-                            showingProfile.toggle()
-                        } else {
-                            showingAuth = true
+                    onSettingsTapped: {
+                        SecureLogger.shared.info("Settings button tapped in tab bar")
+                        // 投稿作成カードが開いている場合は閉じる
+                        if showingCreatePost {
+                            showingCreatePost = false
                         }
+                        // 設定画面を表示
+                        showingSettings = true
                     },
                     onPostTapped: {
                         SecureLogger.shared.info("Post button tapped in tab bar")
                         if authManager.isAuthenticated {
-                            // プロフィールポップアップが開いている場合は閉じる
-                            if showingProfile {
-                                showingProfile = false
-                            }
                             // 投稿作成カードをトグル（開いている場合は閉じる）
                             if showingCreatePost {
                                 showingCreatePost = false
@@ -76,12 +69,9 @@ struct MainTabView: View {
                     },
                     onLocationTapped: {
                         SecureLogger.shared.info("Location button tapped in tab bar")
-                        // 投稿作成カードやプロフィールが開いている場合は閉じる
+                        // 投稿作成カードが開いている場合は閉じる
                         if showingCreatePost {
                             showingCreatePost = false
-                        }
-                        if showingProfile {
-                            showingProfile = false
                         }
 
                         // Request location permission if needed
@@ -98,6 +88,22 @@ struct MainTabView: View {
                 .padding(.bottom, 0)
             }
             .ignoresSafeArea(.keyboard)
+
+            // Settings overlay with slide-in transition from right
+            if showingSettings {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showingSettings = false
+                        }
+                    }
+
+                SettingsView(isPresented: $showingSettings, showingAuth: $showingAuth)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.move(edge: .trailing))
+                    .zIndex(100)
+            }
         }
         .overlay(
             Group {
@@ -112,18 +118,13 @@ struct MainTabView: View {
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
                 }
-
-                if showingProfile {
-                    ProfilePopupView(isPresented: $showingProfile)
-                        .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.3), value: showingProfile)
-                }
             }
             // TEMPORARILY DISABLED - VTipPreferenceKey causes crashes
             // .onPreferenceChange(VTipPreferenceKey.self) { point in
             //     self.vTipPoint = point
             // }
         )
+        .animation(.easeInOut(duration: 0.3), value: showingSettings)
         .fullScreenCover(isPresented: $showingAuth) {
             AuthenticationView()
         }
@@ -133,7 +134,7 @@ struct MainTabView: View {
                 // Dismiss any existing sheets before presenting auth to avoid
                 // "Currently, only presenting a single sheet is supported" warnings
                 self.showingCreatePost = false
-                self.showingProfile = false
+                self.showingSettings = false
                 // Present auth slightly delayed to let dismissals complete
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 200_000_000)

@@ -123,15 +123,26 @@ struct PostPin: View {
     }
     
     private var cardWidth: CGFloat {
-        return 135 // CreatePostView (270) の1/2サイズ
+        // 画像がある場合は写真に合わせてカードサイズを調整
+        if hasImageContent {
+            let inset: CGFloat = isPhotoOnly ? 2 : 6
+            // 写真サイズ * 0.70 + 両側の余白
+            let photoSize = (135 - inset * 2) * 0.70
+            return photoSize + 16 // 写真サイズ + 左右余白8pxずつ
+        }
+        return 135 // テキストのみの場合は通常サイズ
+    }
+
+    private var isPhotoOnly: Bool {
+        return post.text.isEmpty && hasImageContent
     }
 
     private var cardHeight: CGFloat {
         // 動的高さ計算
         let baseHeight: CGFloat = 40 // 最小高さ
 
-        // 画像がある場合の高さ
-        let imageHeight: CGFloat = hasImageContent ? (cardWidth - 12) : 0
+        // 画像がある場合の高さ（70%縮小に対応）
+        let imageHeight: CGFloat = hasImageContent ? (cardWidth - 12) * 0.70 : 0
 
         // ヘッダー（アバター・ID）の高さ - 非匿名投稿は常に表示
         let headerHeight: CGFloat = post.isAnonymous ? 0 : 26
@@ -153,13 +164,13 @@ struct PostPin: View {
 
         // 画像のみの場合
         if hasImageContent && post.text.isEmpty {
-            let height = imageHeight + headerHeight + actionBarHeight + 6
+            let height = imageHeight + headerHeight + actionBarHeight + 16 // 上下のパディングを増加
             return height
         }
 
         // 画像 + テキストの場合
         if hasImageContent && !post.text.isEmpty {
-            let height = imageHeight + headerHeight + textHeight + actionBarHeight + 1
+            let height = imageHeight + headerHeight + textHeight + actionBarHeight + 12 // 上下のパディングを増加
             return height
         }
 
@@ -230,32 +241,52 @@ struct PostPin: View {
                 VStack(alignment: .leading, spacing: 2) {
                 // MARK: - Content Area (Photo and/or Text)
                 // Photo content
-            if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
+            if let imageData = post.imageData {
                 let inset: CGFloat = isPhotoOnly ? 2 : 6
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .padding(.horizontal, max(2, inset - 2))
-                    .onTapGesture { showingImageViewer = true }
+                let imageSize = (cardWidth - inset * 2) * 0.70 // 70%のサイズに縮小
+
+                if let uiImage = UIImage(data: imageData) {
+                    Image(uiImage: uiImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: imageSize, height: imageSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, max(2, inset - 2))
+                        .id("\(post.id)-image") // 明示的なIDで画像の再利用を防止
+                } else {
+                    // 画像データが壊れている場合のプレースホルダー
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: imageSize, height: imageSize)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundColor(.white.opacity(0.5))
+                                .font(.system(size: 30))
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .padding(.horizontal, max(2, inset - 2))
+                }
 
             } else if let imageUrl = post.imageUrl {
                 let inset: CGFloat = isPhotoOnly ? 2 : 6
+                let imageSize = (cardWidth - inset * 2) * 0.70 // 70%のサイズに縮小
                 AsyncImage(url: URL(string: imageUrl)) { image in
                     image
                         .resizable()
+                        .interpolation(.high)
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: cardWidth - inset * 2, height: cardWidth - inset * 2)
+                        .frame(width: imageSize, height: imageSize)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
+                        .frame(width: imageSize, height: imageSize)
                         .overlay(ProgressView().scaleEffect(0.45))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
+                .id("\(post.id)-async-image") // AsyncImageに明示的なIDを付与してキャッシュ混乱を防止
                 .padding(.horizontal, max(2, inset - 2))
-                .onTapGesture { showingImageViewer = true }
 
             }
 
@@ -421,7 +452,15 @@ struct ScalablePostPin: View {
     }
     
     private var baseCardSize: CGFloat {
-        135  // CreatePostView (270) の1/2サイズ
+        // 画像がある場合は写真に合わせてカードサイズを調整
+        if hasImage {
+            let isPhotoOnly = post.text.isEmpty
+            let inset: CGFloat = isPhotoOnly ? 2 : 6
+            // 写真サイズ * 0.70 + 両側の余白
+            let photoSize = (135 - inset * 2) * 0.70
+            return photoSize + 16 // 写真サイズ + 左右余白8pxずつ
+        }
+        return 135  // テキストのみの場合は通常サイズ
     }
 
     private var cardWidth: CGFloat {
@@ -471,7 +510,9 @@ struct ScalablePostPin: View {
         }
 
         if hasImage {
-            return cardWidth * 0.8 // 画像の場合は少し縦長
+            // 画像サイズ（70%）に合わせて高さを調整
+            let imageSize = (cardWidth - 12) * 0.70
+            return imageSize + 30 * fontScale // 画像サイズ + 上下のパディングを増加
         }
 
         return baseHeight
@@ -567,30 +608,34 @@ struct ScalablePostPin: View {
 
             if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                 let isPhotoOnly = post.text.isEmpty
+                let imageSize = (isPhotoOnly ? cardWidth - 6 : cardWidth - 12) * 0.70 // 70%のサイズに縮小
                 Image(uiImage: uiImage)
                     .resizable()
+                    .interpolation(.high)
                     .scaledToFill()
-                    .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
+                    .frame(width: imageSize, height: imageSize)
                     .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                     .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
-                    .onTapGesture { showingImageViewer = true }
+                    .id("\(post.id)-scalable-image") // ScalablePostPinの画像にもIDを付与
             } else if let imageUrl = post.imageUrl {
                 let isPhotoOnly = post.text.isEmpty
+                let imageSize = (isPhotoOnly ? cardWidth - 6 : cardWidth - 12) * 0.70 // 70%のサイズに縮小
                 AsyncImage(url: URL(string: imageUrl)) { image in
                     image
                         .resizable()
+                        .interpolation(.high)
                         .scaledToFill()
-                        .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
+                        .frame(width: imageSize, height: imageSize)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
-                        .frame(width: isPhotoOnly ? cardWidth - 6 : cardWidth - 12, height: cardWidth - 12)
+                        .frame(width: imageSize, height: imageSize)
                         .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
                         .overlay(ProgressView().scaleEffect(0.5 * fontScale))
                 }
+                .id("\(post.id)-scalable-async-image") // ScalablePostPinのAsyncImageにもIDを付与
                 .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
-                .onTapGesture { showingImageViewer = true }
             }
 
             if !post.text.isEmpty {

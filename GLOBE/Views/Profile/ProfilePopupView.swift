@@ -10,6 +10,7 @@ struct ProfilePopupView: View {
     @Binding var isPresented: Bool
     @StateObject private var viewModel = MyPageViewModel()
     @State private var showSettings = false
+    @State private var showingAuth = false
     @State private var isEditing = false
     @State private var dragOffset: CGFloat = 0
 
@@ -255,7 +256,7 @@ struct ProfilePopupView: View {
             }
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView()
+            SettingsView(isPresented: $showSettings, showingAuth: $showingAuth)
         }
         .onAppear {
             Task {

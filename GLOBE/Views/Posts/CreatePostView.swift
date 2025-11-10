@@ -44,6 +44,7 @@ struct CreatePostView: View {
     @State private var isSubmitting = false
     @State private var showingCamera = false
     @State private var selectedImageData: Data?
+    @State private var capturedImage: UIImage?
     // App settings
     @StateObject private var appSettings = AppSettings.shared
     
@@ -87,7 +88,7 @@ struct CreatePostView: View {
                     VStack(spacing: 0) {
                         postCreationView
                     }
-                    .frame(width: 280, height: selectedImageData != nil ? 300 : 200)
+                    .frame(width: 280, height: selectedImageData != nil ? 330 : 200)
                     .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
@@ -155,7 +156,18 @@ struct CreatePostView: View {
             Text("Please allow location access in Settings to move to your current location.")
         }
         .fullScreenCover(isPresented: $showingCamera) {
-            CameraView(selectedImageData: $selectedImageData)
+            CameraPreviewView(capturedImage: $capturedImage)
+        }
+        .onChange(of: capturedImage) { _, newImage in
+            if let image = newImage {
+                // 画像を正方形にクロップして角丸を適用
+                if let croppedImage = cropToSquare(image: image) {
+                    selectedImageData = croppedImage.jpegData(compressionQuality: 0.8)
+                }
+                // 画像処理後にcapturedImageをリセット
+                capturedImage = nil
+                showingCamera = false
+            }
         }
         .onAppear {
             // Use initial location if provided
@@ -672,6 +684,24 @@ struct CreatePostView: View {
     
     private func updatePostLocation() {
         postLocation = mapManager.region.center
+    }
+
+    // MARK: - Image Processing
+    private func cropToSquare(image: UIImage) -> UIImage? {
+        let originalWidth = image.size.width
+        let originalHeight = image.size.height
+        let sideLength = min(originalWidth, originalHeight)
+
+        let xOffset = (originalWidth - sideLength) / 2.0
+        let yOffset = (originalHeight - sideLength) / 2.0
+
+        let cropRect = CGRect(x: xOffset, y: yOffset, width: sideLength, height: sideLength)
+
+        guard let cgImage = image.cgImage?.cropping(to: cropRect) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage, scale: image.scale, orientation: image.imageOrientation)
     }
 }
 

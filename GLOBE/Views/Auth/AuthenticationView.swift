@@ -7,14 +7,14 @@ struct AuthenticationView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject private var authManager = AuthManager.shared
     
-    // カスタムデザイン用の色定義
-    private let customBlack = MinimalDesign.Colors.background
+    // カスタムデザイン用の色定義（ダークモード対応）
     private let accentColor = Color(hex: "FF6B6B")
-    
+    @Environment(\.colorScheme) var colorScheme
+
     var body: some View {
         ZStack {
-            // シンプルな黒背景
-            customBlack
+            // ダークモード対応の背景
+            MinimalDesign.Colors.background
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -26,23 +26,23 @@ struct AuthenticationView: View {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
+                            .foregroundColor(MinimalDesign.Colors.primary.opacity(0.8))
                     }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 40)
-                
+
                 // ロゴエリア - Liquid Glass Card
                 VStack(spacing: 12) {
                     // シンプルなGLOBEロゴ
                     Text("GLOBE")
                         .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(MinimalDesign.Colors.primary)
                         .tracking(2)
-                    
+
                     Text("Connect with the World")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(MinimalDesign.Colors.primary.opacity(0.7))
                         .tracking(1)
                 }
                 .padding(.bottom, 80)
@@ -58,14 +58,14 @@ struct AuthenticationView: View {
                     }) {
                         Text("Create Account")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(customBlack)
+                            .foregroundColor(colorScheme == .dark ? .black : .white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
-                            .background(.white)
+                            .background(colorScheme == .dark ? .white : .black)
                             .cornerRadius(26)
-            
+
                     }
-                    
+
                     // ログインボタン（セカンダリ）
                     Button(action: {
                         showingSignUp = false
@@ -73,15 +73,15 @@ struct AuthenticationView: View {
                     }) {
                         Text("Sign In")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(MinimalDesign.Colors.primary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
                             .background(.clear)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 26)
-                                    .stroke(.white.opacity(0.2), lineWidth: 1)
+                                    .stroke(MinimalDesign.Colors.primary.opacity(0.2), lineWidth: 1)
                             )
-            
+
                     }
                 }
                 .padding(.horizontal, 32)
@@ -91,7 +91,7 @@ struct AuthenticationView: View {
                 VStack(spacing: 8) {
                     Text("By continuing, you agree to our Terms of Service and Privacy Policy")
                         .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(MinimalDesign.Colors.tertiary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                         .padding(.horizontal, 40)

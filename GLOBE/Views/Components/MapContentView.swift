@@ -29,12 +29,15 @@ struct MapContentView: View {
         )
     )
 
+    @State private var selectedPOI: MKMapItem?
+    @State private var showPOISheet = false
+
     // Debouncing for data fetching
     @State private var fetchDebounceTask: Task<Void, Never>?
     @State private var lastUpdateTime: Date = Date()
 
-    var body: some View {
-        Map(position: $mapCameraPosition, interactionModes: .all) {
+    private var mapView: some View {
+        Map(position: $mapCameraPosition, interactionModes: .all, selection: $selectedPOI) {
             // User location marker
             if let userLocation = locationManager.location {
                 Annotation("", coordinate: userLocation.coordinate) {
@@ -53,14 +56,15 @@ struct MapContentView: View {
             }
 
             // Post annotations with position adjustment and opacity management
-            ForEach(mapManager.visiblePosts) { post in
+            ForEach(mapManager.visiblePosts, id: \.id) { post in
                 let adjustedLocation = mapManager.getAdjustedPosition(for: post.id, originalLocation: post.location)
                 let opacity = mapManager.getPostOpacity(for: post.id)
-                if opacity > 0.0 { // 完全透明なら表示しない
+                if opacity > 0.0 {
                     Annotation("", coordinate: adjustedLocation) {
                         PostPin(post: post) {
                             // Popup表示を行わない
                         }
+                        .id(post.id) // 明示的なIDを追加してビューの再利用を防止
                         .opacity(opacity)
                     }
                     .annotationTitles(.hidden)
@@ -71,15 +75,17 @@ struct MapContentView: View {
             ForEach(mapManager.postClusters) { cluster in
                 Annotation("", coordinate: cluster.location) {
                     ClusterPin(postCount: cluster.postCount) {
-                        // TODO: Expand cluster to show individual posts
-                        // For now, zoom in to the cluster location
                         mapManager.focusOnLocation(cluster.location, zoomLevel: 0.01)
                     }
                 }
                 .annotationTitles(.hidden)
             }
         }
-        .mapStyle(.hybrid(elevation: .realistic))
+        .mapStyle(.hybrid(elevation: .realistic, pointsOfInterest: .all))
+    }
+
+    var body: some View {
+        mapView
         .mapControls {
             MapCompass()
                 .mapControlVisibility(.hidden)
@@ -170,6 +176,43 @@ struct MapContentView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     mapManager.shouldUpdateMapPosition = nil
                 }
+            }
+        }
+        .onChange(of: selectedPOI) { _, newPOI in
+            if newPOI != nil {
+                showPOISheet = true
+            }
+        }
+        .sheet(isPresented: $showPOISheet, onDismiss: {
+            selectedPOI = nil
+        }) {
+            if let mapItem = selectedPOI {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(mapItem.name ?? "Unknown Place")
+                        .font(.title2)
+                        .fontWeight(.bold)
+
+                    if let phoneNumber = mapItem.phoneNumber {
+                        HStack {
+                            Image(systemName: "phone.fill")
+                            Text(phoneNumber)
+                        }
+                        .font(.subheadline)
+                    }
+
+                    if let address = mapItem.placemark.title {
+                        HStack(alignment: .top) {
+                            Image(systemName: "mappin.and.ellipse")
+                            Text(address)
+                        }
+                        .font(.subheadline)
+                    }
+
+                    Spacer()
+                }
+                .padding()
+                .presentationDetents([.height(200), .medium])
+                .presentationDragIndicator(.visible)
             }
         }
     }

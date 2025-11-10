@@ -37,21 +37,23 @@ extension Color {
 // MARK: - Minimal Design System
 struct MinimalDesign {
     
-    // MARK: - Colors
+    // MARK: - Colors (Dark/Light Mode adaptive)
     struct Colors {
+        // Custom dark background #121212
         static let background = Color(hex: "121212")
-        static let secondaryBackground = Color(hex: "121212")
-        static let tertiaryBackground = Color(hex: "121212")
-        
-        static let primary = Color.white
-        static let secondary = Color(white: 0.7)
-        static let tertiary = Color(white: 0.5)
-        
+        static let secondaryBackground = Color(hex: "1E1E1E")
+        static let tertiaryBackground = Color(hex: "2C2C2C")
+
+        // Adaptive text colors - white in dark mode, black in light mode
+        static let primary = Color(.label)
+        static let secondary = Color(.secondaryLabel)
+        static let tertiary = Color(.tertiaryLabel)
+
         static let accent = Color(.systemBlue)
         static let accentRed = Color(red: 0.949, green: 0.098, blue: 0.020) // Custom GLOBE red #F21905
         static let destructive = Color(.systemRed)
         static let success = Color(.systemGreen)
-        
+
         static let border = Color(.separator)
         static let divider = Color(.opaqueSeparator)
     }
