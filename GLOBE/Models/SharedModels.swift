@@ -5,16 +5,15 @@ import SwiftUI
 
 struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
     let id: String
-    let username: String
     let displayName: String?
     let bio: String?
     let avatarUrl: String?
     let postCount: Int?
     let followerCount: Int?
     let followingCount: Int?
-    
+
     enum CodingKeys: String, CodingKey {
-        case id, username
+        case id
         case displayName = "display_name"
         case bio
         case avatarUrl = "avatar_url"
@@ -26,11 +25,10 @@ struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
 
 struct ProfileInsert: Codable, @unchecked Sendable {
     let id: UUID
-    let username: String
     let displayName: String
-    
+
     enum CodingKeys: String, CodingKey {
-        case id, username
+        case id
         case displayName = "display_name"
     }
 }
@@ -40,13 +38,11 @@ struct ProfileInsert: Codable, @unchecked Sendable {
 struct AppUser: Codable, Equatable, @unchecked Sendable {
     let id: String
     let email: String?
-    let username: String?
     let createdAt: String?
-    
+
     enum CodingKeys: String, CodingKey {
         case id
         case email
-        case username
         case createdAt = "created_at"
     }
 }

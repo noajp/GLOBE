@@ -170,7 +170,7 @@ struct CommentView: View {
                 .fill(Color.green.opacity(0.3))
                 .frame(width: 32, height: 32)
                 .overlay(
-                    Text(String((authManager.currentUser?.username ?? "U").prefix(1)))
+                    Text(String((authManager.currentUser?.email ?? "U").prefix(1).uppercased()))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                 )
@@ -208,7 +208,7 @@ struct CommentView: View {
                     to: post.id,
                     content: trimmedText,
                     authorId: authManager.currentUser?.id ?? UUID().uuidString,
-                    authorName: authManager.currentUser?.username ?? "Anonymous"
+                    authorName: authManager.currentUser?.email ?? "Anonymous"
                 )
 
                 await MainActor.run {

@@ -40,10 +40,10 @@ struct ProfileSection: View {
             // User Info
             VStack(alignment: .leading, spacing: MinimalDesign.Spacing.xs) {
                 if let user = authManager.currentUser {
-                    Text(user.username ?? "Unknown")
+                    Text(user.email ?? "Unknown User")
                         .font(MinimalDesign.Typography.headline)
                         .foregroundColor(MinimalDesign.Colors.primary)
-                    
+
                     Text("Bio goes here...")
                         .font(MinimalDesign.Typography.body)
                         .foregroundColor(MinimalDesign.Colors.secondary)

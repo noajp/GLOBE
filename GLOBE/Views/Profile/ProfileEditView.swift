@@ -8,11 +8,10 @@ import SwiftUI
 
 struct ProfileEditView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var authManager = AuthManager.shared
+    @StateObject private var viewModel = MyPageViewModel()
 
-    @State private var username: String = ""
     @State private var displayName: String = ""
-    @State private var email: String = ""
+    @State private var bio: String = ""
 
     @State private var isLoading = false
     @State private var showError = false
@@ -26,25 +25,6 @@ struct ProfileEditView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // User ID Section
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("User ID")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(MinimalDesign.Colors.secondary)
-
-                        TextField("Username", text: $username)
-                            .font(.system(size: 16))
-                            .padding()
-                            .background(MinimalDesign.Colors.secondaryBackground)
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(MinimalDesign.Colors.border, lineWidth: 1)
-                            )
-                            .autocapitalization(.none)
-                            .autocorrectionDisabled()
-                    }
-
                     // Display Name Section
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Display Name")
@@ -62,24 +42,22 @@ struct ProfileEditView: View {
                             )
                     }
 
-                    // Email Section
+                    // Bio Section
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Email")
+                        Text("Bio")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(MinimalDesign.Colors.secondary)
 
-                        TextField("Email address", text: $email)
+                        TextEditor(text: $bio)
                             .font(.system(size: 16))
-                            .padding()
+                            .frame(height: 100)
+                            .padding(4)
                             .background(MinimalDesign.Colors.secondaryBackground)
                             .cornerRadius(10)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
                                     .stroke(MinimalDesign.Colors.border, lineWidth: 1)
                             )
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .autocorrectionDisabled()
                     }
 
                     // Save Button
@@ -124,34 +102,33 @@ struct ProfileEditView: View {
     }
 
     private func loadUserData() {
-        if let user = authManager.currentUser {
-            username = user.username ?? ""
-            email = user.email ?? ""
-            // displayName is not in AppUser, would need to fetch from profiles table
-            displayName = user.username ?? ""
+        Task {
+            await viewModel.loadUserData()
+            displayName = viewModel.userProfile?.displayName ?? ""
+            bio = viewModel.userProfile?.bio ?? ""
         }
     }
 
     private func saveProfile() {
-        guard !username.isEmpty else {
-            errorMessage = "Username cannot be empty"
-            showError = true
-            return
-        }
-
-        guard !email.isEmpty else {
-            errorMessage = "Email cannot be empty"
+        guard !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Display name cannot be empty"
             showError = true
             return
         }
 
         isLoading = true
 
-        // TODO: Implement actual profile update with Supabase
-        // For now, just show success
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            isLoading = false
-            showSuccessAlert = true
+        Task {
+            await viewModel.updateProfile(displayName: displayName, bio: bio)
+
+            if let error = viewModel.errorMessage {
+                errorMessage = error
+                showError = true
+                isLoading = false
+            } else {
+                isLoading = false
+                showSuccessAlert = true
+            }
         }
     }
 }

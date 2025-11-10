@@ -8,6 +8,8 @@ import Foundation
 import Supabase
 import SwiftUI
 import Combine
+import AuthenticationServices
+import CryptoKit
 
 // MARK: - Security Severity Levels
 
@@ -80,7 +82,6 @@ class AuthManager: AuthServiceProtocol {
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
-                username: user.userMetadata["username"]?.stringValue,
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
@@ -97,7 +98,7 @@ class AuthManager: AuthServiceProtocol {
     
     // MARK: - Sign Up
     
-    func signUp(email: String, password: String, username: String) async throws {
+    func signUp(email: String, password: String, displayName: String) async throws {
         logger.info("AuthManager.signUp: begin for \(email)")
         // 入力検証
         let emailValidation = InputValidator.validateEmail(email)
@@ -105,18 +106,20 @@ class AuthManager: AuthServiceProtocol {
             logger.error("AuthManager.signUp: invalid email")
             throw AuthError.invalidInput("有効なメールアドレスを入力してください")
         }
-        
+
         let passwordValidation = InputValidator.validatePassword(password)
         guard passwordValidation.isValid else {
             logger.error("AuthManager.signUp: weak password")
             throw AuthError.weakPassword(["パスワードは8文字以上で、英字と数字を含む必要があります"])
         }
-        
-        let usernameValidation = InputValidator.validateUsername(username)
-        guard usernameValidation.isValid, let validUsername = usernameValidation.value else {
-            logger.error("AuthManager.signUp: invalid username")
-            throw AuthError.invalidInput("ユーザー名は3-20文字で、英字、数字、アンダースコアのみ使用できます")
+
+        // Display name validation: 1-50 characters
+        let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDisplayName.isEmpty && trimmedDisplayName.count >= 1 && trimmedDisplayName.count <= 50 else {
+            logger.error("AuthManager.signUp: invalid display name")
+            throw AuthError.invalidInput("表示名は1-50文字で入力してください")
         }
+        let validDisplayName = trimmedDisplayName
         
         isLoading = true
         defer { isLoading = false }
@@ -129,20 +132,19 @@ class AuthManager: AuthServiceProtocol {
                 email: validEmail,
                 password: password,
                 data: [
-                    "username": AnyJSON.string(validUsername)
+                    "display_name": AnyJSON.string(validDisplayName)
                 ]
             )
-            
+
             let user = response.user
             logger.info("Sign up successful for user: \(user.id.uuidString)")
             logger.info("AuthManager.signUp: success user=\(user.id.uuidString)")
             SecureLogger.shared.authEvent("sign_up_success", userID: user.id.uuidString)
-            
+
             // メール認証をスキップして直接認証済み状態にする
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
-                username: validUsername,
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
@@ -202,7 +204,6 @@ class AuthManager: AuthServiceProtocol {
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
-                username: user.userMetadata["username"]?.stringValue,
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
@@ -263,9 +264,100 @@ class AuthManager: AuthServiceProtocol {
             throw AuthError.unknown("パスワードリセットメールの送信に失敗しました")
         }
     }
-    
+
+    // MARK: - Apple Sign In
+
+    func signInWithApple() async throws {
+        logger.info("AuthManager.signInWithApple: Starting Apple Sign In")
+
+        let nonce = randomNonceString()
+        let hashedNonce = sha256(nonce)
+
+        let appleIDProvider = ASAuthorizationAppleIDProvider()
+        let request = appleIDProvider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = hashedNonce
+
+        let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+
+        // Create coordinator to handle the response
+        let coordinator = AppleSignInCoordinator(
+            nonce: nonce,
+            onSuccess: { [weak self] idToken, displayName in
+                Task { @MainActor in
+                    do {
+                        try await self?.handleAppleSignInSuccess(idToken: idToken, nonce: nonce, displayName: displayName)
+                    } catch {
+                        self?.logger.error("Failed to complete Apple Sign In: \(error.localizedDescription)")
+                    }
+                }
+            },
+            onFailure: { [weak self] error in
+                self?.logger.error("Apple Sign In failed: \(error.localizedDescription)")
+            }
+        )
+
+        authorizationController.delegate = coordinator
+        authorizationController.presentationContextProvider = coordinator
+        authorizationController.performRequests()
+
+        // Keep coordinator alive
+        objc_setAssociatedObject(self, "appleSignInCoordinator", coordinator, .OBJC_ASSOCIATION_RETAIN)
+    }
+
+    private func handleAppleSignInSuccess(idToken: String, nonce: String, displayName: String?) async throws {
+        let response = try await (await supabase).auth.signInWithIdToken(
+            credentials: .init(
+                provider: .apple,
+                idToken: idToken,
+                nonce: nonce
+            )
+        )
+
+        let user = response.user
+        logger.info("Apple Sign In successful for user: \(user.id.uuidString)")
+
+        currentUser = AppUser(
+            id: user.id.uuidString,
+            email: user.email,
+            createdAt: user.createdAt.ISO8601Format()
+        )
+        isAuthenticated = true
+
+        // Create profile if this is first sign in
+        if let name = displayName, !name.isEmpty {
+            await createUserProfile(userId: user.id.uuidString, displayName: name, email: user.email ?? "")
+        }
+
+        SecureLogger.shared.authEvent("apple_sign_in_success", userID: user.id.uuidString)
+    }
+
+    private func randomNonceString(length: Int = 32) -> String {
+        precondition(length > 0)
+        var randomBytes = [UInt8](repeating: 0, count: length)
+        let errorCode = SecRandomCopyBytes(kSecRandomDefault, randomBytes.count, &randomBytes)
+        if errorCode != errSecSuccess {
+            fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(errorCode)")
+        }
+
+        let charset: [Character] = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        let nonce = randomBytes.map { byte in
+            charset[Int(byte) % charset.count]
+        }
+        return String(nonce)
+    }
+
+    private func sha256(_ input: String) -> String {
+        let inputData = Data(input.utf8)
+        let hashedData = SHA256.hash(data: inputData)
+        let hashString = hashedData.compactMap {
+            String(format: "%02x", $0)
+        }.joined()
+        return hashString
+    }
+
     // MARK: - Sign Out
-    
+
     func signOut() async {
         logger.info("Sign out attempt")
 
@@ -469,9 +561,9 @@ class AuthManager: AuthServiceProtocol {
     
     // MARK: - Profile Creation
     
-    private func createUserProfile(userId: String, username: String, email: String) async {
-        logger.info("Creating user profile for: \(username)")
-        
+    private func createUserProfile(userId: String, displayName: String, email: String) async {
+        logger.info("Creating user profile for: \(displayName)")
+
         do {
             // まずプロフィールが既に存在するか確認
             let existingProfile = try await supabase
@@ -479,27 +571,26 @@ class AuthManager: AuthServiceProtocol {
                 .select()
                 .eq("id", value: userId)
                 .execute()
-            
+
             let decoder = JSONDecoder()
             let profiles = try? decoder.decode([UserProfile].self, from: existingProfile.data)
-            
+
             if profiles?.isEmpty ?? true {
                 // プロフィールが存在しない場合のみ作成
                 let profile = [
                     "id": userId,
-                    "username": username,
-                    "display_name": username, // Use username as default display name
+                    "display_name": displayName,
                     "created_at": ISO8601DateFormatter().string(from: Date())
                 ]
-                
+
                 try await supabase
                     .from("profiles")
                     .insert(profile)
                     .execute()
-                
-                logger.info("User profile created successfully for: \(username)")
+
+                logger.info("User profile created successfully for: \(displayName)")
             } else {
-                logger.info("Profile already exists for user: \(username)")
+                logger.info("Profile already exists for: \(displayName)")
             }
         } catch {
             logger.error("Failed to create user profile: \(error.localizedDescription)")
@@ -521,7 +612,6 @@ class AuthManager: AuthServiceProtocol {
         let devUser = AppUser(
             id: "dev-user-\(UUID().uuidString.prefix(8))",
             email: "dev@globe.app",
-            username: "dev_user",
             createdAt: ISO8601DateFormatter().string(from: Date())
         )
 

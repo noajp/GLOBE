@@ -9,11 +9,11 @@ import SwiftUI
 enum TabType {
     case post
     case location
-    case settings
+    case profile
 }
 
 struct LiquidGlassBottomTabBar: View {
-    let onSettingsTapped: () -> Void
+    let onProfileTapped: () -> Void
     let onPostTapped: () -> Void
     let onLocationTapped: () -> Void
 
@@ -33,7 +33,7 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.gray)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -51,7 +51,7 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "location.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.gray)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -62,18 +62,18 @@ struct LiquidGlassBottomTabBar: View {
                     }
                 }
 
-                // Settings Button
+                // Profile Button
                 Button(action: {
-                    selectedTab = .settings
-                    onSettingsTapped()
+                    selectedTab = .profile
+                    onProfileTapped()
                 }) {
-                    Image(systemName: "line.3.horizontal")
+                    Image(systemName: "person.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.gray)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
-                    if selectedTab == .settings {
+                    if selectedTab == .profile {
                         Circle()
                             .fill(Color.black.opacity(0.25))
                             .matchedGeometryEffect(id: "tab_selection", in: namespace)
@@ -105,8 +105,8 @@ struct LiquidGlassBottomTabBar: View {
         .ignoresSafeArea()
 
         LiquidGlassBottomTabBar(
-            onSettingsTapped: {
-                print("Settings tapped")
+            onProfileTapped: {
+                print("Profile tapped")
             },
             onPostTapped: {
                 print("Post tapped")

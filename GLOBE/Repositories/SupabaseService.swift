@@ -118,7 +118,7 @@ private init() {
                 limit = 5000
             }
 
-            let selectColumns = "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at,like_count"
+            let selectColumns = "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at,like_count,profiles!inner(display_name,avatar_url)"
 
             let response = try await supabaseClient
                 .from("posts")
@@ -133,18 +133,41 @@ private init() {
 
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            let dbPosts = try decoder.decode([DatabasePost].self, from: response.data)
+
+            // Parse with profile information
+            struct PostWithProfile: Decodable {
+                let id: UUID
+                let user_id: UUID
+                let content: String
+                let image_url: String?
+                let location_name: String?
+                let latitude: Double
+                let longitude: Double
+                let is_public: Bool?
+                let is_anonymous: Bool?
+                let created_at: Date
+                let expires_at: Date?
+                let like_count: Int?
+                let profiles: ProfileInfo?
+
+                struct ProfileInfo: Decodable {
+                    let display_name: String?
+                    let avatar_url: String?
+                }
+            }
+
+            let postsWithProfiles = try decoder.decode([PostWithProfile].self, from: response.data)
 
             await MainActor.run {
-                self.posts = dbPosts.map { dbPost in
+                self.posts = postsWithProfiles.map { dbPost in
                     let name: String
                     let avatar: String?
                     if dbPost.is_anonymous ?? false {
                         name = "匿名ユーザー"
                         avatar = nil
                     } else {
-                        name = "ユーザー"
-                        avatar = nil
+                        name = dbPost.profiles?.display_name ?? "Unknown User"
+                        avatar = dbPost.profiles?.avatar_url
                     }
                     return Post(
                         id: dbPost.id,
@@ -223,7 +246,7 @@ private init() {
                             name = "匿名ユーザー"
                             avatar = nil
                         } else if let prof = dbPost.profiles, !liteMode {
-                            name = prof.display_name ?? prof.username ?? "ユーザー"
+                            name = prof.display_name ?? "ユーザー"
                             avatar = prof.avatar_url
                         } else {
                             name = "ユーザー"
@@ -344,29 +367,33 @@ private init() {
                 .execute()
             
             // 成功したら新しい投稿をローカル配列に追加
-            let currentUser = AuthManager.shared.currentUser
-            
-            // プロフィール情報を取得してアバターURLを取得
+
+            // プロフィール情報を取得してアバターURLと表示名を取得
             var avatarUrl: String? = nil
+            var displayName: String = "ユーザー"
             if !isAnonymous {
                 do {
                     let profileResponse = try await supabaseClient
                         .from("profiles")
-                        .select("avatar_url")
+                        .select("avatar_url,display_name")
                         .eq("id", value: userUUID.uuidString)
                         .single()
                         .execute()
-                    
+
                     let data = profileResponse.data
-                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let url = json["avatar_url"] as? String {
-                        avatarUrl = url
+                    if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        if let url = json["avatar_url"] as? String {
+                            avatarUrl = url
+                        }
+                        if let name = json["display_name"] as? String {
+                            displayName = name
+                        }
                     }
                 } catch {
-                    // Failed to fetch avatar URL, continue without it
+                    // Failed to fetch profile data, continue with defaults
                 }
             }
-            
+
             let newPost = Post(
                 createdAt: Date(),
                 expiresAt: nil,  // 有効期限なし
@@ -375,7 +402,7 @@ private init() {
                 imageData: imageData,
                 imageUrl: imageUrl,
                 text: content,
-                authorName: isAnonymous ? "匿名ユーザー" : (currentUser?.username ?? "ユーザー"),
+                authorName: isAnonymous ? "匿名ユーザー" : displayName,
                 authorId: isAnonymous ? "anonymous" : userId,
                 isPublic: true,  // 常に公開（匿名でも投稿内容は表示）
                 isAnonymous: isAnonymous,
@@ -494,6 +521,262 @@ private init() {
             return false
         }
     }
+
+    // MARK: - Follow/Unfollow
+
+    /// Follow a user
+    func followUser(userId: String) async -> Bool {
+        secureLogger.info("Following user: \(userId)")
+
+        do {
+            // Get current user
+            let session = try await supabaseClient.auth.session
+            let currentUserId = session.user.id
+
+            guard let followingUUID = UUID(uuidString: userId) else {
+                secureLogger.warning("Invalid user ID format: \(userId)")
+                return false
+            }
+
+            // Check if already following
+            let existing = try await supabaseClient
+                .from("follows")
+                .select()
+                .eq("follower_id", value: currentUserId.uuidString)
+                .eq("following_id", value: followingUUID.uuidString)
+                .execute()
+
+            let decoder = JSONDecoder()
+            let existingFollows = try? decoder.decode([DatabaseFollow].self, from: existing.data)
+
+            if !(existingFollows?.isEmpty ?? true) {
+                secureLogger.info("Already following user \(userId)")
+                return true
+            }
+
+            // Create follow record
+            let follow = DatabaseFollow(
+                id: UUID(),
+                follower_id: currentUserId,
+                following_id: followingUUID,
+                created_at: Date()
+            )
+
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let followData = try encoder.encode(follow)
+
+            _ = try await supabaseClient
+                .from("follows")
+                .insert(followData)
+                .execute()
+
+            secureLogger.info("Successfully followed user \(userId)")
+            return true
+
+        } catch {
+            secureLogger.error("Failed to follow user: \(error.localizedDescription)")
+            await MainActor.run {
+                self.error = "フォローに失敗しました"
+            }
+            return false
+        }
+    }
+
+    /// Unfollow a user
+    func unfollowUser(userId: String) async -> Bool {
+        secureLogger.info("Unfollowing user: \(userId)")
+
+        do {
+            // Get current user
+            let session = try await supabaseClient.auth.session
+            let currentUserId = session.user.id
+
+            guard let followingUUID = UUID(uuidString: userId) else {
+                secureLogger.warning("Invalid user ID format: \(userId)")
+                return false
+            }
+
+            // Delete follow record
+            _ = try await supabaseClient
+                .from("follows")
+                .delete()
+                .eq("follower_id", value: currentUserId.uuidString)
+                .eq("following_id", value: followingUUID.uuidString)
+                .execute()
+
+            secureLogger.info("Successfully unfollowed user \(userId)")
+            return true
+
+        } catch {
+            secureLogger.error("Failed to unfollow user: \(error.localizedDescription)")
+            await MainActor.run {
+                self.error = "フォロー解除に失敗しました"
+            }
+            return false
+        }
+    }
+
+    /// Check if current user is following a specific user
+    func isFollowing(userId: String) async -> Bool {
+        do {
+            // Get current user
+            let session = try await supabaseClient.auth.session
+            let currentUserId = session.user.id
+
+            guard let followingUUID = UUID(uuidString: userId) else {
+                return false
+            }
+
+            let response = try await supabaseClient
+                .from("follows")
+                .select()
+                .eq("follower_id", value: currentUserId.uuidString)
+                .eq("following_id", value: followingUUID.uuidString)
+                .execute()
+
+            let decoder = JSONDecoder()
+            let follows = try? decoder.decode([DatabaseFollow].self, from: response.data)
+
+            return !(follows?.isEmpty ?? true)
+
+        } catch {
+            secureLogger.error("Failed to check following status: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Get follower count for a user
+    func getFollowerCount(userId: String) async -> Int {
+        do {
+            guard let userUUID = UUID(uuidString: userId) else {
+                return 0
+            }
+
+            let response = try await supabaseClient
+                .from("follows")
+                .select("id", head: false, count: .exact)
+                .eq("following_id", value: userUUID.uuidString)
+                .execute()
+
+            return response.count ?? 0
+
+        } catch {
+            secureLogger.error("Failed to get follower count: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    /// Get following count for a user
+    func getFollowingCount(userId: String) async -> Int {
+        do {
+            guard let userUUID = UUID(uuidString: userId) else {
+                return 0
+            }
+
+            let response = try await supabaseClient
+                .from("follows")
+                .select("id", head: false, count: .exact)
+                .eq("follower_id", value: userUUID.uuidString)
+                .execute()
+
+            return response.count ?? 0
+
+        } catch {
+            secureLogger.error("Failed to get following count: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    /// Get list of followers for a user
+    func getFollowers(userId: String) async -> [UserProfile] {
+        do {
+            guard let userUUID = UUID(uuidString: userId) else {
+                return []
+            }
+
+            // Step 1: Get follower IDs from follows table
+            let followResponse = try await supabaseClient
+                .from("follows")
+                .select("follower_id")
+                .eq("following_id", value: userUUID.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+
+            // Parse follower IDs
+            let followData = try JSONDecoder().decode([[String: String]].self, from: followResponse.data)
+            let followerIds = followData.compactMap { $0["follower_id"] }
+
+            secureLogger.info("Found \(followerIds.count) followers for user \(userId)")
+
+            guard !followerIds.isEmpty else {
+                return []
+            }
+
+            // Step 2: Fetch profiles for those IDs
+            let profilesResponse = try await supabaseClient
+                .from("profiles")
+                .select("id, display_name, avatar_url, bio, created_at, updated_at")
+                .in("id", values: followerIds)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let profiles = try decoder.decode([UserProfile].self, from: profilesResponse.data)
+
+            secureLogger.info("Fetched \(profiles.count) follower profiles")
+            return profiles
+
+        } catch {
+            secureLogger.error("Failed to get followers: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// Get list of users being followed
+    func getFollowing(userId: String) async -> [UserProfile] {
+        do {
+            guard let userUUID = UUID(uuidString: userId) else {
+                return []
+            }
+
+            // Step 1: Get following IDs from follows table
+            let followResponse = try await supabaseClient
+                .from("follows")
+                .select("following_id")
+                .eq("follower_id", value: userUUID.uuidString)
+                .order("created_at", ascending: false)
+                .execute()
+
+            // Parse following IDs
+            let followData = try JSONDecoder().decode([[String: String]].self, from: followResponse.data)
+            let followingIds = followData.compactMap { $0["following_id"] }
+
+            secureLogger.info("Found \(followingIds.count) following for user \(userId)")
+
+            guard !followingIds.isEmpty else {
+                return []
+            }
+
+            // Step 2: Fetch profiles for those IDs
+            let profilesResponse = try await supabaseClient
+                .from("profiles")
+                .select("id, display_name, avatar_url, bio, created_at, updated_at")
+                .in("id", values: followingIds)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let profiles = try decoder.decode([UserProfile].self, from: profilesResponse.data)
+
+            secureLogger.info("Fetched \(profiles.count) following profiles")
+            return profiles
+
+        } catch {
+            secureLogger.error("Failed to get following: \(error.localizedDescription)")
+            return []
+        }
+    }
 }
 
 // MARK: - Data Models
@@ -514,7 +797,6 @@ struct DatabasePost: Codable {
 
 struct DatabaseProfile: Codable {
     let id: UUID
-    let username: String?
     let display_name: String?
     let avatar_url: String?
 }
@@ -524,4 +806,11 @@ struct DatabaseLike: Codable {
     let post_id: UUID
     let user_id: UUID
     let created_at: Date?
+}
+
+struct DatabaseFollow: Codable {
+    let id: UUID
+    let follower_id: UUID
+    let following_id: UUID
+    let created_at: Date
 }

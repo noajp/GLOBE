@@ -5,16 +5,16 @@ import SwiftUI
 struct SignUpView: View {
     @State private var email = ""
     @State private var password = ""
-    @State private var username = ""
+    @State private var displayName = ""
     @State private var showError = false
     @State private var errorMessage = ""
-    
+
     @Environment(\.dismiss) var dismiss
     @ObservedObject private var authManager = AuthManager.shared
     @FocusState private var focusedField: Field?
-    
+
     enum Field: Hashable {
-        case username, email, password
+        case displayName, email, password
     }
     
     // カスタムデザイン用の色定義
@@ -57,13 +57,13 @@ struct SignUpView: View {
                 
                 // フォーム
                 VStack(spacing: 20) {
-                    // ユーザー名入力
+                    // 表示名入力
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Username")
+                        Text("Display Name")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white.opacity(0.8))
-                        
-                        TextField("globe_user", text: $username)
+
+                        TextField("Your Name", text: $displayName)
                             .font(.system(size: 17))
                             .foregroundColor(.white)
                             .textFieldStyle(PlainTextFieldStyle())
@@ -74,11 +74,10 @@ struct SignUpView: View {
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(.white.opacity(0.2), lineWidth: 1)
                             )
-                            .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            .textContentType(.username)
+                            .textContentType(.name)
                             .submitLabel(.next)
-                            .focused($focusedField, equals: .username)
+                            .focused($focusedField, equals: .displayName)
                             .onSubmit {
                                 focusedField = .email
                             }
@@ -93,6 +92,7 @@ struct SignUpView: View {
                         TextField("email@example.com", text: $email)
                             .font(.system(size: 17))
                             .foregroundColor(.white)
+                            .tint(.white)
                             .textFieldStyle(PlainTextFieldStyle())
                             .padding(.horizontal, 16)
                             .padding(.vertical, 16)
@@ -104,7 +104,7 @@ struct SignUpView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
+                            .textContentType(.none)
                             .submitLabel(.next)
                             .focused($focusedField, equals: .email)
                             .onSubmit {
@@ -169,8 +169,8 @@ struct SignUpView: View {
                 
                         }
                     }
-                    .disabled(authManager.isLoading || username.isEmpty || email.isEmpty || password.isEmpty)
-                    .opacity((authManager.isLoading || username.isEmpty || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
+                    .disabled(authManager.isLoading || displayName.isEmpty || email.isEmpty || password.isEmpty)
+                    .opacity((authManager.isLoading || displayName.isEmpty || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 40)
@@ -204,9 +204,9 @@ struct SignUpView: View {
             }
         }
         .onAppear {
-            // Auto-focus username field when view appears
+            // Auto-focus displayName field when view appears
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                focusedField = .username
+                focusedField = .displayName
             }
         }
         .alert("Error", isPresented: $showError) {
@@ -227,7 +227,7 @@ struct SignUpView: View {
             try await authManager.signUp(
                 email: email,
                 password: password,
-                username: username
+                displayName: displayName
             )
             ConsoleLogger.shared.forceLog("SignUpView: Sign up SUCCESS")
         } catch {

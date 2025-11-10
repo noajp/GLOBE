@@ -221,6 +221,25 @@ xcrun simctl boot "iPhone 16 Pro"
 - ✅ Speech bubble UI for posts
 - ✅ Location privacy (shows area names, not exact addresses)
 
+### Today's Completed Tasks (2025-11-10)
+- ✅ **投稿作成UI改善 (CreatePostView.swift)**
+  - ✅ ＞ボタンを位置情報ボタンの左側に移動
+  - ✅ プライバシーステータスを常時表示に変更
+  - ✅ プライバシーテキストを簡潔化（"Post publicly" → "Publicly", "Post anonymously" → "Anonymously"）
+  - ✅ プライバシーポップアップヘッダーを"Select Post Privacy"に変更
+
+- ✅ **プロフィール画面デザイン刷新 (ProfileView.swift)**
+  - ✅ 背景を黒（#121212）に変更
+  - ✅ 全テキストを白色に変更
+  - ✅ ガラス効果を試行後、最終的にクリーンなデザインに
+  - ✅ 統計表示・ボタン・アバターの色調整
+
+- ✅ **プロフィールポップアップの統一**
+  - ✅ ProfilePopupView.swiftをProfileViewと同じデザインに変更
+  - ✅ UserProfileView.swiftをフルスクリーン黒背景デザインに変更
+  - ✅ カード型デザインから統一されたデザインへ移行
+  - ✅ PostPin.swiftの.presentationBackground(.clear)を削除
+
 ### Known Issues to Address
 - ⚠️ SupabaseService still uses mock data (TODO: implement actual database calls)
 - ⚠️ Profile creation on signup needs Supabase integration

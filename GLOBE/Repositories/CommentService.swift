@@ -81,7 +81,7 @@ class CommentService: ObservableObject {
             do {
                 let result = try await supabase
                     .from("comments")
-                    .select("*, profiles!comments_user_id_fkey(username)")
+                    .select("*, profiles!comments_user_id_fkey(display_name)")
                     .eq("post_id", value: postId.uuidString)
                     .order("created_at", ascending: true)
                     .execute()
@@ -96,7 +96,7 @@ class CommentService: ObservableObject {
                         id: commentId,
                         postId: postId,
                         text: response.content,
-                        authorName: response.profiles?.username ?? "Unknown",
+                        authorName: response.profiles?.displayName ?? "Unknown",
                         authorId: response.userId,
                         createdAt: response.createdAt
                     )
@@ -131,6 +131,6 @@ private struct CommentResponse: Decodable {
     let profiles: ProfileResponse?
 
     struct ProfileResponse: Decodable {
-        let username: String
+        let displayName: String
     }
 }

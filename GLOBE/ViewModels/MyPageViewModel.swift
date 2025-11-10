@@ -115,11 +115,14 @@ final class MyPageViewModel: ObservableObject {
                 .eq("id", value: userId)
                 .execute()
 
-            let profiles = try? JSONDecoder().decode([UserProfile].self, from: profileResult.data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            let profiles = try? decoder.decode([UserProfile].self, from: profileResult.data)
 
             if let profile = profiles?.first {
                 userProfile = profile
-                SecureLogger.shared.info("Profile loaded successfully username=\(profile.username)")
+                SecureLogger.shared.info("Profile loaded successfully display_name=\(profile.displayName ?? "none")")
             } else {
                 // プロフィールが存在しない場合、認証情報から作成
                 SecureLogger.shared.warning("Profile not found, creating from auth data")
@@ -137,15 +140,16 @@ final class MyPageViewModel: ObservableObject {
                 .order("created_at", ascending: false)
                 .execute()
 
-            let posts = try? JSONDecoder().decode([Post].self, from: postsResult.data)
+            let posts = try? decoder.decode([Post].self, from: postsResult.data)
             userPosts = posts ?? []
             postsCount = userPosts.count
+
+            SecureLogger.shared.info("Loaded \(userPosts.count) posts for user, \(userPosts.filter { $0.imageUrl != nil }.count) have images")
 
             // Update local user profile with post count
             if var profile = userProfile {
                 profile = UserProfile(
                     id: profile.id,
-                    username: profile.username,
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: profile.avatarUrl,
@@ -156,9 +160,9 @@ final class MyPageViewModel: ObservableObject {
                 userProfile = profile
             }
 
-            // Load follower/following counts (placeholder - would need FollowRepository)
-            followersCount = 0
-            followingCount = 0
+            // Load follower/following counts from Supabase
+            followersCount = await SupabaseService.shared.getFollowerCount(userId: userId)
+            followingCount = await SupabaseService.shared.getFollowingCount(userId: userId)
 
             SecureLogger.shared.info("User data loaded successfully posts=\(postsCount) followers=\(followersCount) following=\(followingCount)")
 
@@ -197,6 +201,8 @@ final class MyPageViewModel: ObservableObject {
                 .execute()
 
             let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
             let profiles = try? decoder.decode([UserProfile].self, from: existingProfile.data)
 
             if let profile = profiles?.first {
@@ -228,7 +234,7 @@ final class MyPageViewModel: ObservableObject {
                         .order("created_at", ascending: false)
                         .execute()
 
-                    let posts = try? JSONDecoder().decode([Post].self, from: postsResult.data)
+                    let posts = try? decoder.decode([Post].self, from: postsResult.data)
                     userPosts = posts ?? []
                     postsCount = userPosts.count
                 } else {
@@ -253,7 +259,7 @@ final class MyPageViewModel: ObservableObject {
     /// プロフィールと認証情報の整合性をチェックし、必要に応じて修正
     @MainActor
     func syncProfileWithAuthData() async {
-        guard let currentUser = authService?.currentUser,
+        guard let _ = authService?.currentUser,
               let userId = currentUserId else {
             logger.warning("No current user for sync")
             return
@@ -272,41 +278,14 @@ final class MyPageViewModel: ObservableObject {
                 .eq("id", value: userId)
                 .execute()
 
-            let profiles: [UserProfile] = try JSONDecoder().decode([UserProfile].self, from: profileData.data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let profiles: [UserProfile] = try decoder.decode([UserProfile].self, from: profileData.data)
 
             if let existingProfile = profiles.first {
-                // プロフィールが存在する場合、認証情報と一致しているかチェック
-                let authUsername = currentUser.username ?? currentUser.email?.components(separatedBy: "@").first ?? "user"
-
-                if existingProfile.username != authUsername {
-                    logger.warning("Username mismatch detected. Auth: \(authUsername), Profile: \(existingProfile.username)")
-
-                    // 認証情報に基づいてプロフィールを更新
-                    let updateDict: [String: AnyJSON] = [
-                        "username": AnyJSON.string(authUsername),
-                        "display_name": AnyJSON.string(existingProfile.displayName ?? authUsername)
-                    ]
-
-                    try await client
-                        .from("profiles")
-                        .update(updateDict)
-                        .eq("id", value: userId)
-                        .execute()
-
-                    logger.info("Profile synced with auth username: \(authUsername)")
-
-                    // 更新されたプロフィールをローカルに反映
-                    userProfile = UserProfile(
-                        id: existingProfile.id,
-                        username: authUsername,
-                        displayName: existingProfile.displayName ?? authUsername,
-                        bio: existingProfile.bio,
-                        avatarUrl: existingProfile.avatarUrl,
-                        postCount: existingProfile.postCount,
-                        followerCount: existingProfile.followerCount,
-                        followingCount: existingProfile.followingCount
-                    )
-                }
+                // プロフィールが存在する場合、ローカルに反映
+                userProfile = existingProfile
+                logger.info("Profile synced successfully")
             } else {
                 // プロフィールが存在しない場合は作成
                 await createProfileFromAuthData()
@@ -317,7 +296,7 @@ final class MyPageViewModel: ObservableObject {
         }
     }
     
-    func updateProfile(username: String, displayName: String, bio: String) async {
+    func updateProfile(displayName: String, bio: String) async {
         guard let userId = currentUserId else { return }
 
         isLoading = true
@@ -328,22 +307,18 @@ final class MyPageViewModel: ObservableObject {
             let client = await SupabaseManager.shared.client
 
             // 入力検証
-            let validatedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
             let validatedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             let validatedBio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // ユーザー名の検証（英数字とアンダースコアのみ）
-            let usernameRegex = "^[a-zA-Z0-9_]{3,20}$"
-            let usernamePredicate = NSPredicate(format: "SELF MATCHES %@", usernameRegex)
-            guard usernamePredicate.evaluate(with: validatedUsername) else {
-                errorMessage = "ユーザー名は3-20文字の英数字とアンダースコアのみ使用できます"
+            // Display name validation (1-50 characters)
+            guard !validatedDisplayName.isEmpty && validatedDisplayName.count >= 1 && validatedDisplayName.count <= 50 else {
+                errorMessage = "表示名は1-50文字で入力してください"
                 return
             }
 
             let updatedProfile = UserProfile(
                 id: userId,
-                username: validatedUsername,
-                displayName: validatedDisplayName.isEmpty ? validatedUsername : validatedDisplayName,
+                displayName: validatedDisplayName,
                 bio: validatedBio.isEmpty ? nil : validatedBio,
                 avatarUrl: userProfile?.avatarUrl,
                 postCount: userProfile?.postCount,
@@ -352,8 +327,7 @@ final class MyPageViewModel: ObservableObject {
             )
 
             let updateDict: [String: AnyJSON] = [
-                "username": AnyJSON.string(validatedUsername),
-                "display_name": AnyJSON.string(validatedDisplayName.isEmpty ? validatedUsername : validatedDisplayName),
+                "display_name": AnyJSON.string(validatedDisplayName),
                 "bio": validatedBio.isEmpty ? AnyJSON.null : AnyJSON.string(validatedBio),
                 "updated_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))
             ]
@@ -365,7 +339,7 @@ final class MyPageViewModel: ObservableObject {
                 .execute()
 
             userProfile = updatedProfile
-            logger.info("Profile updated successfully username=\(validatedUsername) displayName=\(validatedDisplayName)")
+            logger.info("Profile updated successfully displayName=\(validatedDisplayName)")
 
         } catch {
             logger.error("Failed to update profile: \(error.localizedDescription)")
@@ -434,7 +408,6 @@ final class MyPageViewModel: ObservableObject {
             if var profile = userProfile {
                 profile = UserProfile(
                     id: profile.id,
-                    username: profile.username,
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: publicURL,
@@ -452,5 +425,44 @@ final class MyPageViewModel: ObservableObject {
             logger.error("Failed to update avatar: \(error.localizedDescription)")
             errorMessage = "アバターの更新に失敗しました: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - Follow/Unfollow
+
+    /// Check if current user is following a specific user
+    func isFollowing(userId: String) async -> Bool {
+        return await SupabaseService.shared.isFollowing(userId: userId)
+    }
+
+    /// Follow a user
+    func followUser(userId: String) async -> Bool {
+        let success = await SupabaseService.shared.followUser(userId: userId)
+        if success {
+            // Reload follower/following counts
+            followersCount = await SupabaseService.shared.getFollowerCount(userId: userId)
+            followingCount = await SupabaseService.shared.getFollowingCount(userId: userId)
+        }
+        return success
+    }
+
+    /// Unfollow a user
+    func unfollowUser(userId: String) async -> Bool {
+        let success = await SupabaseService.shared.unfollowUser(userId: userId)
+        if success {
+            // Reload follower/following counts
+            followersCount = await SupabaseService.shared.getFollowerCount(userId: userId)
+            followingCount = await SupabaseService.shared.getFollowingCount(userId: userId)
+        }
+        return success
+    }
+
+    /// Get follower count for a user
+    func getFollowerCount(userId: String) async -> Int {
+        return await SupabaseService.shared.getFollowerCount(userId: userId)
+    }
+
+    /// Get following count for a user
+    func getFollowingCount(userId: String) async -> Int {
+        return await SupabaseService.shared.getFollowingCount(userId: userId)
     }
 }

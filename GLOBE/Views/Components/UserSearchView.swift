@@ -167,7 +167,7 @@ struct UserSearchView: View {
                     } else {
                         // Other users - navigate to profile
                         Button(action: {
-                            print("Navigate to user profile: \(user.username)")
+                            print("Navigate to user profile: \(user.displayName ?? user.id)")
                         }) {
                             UserSearchResultRow(user: user, isCurrentUser: false)
                                 .padding(.horizontal, MinimalDesign.Spacing.md)
@@ -218,7 +218,6 @@ struct UserSearchView: View {
         let mockUsers = [
             UserProfile(
                 id: "user1",
-                username: "john_doe",
                 displayName: "John Doe",
                 bio: "iOS Developer",
                 avatarUrl: nil,
@@ -227,8 +226,7 @@ struct UserSearchView: View {
                 followingCount: 200
             ),
             UserProfile(
-                id: "user2", 
-                username: "jane_smith",
+                id: "user2",
                 displayName: "Jane Smith",
                 bio: "Designer & Photographer",
                 avatarUrl: nil,
@@ -237,10 +235,9 @@ struct UserSearchView: View {
                 followingCount: 180
             )
         ]
-        
+
         // Filter users based on query
         return mockUsers.filter { user in
-            user.username.lowercased().contains(query.lowercased()) ||
             (user.displayName?.lowercased().contains(query.lowercased()) ?? false)
         }
     }
@@ -260,17 +257,17 @@ struct UserSearchResultRow: View {
                 .fill(Color.gray.opacity(0.3))
                 .frame(width: 50, height: 50)
                 .overlay(
-                    Text(user.username.prefix(1).uppercased())
+                    Text((user.displayName ?? "?").prefix(1).uppercased())
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.white)
                 )
-            
+
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(user.displayName ?? user.username)
+                    Text(user.displayName ?? "Unknown User")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(MinimalDesign.Colors.primary)
-                    
+
                     // Lock icon for private accounts (disabled - not implemented)
                     // if user.isPrivate {
                     //     Image(systemName: "lock.fill")
@@ -278,8 +275,8 @@ struct UserSearchResultRow: View {
                     //         .foregroundColor(.gray)
                     // }
                 }
-                
-                Text("@\(user.username)")
+
+                Text("@\(user.id.prefix(8))")
                     .font(.system(size: 14))
                     .foregroundColor(MinimalDesign.Colors.secondary)
                 
@@ -342,12 +339,12 @@ struct UserSearchResultRow: View {
     
     private func toggleFollow() {
         isLoading = true
-        
+
         // Mock follow/unfollow action
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             isFollowing.toggle()
             isLoading = false
-            print("\(isFollowing ? "Followed" : "Unfollowed") \(user.username)")
+            print("\(isFollowing ? "Followed" : "Unfollowed") \(user.displayName ?? user.id)")
         }
     }
 }

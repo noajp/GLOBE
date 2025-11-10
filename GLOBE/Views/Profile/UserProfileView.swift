@@ -29,89 +29,41 @@ struct UserProfileView: View {
 
     var body: some View {
         ZStack {
-            // 背景タップで閉じる（地図が見えるように透明）
-            Color.clear
+            // Background layer (solid black #121212)
+            Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
                 .ignoresSafeArea()
-                .contentShape(Rectangle())
                 .onTapGesture {
                     isPresented = false
                 }
 
-            // プロフィールカード
+            // Content layer
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    // プロフィール情報
-                    HStack(alignment: .top, spacing: 10) {
-                        // Profile Image - COMMENTED OUT for v1.0 release
-                        /*
-                        ProfileImageView(
-                            userProfile: userProfile,
-                            size: 44
-                        )
-                        */
-
-                        // Profile Info
-                        VStack(alignment: .leading, spacing: 2) {
-                            // Display Name
-                            if let displayName = userProfile?.displayName, !displayName.isEmpty {
-                                Text(displayName)
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                            } else if let username = userProfile?.username {
-                                Text(username)
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .lineLimit(1)
-                            }
-
-                            // User ID with @ prefix
-                            if let userId = userProfile?.id {
-                                Text("@\(userId.prefix(8))")
-                                    .font(.system(size: 10, weight: .regular))
-                                    .foregroundColor(.white.opacity(0.7))
-                                    .lineLimit(1)
-                                    .padding(.leading, 6)
-                            }
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.bottom, 8)
-
-                    // Bio Section
-                    if let bio = userProfile?.bio, !bio.isEmpty {
-                        Text(bio)
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                            .frame(height: 44)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                    }
-
+                // Close button at top
+                HStack {
                     Spacer()
+                    Button(action: {
+                        isPresented = false
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                    }
+                    .padding(.trailing, 16)
+                    .padding(.top, 16)
                 }
-                .padding(.horizontal, 14)
-                .padding(.top, 12)
-                .padding(.bottom, 12)
-            }
-            .frame(width: 280, height: 170)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-            )
-            .shadow(radius: 10)
 
-            // Loading overlay
-            if isLoading {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(1.5)
+                // Profile content
+                if isLoading {
+                    Spacer()
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                    Spacer()
+                } else {
+                    // Embed ProfileView with userId parameter
+                    ProfileView(userId: userId)
+                }
             }
         }
         .onAppear {
@@ -144,7 +96,7 @@ struct UserProfileView: View {
                 await MainActor.run {
                     userProfile = profile
                 }
-                SecureLogger.shared.info("UserProfileView: Profile loaded for user \(profile.username)")
+                SecureLogger.shared.info("UserProfileView: Profile loaded for user \(profile.displayName ?? profile.id)")
             } else {
                 await MainActor.run {
                     errorMessage = "プロフィールが見つかりませんでした"

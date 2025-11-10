@@ -14,6 +14,7 @@ struct MapContentView: View {
     @ObservedObject var locationManager: MapLocationService
     @ObservedObject var postManager: PostManager
     @ObservedObject var authManager: AuthManager
+    @StateObject private var appSettings = AppSettings.shared
 
     @Binding var showingCreatePost: Bool
     @Binding var shouldMoveToCurrentLocation: Bool
@@ -38,8 +39,8 @@ struct MapContentView: View {
 
     private var mapView: some View {
         Map(position: $mapCameraPosition, interactionModes: .all, selection: $selectedPOI) {
-            // User location marker
-            if let userLocation = locationManager.location {
+            // User location marker (表示設定に基づいて表示/非表示)
+            if appSettings.showMyLocationOnMap, let userLocation = locationManager.location {
                 Annotation("", coordinate: userLocation.coordinate) {
                     ZStack {
                         Circle()
@@ -200,7 +201,7 @@ struct MapContentView: View {
                         .font(.subheadline)
                     }
 
-                    if let address = mapItem.placemark.title {
+                    if let address = mapItem.name {
                         HStack(alignment: .top) {
                             Image(systemName: "mappin.and.ellipse")
                             Text(address)

@@ -216,7 +216,7 @@ struct EditProfileView: View {
             await viewModel.loadUserData()
             
             if let profile = viewModel.userProfile {
-                displayName = profile.displayName ?? profile.username
+                displayName = profile.displayName ?? ""
                 bio = profile.bio ?? ""
                 userId = profile.id
             }
@@ -229,12 +229,8 @@ struct EditProfileView: View {
         
         isLoading = true
         defer { isLoading = false }
-        
-        // Keep the existing username, only update display name and bio
-        let currentUsername = viewModel.userProfile?.username ?? "user"
-        
+
         await viewModel.updateProfile(
-            username: currentUsername,  // Keep existing username
             displayName: displayName,
             bio: bio
         )

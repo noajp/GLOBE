@@ -12,7 +12,7 @@ struct MainTabView: View {
     @StateObject private var appSettings = AppSettings.shared
     @State private var showingCreatePost = false
     @State private var showingAuth = false
-    @State private var showingSettings = false
+    @State private var showingProfile = false
     @State private var shouldMoveToCurrentLocation = false
     @State private var notificationObservers: [NSObjectProtocol] = []
     @State private var shouldShowPostAfterDelay = false
@@ -44,14 +44,14 @@ struct MainTabView: View {
                     .ignoresSafeArea(.all)
 
                 LiquidGlassBottomTabBar(
-                    onSettingsTapped: {
-                        SecureLogger.shared.info("Settings button tapped in tab bar")
+                    onProfileTapped: {
+                        SecureLogger.shared.info("Profile button tapped in tab bar")
                         // 投稿作成カードが開いている場合は閉じる
                         if showingCreatePost {
                             showingCreatePost = false
                         }
-                        // 設定画面を表示
-                        showingSettings = true
+                        // プロフィール画面を表示
+                        showingProfile = true
                     },
                     onPostTapped: {
                         SecureLogger.shared.info("Post button tapped in tab bar")
@@ -89,42 +89,50 @@ struct MainTabView: View {
             }
             .ignoresSafeArea(.keyboard)
 
-            // Settings overlay with slide-in transition from right
-            if showingSettings {
+            // Profile overlay with slide-in transition from right
+            if showingProfile {
                 Color.black.opacity(0.3)
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(.easeInOut(duration: 0.3)) {
-                            showingSettings = false
+                            showingProfile = false
                         }
                     }
 
-                SettingsView(isPresented: $showingSettings, showingAuth: $showingAuth)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.move(edge: .trailing))
-                    .zIndex(100)
+                NavigationStack {
+                    ProfileView()
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        showingProfile = false
+                                    }
+                                }) {
+                                    Image(systemName: "chevron.left")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(MinimalDesign.Colors.primary)
+                                }
+                            }
+                        }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.move(edge: .trailing))
+                .zIndex(100)
+            }
+
+            // Create Post overlay
+            if showingCreatePost {
+                CreatePostView(
+                    isPresented: $showingCreatePost,
+                    mapManager: mapManager,
+                    initialLocation: tappedLocation
+                )
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
             }
         }
-        .overlay(
-            Group {
-                if showingCreatePost {
-                    CreatePostView(
-                        isPresented: $showingCreatePost,
-                        mapManager: mapManager,
-                        initialLocation: tappedLocation
-                    )
-                    // ポップアップ位置を画面中央やや上に調整
-                    .offset(y: -80)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
-                }
-            }
-            // TEMPORARILY DISABLED - VTipPreferenceKey causes crashes
-            // .onPreferenceChange(VTipPreferenceKey.self) { point in
-            //     self.vTipPoint = point
-            // }
-        )
-        .animation(.easeInOut(duration: 0.3), value: showingSettings)
+        .animation(.easeInOut(duration: 0.3), value: showingProfile)
         .fullScreenCover(isPresented: $showingAuth) {
             AuthenticationView()
         }
@@ -134,7 +142,7 @@ struct MainTabView: View {
                 // Dismiss any existing sheets before presenting auth to avoid
                 // "Currently, only presenting a single sheet is supported" warnings
                 self.showingCreatePost = false
-                self.showingSettings = false
+                self.showingProfile = false
                 // Present auth slightly delayed to let dismissals complete
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 200_000_000)

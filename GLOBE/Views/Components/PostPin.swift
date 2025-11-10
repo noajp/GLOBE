@@ -125,12 +125,12 @@ struct PostPin: View {
     private var cardWidth: CGFloat {
         // 画像がある場合は写真に合わせてカードサイズを調整
         if hasImageContent {
-            let inset: CGFloat = isPhotoOnly ? 2 : 6
+            let inset: CGFloat = 3
             // 写真サイズ * 0.70 + 両側の余白
-            let photoSize = (135 - inset * 2) * 0.70
-            return photoSize + 16 // 写真サイズ + 左右余白8pxずつ
+            let photoSize = (150 - inset * 2) * 0.70
+            return photoSize + inset * 2 // 写真サイズ + 左右余白
         }
-        return 135 // テキストのみの場合は通常サイズ
+        return 150 // テキストのみの場合は通常サイズ
     }
 
     private var isPhotoOnly: Bool {
@@ -141,8 +141,9 @@ struct PostPin: View {
         // 動的高さ計算
         let baseHeight: CGFloat = 40 // 最小高さ
 
-        // 画像がある場合の高さ（70%縮小に対応）
-        let imageHeight: CGFloat = hasImageContent ? (cardWidth - 12) * 0.70 : 0
+        // 画像がある場合の高さ（insetは常に3px）
+        let imageInset: CGFloat = 3
+        let imageHeight: CGFloat = hasImageContent ? (cardWidth - imageInset * 2) : 0
 
         // ヘッダー（アバター・ID）の高さ - 非匿名投稿は常に表示
         let headerHeight: CGFloat = post.isAnonymous ? 0 : 26
@@ -164,7 +165,7 @@ struct PostPin: View {
 
         // 画像のみの場合
         if hasImageContent && post.text.isEmpty {
-            let height = imageHeight + headerHeight + actionBarHeight + 16 // 上下のパディングを増加
+            let height = imageHeight + headerHeight + actionBarHeight + 6 // 上下の余白3pxずつ
             return height
         }
 
@@ -242,8 +243,8 @@ struct PostPin: View {
                 // MARK: - Content Area (Photo and/or Text)
                 // Photo content
             if let imageData = post.imageData {
-                let inset: CGFloat = isPhotoOnly ? 2 : 6
-                let imageSize = (cardWidth - inset * 2) * 0.70 // 70%のサイズに縮小
+                let inset: CGFloat = 3
+                let imageSize = cardWidth - inset * 2
 
                 if let uiImage = UIImage(data: imageData) {
                     Image(uiImage: uiImage)
@@ -251,8 +252,10 @@ struct PostPin: View {
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fill)
                         .frame(width: imageSize, height: imageSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.horizontal, max(2, inset - 2))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .padding(.horizontal, inset)
+                        .padding(.top, 3)
+                        .padding(.bottom, isPhotoOnly ? 3 : 0)
                         .id("\(post.id)-image") // 明示的なIDで画像の再利用を防止
                 } else {
                     // 画像データが壊れている場合のプレースホルダー
@@ -264,37 +267,40 @@ struct PostPin: View {
                                 .foregroundColor(.white.opacity(0.5))
                                 .font(.system(size: 30))
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .padding(.horizontal, max(2, inset - 2))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .padding(.horizontal, inset)
+                        .padding(.top, 3)
+                        .padding(.bottom, isPhotoOnly ? 3 : 0)
                 }
 
             } else if let imageUrl = post.imageUrl {
-                let inset: CGFloat = isPhotoOnly ? 2 : 6
-                let imageSize = (cardWidth - inset * 2) * 0.70 // 70%のサイズに縮小
+                let inset: CGFloat = 3
+                let imageSize = cardWidth - inset * 2
                 AsyncImage(url: URL(string: imageUrl)) { image in
                     image
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(contentMode: .fill)
                         .frame(width: imageSize, height: imageSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: imageSize, height: imageSize)
                         .overlay(ProgressView().scaleEffect(0.45))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .id("\(post.id)-async-image") // AsyncImageに明示的なIDを付与してキャッシュ混乱を防止
-                .padding(.horizontal, max(2, inset - 2))
+                .padding(.horizontal, inset)
+                .padding(.top, 3)
+                .padding(.bottom, isPhotoOnly ? 3 : 0)
 
             }
 
             // MARK: - Header with Avatar and ID (After photo) - Hidden for anonymous posts
             if !post.isAnonymous {
                 HStack(spacing: 4) {
-                    // Avatar - COMMENTED OUT for v1.0 release
-                    /*
+                    // Avatar
                     Circle()
                         .fill(Color.white.opacity(0.1)) // More transparent avatar background
                         .frame(width: 18, height: 18)
@@ -322,7 +328,6 @@ struct PostPin: View {
                         .onTapGesture {
                             showingUserProfile = true
                         }
-                    */
 
                     // User ID (タップ可能)
                     Text("@\(post.authorName)")
@@ -387,7 +392,6 @@ struct PostPin: View {
                 userId: post.authorId,
                 isPresented: $showingUserProfile
             )
-            .presentationBackground(.clear)
         }
         .fullScreenCover(isPresented: $showingImageViewer) {
             if let data = post.imageData, let ui = UIImage(data: data) {
@@ -442,25 +446,24 @@ struct ScalablePostPin: View {
     
     // ズームレベルに応じて非表示にする閾値
     private var shouldHide: Bool {
-        // 写真付きの投稿（写真のみ、写真+文字）は拡大時（mapSpan < 0.05）のみ表示
-        if hasImage && mapSpan >= 0.05 {
+        // 写真付きの投稿（写真のみ、写真+文字）は拡大時（mapSpan < 0.01 ≈ 1km）のみ表示
+        if hasImage && mapSpan >= 0.01 {
             return true
         }
-        
-        // mapSpan が 5 以上（大陸レベル）で非表示
-        return mapSpan > 5.0
+
+        // 文字のみ投稿は mapSpan < 1.0（約100km）で表示
+        return mapSpan > 1.0
     }
     
     private var baseCardSize: CGFloat {
         // 画像がある場合は写真に合わせてカードサイズを調整
         if hasImage {
-            let isPhotoOnly = post.text.isEmpty
-            let inset: CGFloat = isPhotoOnly ? 2 : 6
+            let inset: CGFloat = 3
             // 写真サイズ * 0.70 + 両側の余白
-            let photoSize = (135 - inset * 2) * 0.70
-            return photoSize + 16 // 写真サイズ + 左右余白8pxずつ
+            let photoSize = (150 - inset * 2) * 0.70
+            return photoSize + inset * 2 // 写真サイズ + 左右余白
         }
-        return 135  // テキストのみの場合は通常サイズ
+        return 150  // テキストのみの場合は通常サイズ
     }
 
     private var cardWidth: CGFloat {
@@ -510,9 +513,12 @@ struct ScalablePostPin: View {
         }
 
         if hasImage {
-            // 画像サイズ（70%）に合わせて高さを調整
-            let imageSize = (cardWidth - 12) * 0.70
-            return imageSize + 30 * fontScale // 画像サイズ + 上下のパディングを増加
+            // 画像サイズに合わせて高さを調整
+            let isPhotoOnly = post.text.isEmpty
+            let inset: CGFloat = 3 * fontScale
+            let imageSize = cardWidth - inset * 2
+            let verticalPadding = isPhotoOnly ? 6 * fontScale : 30 * fontScale
+            return imageSize + verticalPadding // 画像サイズ + 上下のパディング
         }
 
         return baseHeight
@@ -540,7 +546,6 @@ struct ScalablePostPin: View {
                         userId: post.authorId,
                         isPresented: $showingUserProfile
                     )
-                    .presentationBackground(.clear)
                 }
                 .fullScreenCover(isPresented: $showingImageViewer) {
                     if let data = post.imageData, let ui = UIImage(data: data) {
@@ -608,34 +613,40 @@ struct ScalablePostPin: View {
 
             if let imageData = post.imageData, let uiImage = UIImage(data: imageData) {
                 let isPhotoOnly = post.text.isEmpty
-                let imageSize = (isPhotoOnly ? cardWidth - 6 : cardWidth - 12) * 0.70 // 70%のサイズに縮小
+                let inset: CGFloat = 3 * fontScale
+                let imageSize = cardWidth - inset * 2
                 Image(uiImage: uiImage)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFill()
                     .frame(width: imageSize, height: imageSize)
-                    .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
-                    .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
+                    .clipShape(RoundedRectangle(cornerRadius: 8 * fontScale))
+                    .padding(.horizontal, inset)
+                    .padding(.top, 3 * fontScale)
+                    .padding(.bottom, isPhotoOnly ? 3 * fontScale : 0)
                     .id("\(post.id)-scalable-image") // ScalablePostPinの画像にもIDを付与
             } else if let imageUrl = post.imageUrl {
                 let isPhotoOnly = post.text.isEmpty
-                let imageSize = (isPhotoOnly ? cardWidth - 6 : cardWidth - 12) * 0.70 // 70%のサイズに縮小
+                let inset: CGFloat = 3 * fontScale
+                let imageSize = cardWidth - inset * 2
                 AsyncImage(url: URL(string: imageUrl)) { image in
                     image
                         .resizable()
                         .interpolation(.high)
                         .scaledToFill()
                         .frame(width: imageSize, height: imageSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
+                        .clipShape(RoundedRectangle(cornerRadius: 8 * fontScale))
                 } placeholder: {
                     Rectangle()
                         .fill(Color.gray.opacity(0.3))
                         .frame(width: imageSize, height: imageSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 4 * fontScale))
+                        .clipShape(RoundedRectangle(cornerRadius: 8 * fontScale))
                         .overlay(ProgressView().scaleEffect(0.5 * fontScale))
                 }
                 .id("\(post.id)-scalable-async-image") // ScalablePostPinのAsyncImageにもIDを付与
-                .padding(.horizontal, isPhotoOnly ? 0 : 4 * fontScale)
+                .padding(.horizontal, inset)
+                .padding(.top, 3 * fontScale)
+                .padding(.bottom, isPhotoOnly ? 3 * fontScale : 0)
             }
 
             if !post.text.isEmpty {

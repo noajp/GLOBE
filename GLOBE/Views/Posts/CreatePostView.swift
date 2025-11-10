@@ -81,57 +81,54 @@ struct CreatePostView: View {
     
     var body: some View {
         ZStack {
-            // Popup content with speech bubble design
-            GlassEffectContainer {
-                VStack(spacing: 0) {
-                    // Main card with rounded corners
-                    VStack(spacing: 0) {
-                        postCreationView
-                    }
-                    .frame(width: 280, height: selectedImageData != nil ? 330 : 200)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                    )
+            GeometryReader { geometry in
+                ZStack {
+                    // Popup content with speech bubble design
+                    GlassEffectContainer {
+                        VStack(spacing: 0) {
+                            // Main card with rounded corners
+                            VStack(spacing: 0) {
+                                postCreationView
+                            }
+                            .frame(width: 280, height: selectedImageData != nil ? 350 : 200)
+                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
 
-                    // Simple triangle tail below card
-                    Triangle()
-                        .fill(Color.clear)
-                        .frame(width: 50, height: 25)
-                        .glassEffect(.clear, in: Triangle())
-                        .rotationEffect(.degrees(180))
-                        .offset(y: -1) // Slight overlap to hide seam
+                            // Simple triangle tail below card
+                            Triangle()
+                                .fill(Color.clear)
+                                .frame(width: 50, height: 25)
+                                .glassEffect(.clear, in: Triangle())
+                                .rotationEffect(.degrees(180))
+                                .offset(y: -1) // Slight overlap to hide seam
+                        }
+                    }
+                    .shadow(radius: 10)
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 1.8) // 画面の中央やや下に固定
+                    .ignoresSafeArea(.keyboard) // キーボードが表示されてもカードを動かさない
                 }
             }
-            .shadow(radius: 10)
-            // TEMPORARILY DISABLED - VTipPreferenceKey causes crashes
-            // .overlay(alignment: .bottom) {
-            //     GeometryReader { proxy in
-            //         Color.clear
-            //             .frame(width: 1, height: 1)
-            //             .preference(key: VTipPreferenceKey.self, value: {
-            //                 let f = proxy.frame(in: .global)
-            //                 // Speech bubble tail tip position (integrated into shape)
-            //                 return CGPoint(x: f.midX, y: f.maxY)
-            //             }())
-            //     }
-            //     .frame(width: 1, height: 1)
-            // }
 
-            // Privacy selection popup from bottom
+            // Privacy selection popup from bottom - outside GeometryReader
             if showPrivacyDropdown {
-                Color.black.opacity(0.001) // Invisible tap area
-                    .ignoresSafeArea()
+                Color.clear // Transparent background
+                    .ignoresSafeArea(.all)
                     .onTapGesture {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             showPrivacyDropdown = false
                         }
                     }
 
-                privacyPopupView
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1000)
+                VStack(spacing: 0) {
+                    Spacer()
+                    privacyPopupContent
+                        .ignoresSafeArea(edges: .bottom)
+                }
+                .ignoresSafeArea(edges: .bottom)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showPrivacyDropdown)
@@ -223,44 +220,23 @@ struct CreatePostView: View {
     }
 
     private var postActionButton: some View {
-        HStack(spacing: 6) {
-            // Chevron button - separate and simple
-            // COMMENTED OUT for v1.0 release - anonymous posts only
-            /*
-            Button(action: {
-                print("🔄 Privacy dropdown button pressed...")
-                DispatchQueue.main.async {
-                    showPrivacyDropdown.toggle()
-                }
-            }) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 18, height: 18)
-                    .background(Circle().fill(.black))
-            }
-            .padding(.leading, 4)
-            */
+        Button(action: {
+            logger.info("POST button pressed")
+            logger.info("Post validation - hasImage=\(selectedImageData != nil), textLength=\(postText.count)")
 
-            // POST button - separate and simple
-            Button(action: {
-                logger.info("POST button pressed")
-                logger.info("Post validation - hasImage=\(selectedImageData != nil), textLength=\(postText.count)")
-
-                // 画像がある場合はテキストなしでもOK
-                let hasValidContent = selectedImageData != nil || (!postText.isEmpty && weightedCharacterCount <= Double(maxTextLength))
-                guard hasValidContent else {
-                    logger.warning("POST validation failed - no valid content")
-                    return
-                }
-                createPost()
-            }) {
-                Text("POST")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
+            // 画像がある場合はテキストなしでもOK
+            let hasValidContent = selectedImageData != nil || (!postText.isEmpty && weightedCharacterCount <= Double(maxTextLength))
+            guard hasValidContent else {
+                logger.warning("POST validation failed - no valid content")
+                return
             }
+            createPost()
+        }) {
+            Text("POST")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
         }
         .background(simpleWhiteBackground)
         .clipShape(Capsule())
@@ -309,7 +285,7 @@ struct CreatePostView: View {
                         Image(uiImage: uiImage)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                            .frame(width: 248, height: 248)
+                            .frame(width: 220, height: 220)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
 
                         // 削除ボタン
@@ -326,17 +302,44 @@ struct CreatePostView: View {
                     }
 
                     // 画像がある時のテキスト入力
-                    TextField("text", text: Binding(
-                        get: { postText },
-                        set: { newValue in
-                            postText = newValue
+                    ZStack(alignment: .topLeading) {
+                        if postText.isEmpty {
+                            Text("text")
+                                .font(.system(size: 14))
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 8)
                         }
-                    ), axis: .vertical)
-                    .font(.system(size: 14))
-                    .foregroundColor(weightedCharacterCount > Double(maxTextLength) ? .red : .white)
-                    .lineLimit(2)
-                    .textFieldStyle(PlainTextFieldStyle())
-                    .scrollContentBackground(.hidden)
+
+                        TextEditor(text: Binding(
+                            get: { postText },
+                            set: { newValue in
+                                // 改行数を2行までに制限
+                                let lineCount = newValue.components(separatedBy: "\n").count
+                                if lineCount > 2 {
+                                    return // 2行を超える改行は無視
+                                }
+                                // 重み付き文字数制限を適用
+                                let newWeightedCount = newValue.reduce(0.0) { count, character in
+                                    let scalar = character.unicodeScalars.first
+                                    guard let unicodeScalar = scalar else { return count + 1.0 }
+                                    let isAsianCharacter = (0x3040...0x309F).contains(unicodeScalar.value) ||
+                                                           (0x30A0...0x30FF).contains(unicodeScalar.value) ||
+                                                           (0x4E00...0x9FFF).contains(unicodeScalar.value) ||
+                                                           (0xAC00...0xD7AF).contains(unicodeScalar.value)
+                                    return count + (isAsianCharacter ? 1.0 : 0.5)
+                                }
+                                if newWeightedCount <= Double(maxTextLength) {
+                                    postText = newValue
+                                }
+                            }
+                        ))
+                        .font(.system(size: 14))
+                        .foregroundColor(weightedCharacterCount > Double(maxTextLength) ? .red : .white)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
+                    }
+                    .frame(height: 50)
                 }
             } else {
                 // 画像がない時のみテキスト入力を表示
@@ -391,14 +394,14 @@ struct CreatePostView: View {
             .frame(width: 280, height: 36)
             .overlay(alignment: .bottom) {
                 HStack(alignment: .center) {
-                    locationActionButton
+                    HStack(spacing: 8) {
+                        chevronActionButton
+                        locationActionButton
+                    }
 
                     Spacer()
 
-                    if showPrivacyDropdown {
-                        privacyDescriptionLabel
-                            .transition(.opacity.combined(with: .scale))
-                    }
+                    privacyDescriptionLabel
 
                     Spacer()
 
@@ -410,6 +413,23 @@ struct CreatePostView: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 6)
             }
+    }
+
+    private var chevronActionButton: some View {
+        Button(action: {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                showPrivacyDropdown.toggle()
+            }
+        }) {
+            Image(systemName: showPrivacyDropdown ? "chevron.down" : "chevron.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.black.opacity(0.85))
+                .frame(width: 26, height: 26)
+                .background(glassCircleBackground)
+                .clipShape(Circle())
+                .overlay(circleStrokeOverlay)
+        }
+        .shadow(color: Color.black.opacity(0.18), radius: 5, x: 0, y: 3)
     }
 
     private var locationActionButton: some View {
@@ -440,7 +460,7 @@ struct CreatePostView: View {
 
     private var privacyDescriptionLabel: some View {
         Text(
-            selectedPrivacyType == .publicPost ? "Post publicly" : "Post anonymously"
+            selectedPrivacyType == .publicPost ? "Publicly" : "Anonymously"
         )
         .font(.system(size: 11, weight: .medium))
         .foregroundColor(.white.opacity(0.85))
@@ -518,50 +538,47 @@ struct CreatePostView: View {
             .offset(y: 15)
     }
 
-    // MARK: - Privacy Popup View
-    private var privacyPopupView: some View {
-        VStack {
-            Spacer()
-            Spacer() // Additional spacer to push popup lower
-            Spacer() // Extra spacer to push popup even lower
+    // MARK: - Privacy Popup Content
+    private var privacyPopupContent: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Select Post Privacy")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.black)
 
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text("Select Privacy")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
+                Spacer()
 
-                    Spacer()
-
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showPrivacyDropdown = false
-                        }
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.black.opacity(0.7))
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        showPrivacyDropdown = false
                     }
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.black.opacity(0.7))
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-
-                // Privacy options
-                VStack(alignment: .leading, spacing: 1) {
-                    privacyPopupOption(.anonymous, "person.fill.questionmark", .black, "Post anonymously", "Your identity will be hidden")
-                    privacyPopupOption(.publicPost, "globe", .black, "Post publicly", "Everyone can see this post")
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 30)
             }
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(.black.opacity(0.1), lineWidth: 1))
             .padding(.horizontal, 20)
-            .shadow(radius: 10)
+            .padding(.vertical, 16)
+
+            // Privacy options
+            VStack(alignment: .leading, spacing: 1) {
+                privacyPopupOption(.anonymous, "person.fill.questionmark", .black, "Anonymously", "Your identity will be hidden")
+                privacyPopupOption(.publicPost, "globe", .black, "Publicly", "Everyone can see this post")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+
+            // Spacer to push content to safe area and fill to bottom
+            Spacer()
+                .frame(height: 50)
         }
+        .background(.white)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+        .overlay(UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20).stroke(.black.opacity(0.1), lineWidth: 1))
+        .shadow(radius: 10)
+        .edgesIgnoringSafeArea(.bottom)
     }
 
     private func privacyPopupOption(_ type: PostPrivacyType, _ icon: String, _ color: Color, _ title: String, _ subtitle: String) -> some View {
