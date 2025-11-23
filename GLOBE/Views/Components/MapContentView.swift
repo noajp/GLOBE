@@ -1,7 +1,8 @@
 //======================================================================
 // MARK: - MapContentView.swift
-// Purpose: Main map display with posts and location controls
-// Path: GLOBE/Views/Components/MapContentView.swift
+// Function: Main Map Display View
+// Overview: Map-based post display with location tracking and POI selection
+// Processing: Render map → Show post pins → Track location → Handle POI taps
 //======================================================================
 
 import SwiftUI
@@ -36,6 +37,13 @@ struct MapContentView: View {
     // Debouncing for data fetching
     @State private var fetchDebounceTask: Task<Void, Never>?
     @State private var lastUpdateTime: Date = Date()
+
+    //###########################################################################
+    // MARK: - Map View
+    // Function: mapView
+    // Overview: Main map with annotations, user location, and post pins
+    // Processing: Configure Map → Add user location marker → Display post annotations → Handle POI selection
+    //###########################################################################
 
     private var mapView: some View {
         Map(position: $mapCameraPosition, interactionModes: .all, selection: $selectedPOI) {
@@ -197,6 +205,13 @@ struct MapContentView: View {
     }
 
     // MARK: - 3D Perspective Correction
+
+    //###########################################################################
+    // MARK: - Perspective Correction
+    // Function: calculatePerspectiveCorrectedCenter
+    // Overview: Correct map center coordinate based on camera pitch
+    // Processing: Check pitch angle → Calculate offset factor → Apply latitude correction → Return adjusted coordinate
+    //###########################################################################
 
     private func calculatePerspectiveCorrectedCenter(camera: MapCamera, region: MKCoordinateRegion) -> CLLocationCoordinate2D {
         let pitch = camera.pitch

@@ -1,5 +1,11 @@
+//======================================================================
+// MARK: - AuthenticationView.swift
+// Function: Authentication View
+// Overview: User authentication with sign in/sign up toggle
+// Processing: Display auth form → Validate inputs → Call AuthManager → Handle response
+//======================================================================
+
 import SwiftUI
-import Combine
 
 struct AuthenticationView: View {
     @Environment(\.dismiss) var dismiss
@@ -194,6 +200,13 @@ struct AuthenticationView: View {
             }
         }
     }
+
+    //###########################################################################
+    // MARK: - Authentication Handler
+    // Function: handleAuthentication
+    // Overview: Process sign in or sign up based on current mode
+    // Processing: Set loading state → Call AuthManager sign in/sign up → Handle errors → Dismiss on success
+    //###########################################################################
 
     private func handleAuthentication() async {
         isLoading = true

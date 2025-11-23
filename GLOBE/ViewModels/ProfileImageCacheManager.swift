@@ -4,7 +4,7 @@
 // Path: GLOBE/Core/Managers/ProfileImageCacheManager.swift
 //======================================================================
 
-import SwiftUI
+import UIKit
 import Combine
 import Supabase
 

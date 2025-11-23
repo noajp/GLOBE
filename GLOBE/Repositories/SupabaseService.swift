@@ -412,9 +412,16 @@ private init() {
             return true
             
         } catch {
-            secureLogger.error("Failed to create post: \(error.localizedDescription)")
+            let errorMessage = error.localizedDescription
+            secureLogger.error("Failed to create post: \(errorMessage)")
+
             await MainActor.run {
-                self.error = "投稿の作成に失敗しました"
+                // Provide more specific error messages
+                if errorMessage.contains("session") || errorMessage.contains("auth") {
+                    self.error = "認証エラー：再度ログインしてください"
+                } else {
+                    self.error = "投稿の作成に失敗しました: \(errorMessage)"
+                }
             }
             return false
         }
@@ -525,9 +532,14 @@ private init() {
         secureLogger.info("Following user: \(userId)")
 
         do {
-            // Get current user
-            let session = try await supabaseClient.auth.session
-            let currentUserId = session.user.id
+            // Get current user ID - prefer AuthManager for development mode support
+            guard let currentUserIdString = AuthManager.shared.currentUser?.id,
+                  let currentUserId = UUID(uuidString: currentUserIdString) else {
+                secureLogger.warning("No authenticated user found")
+                return false
+            }
+
+            secureLogger.info("Follow: currentUserId=\(currentUserId.uuidString), targetUserId=\(userId)")
 
             guard let followingUUID = UUID(uuidString: userId) else {
                 secureLogger.warning("Invalid user ID format: \(userId)")
@@ -547,8 +559,8 @@ private init() {
             let existing = try await supabaseClient
                 .from("follows")
                 .select()
-                .eq("follower_id", value: currentUserId.uuidString)
-                .eq("following_id", value: followingUUID.uuidString)
+                .eq("follower_id", value: currentUserId.uuidString.lowercased())
+                .eq("following_id", value: followingUUID.uuidString.lowercased())
                 .execute()
 
             let decoder = JSONDecoder()
@@ -561,9 +573,9 @@ private init() {
 
             // Create follow record as dictionary
             let followData: [String: String] = [
-                "id": UUID().uuidString,
-                "follower_id": currentUserId.uuidString,
-                "following_id": followingUUID.uuidString,
+                "id": UUID().uuidString.lowercased(),
+                "follower_id": currentUserId.uuidString.lowercased(),
+                "following_id": followingUUID.uuidString.lowercased(),
                 "created_at": ISO8601DateFormatter().string(from: Date())
             ]
 
@@ -576,9 +588,21 @@ private init() {
             return true
 
         } catch {
-            secureLogger.error("Failed to follow user: \(error.localizedDescription)")
+            let errorMessage = error.localizedDescription
+
+            // If already following (duplicate key error), treat as success
+            if errorMessage.contains("duplicate key") || errorMessage.contains("follows_follower_id_following_id_key") {
+                secureLogger.info("Already following user \(userId) (duplicate key)")
+                return true
+            }
+
+            secureLogger.error("Failed to follow user: \(errorMessage)")
             await MainActor.run {
-                self.error = "フォローに失敗しました"
+                if errorMessage.contains("session") || errorMessage.contains("auth") {
+                    self.error = "認証エラー：再度ログインしてください"
+                } else {
+                    self.error = "フォローに失敗しました: \(errorMessage)"
+                }
             }
             return false
         }
@@ -589,9 +613,12 @@ private init() {
         secureLogger.info("Unfollowing user: \(userId)")
 
         do {
-            // Get current user
-            let session = try await supabaseClient.auth.session
-            let currentUserId = session.user.id
+            // Get current user ID - prefer AuthManager for development mode support
+            guard let currentUserIdString = AuthManager.shared.currentUser?.id,
+                  let currentUserId = UUID(uuidString: currentUserIdString) else {
+                secureLogger.warning("No authenticated user found")
+                return false
+            }
 
             guard let followingUUID = UUID(uuidString: userId) else {
                 secureLogger.warning("Invalid user ID format: \(userId)")
@@ -602,8 +629,8 @@ private init() {
             _ = try await supabaseClient
                 .from("follows")
                 .delete()
-                .eq("follower_id", value: currentUserId.uuidString)
-                .eq("following_id", value: followingUUID.uuidString)
+                .eq("follower_id", value: currentUserId.uuidString.lowercased())
+                .eq("following_id", value: followingUUID.uuidString.lowercased())
                 .execute()
 
             secureLogger.info("Successfully unfollowed user \(userId)")
@@ -621,25 +648,39 @@ private init() {
     /// Check if current user is following a specific user
     func isFollowing(userId: String) async -> Bool {
         do {
-            // Get current user
-            let session = try await supabaseClient.auth.session
-            let currentUserId = session.user.id
+            // Get current user ID - prefer AuthManager for development mode support
+            guard let currentUserIdString = AuthManager.shared.currentUser?.id,
+                  let currentUserId = UUID(uuidString: currentUserIdString) else {
+                secureLogger.warning("No authenticated user found")
+                return false
+            }
+
+            secureLogger.info("isFollowing check: currentUserId=\(currentUserId.uuidString), targetUserId=\(userId)")
 
             guard let followingUUID = UUID(uuidString: userId) else {
+                secureLogger.warning("Invalid userId format in isFollowing: \(userId)")
                 return false
             }
 
             let response = try await supabaseClient
                 .from("follows")
                 .select()
-                .eq("follower_id", value: currentUserId.uuidString)
-                .eq("following_id", value: followingUUID.uuidString)
+                .eq("follower_id", value: currentUserId.uuidString.lowercased())
+                .eq("following_id", value: followingUUID.uuidString.lowercased())
                 .execute()
 
+            // Debug: Log the raw response
+            if let responseString = String(data: response.data, encoding: .utf8) {
+                secureLogger.info("isFollowing raw response: \(responseString)")
+            }
+
             let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
             let follows = try? decoder.decode([DatabaseFollow].self, from: response.data)
 
-            return !(follows?.isEmpty ?? true)
+            let isFollowingResult = !(follows?.isEmpty ?? true)
+            secureLogger.info("isFollowing result: \(isFollowingResult), follows count: \(follows?.count ?? 0)")
+            return isFollowingResult
 
         } catch {
             secureLogger.error("Failed to check following status: \(error.localizedDescription)")
@@ -657,7 +698,7 @@ private init() {
             let response = try await supabaseClient
                 .from("follows")
                 .select("id", head: false, count: .exact)
-                .eq("following_id", value: userUUID.uuidString)
+                .eq("following_id", value: userUUID.uuidString.lowercased())
                 .execute()
 
             return response.count ?? 0
@@ -678,7 +719,7 @@ private init() {
             let response = try await supabaseClient
                 .from("follows")
                 .select("id", head: false, count: .exact)
-                .eq("follower_id", value: userUUID.uuidString)
+                .eq("follower_id", value: userUUID.uuidString.lowercased())
                 .execute()
 
             return response.count ?? 0
@@ -700,7 +741,7 @@ private init() {
             let followResponse = try await supabaseClient
                 .from("follows")
                 .select("follower_id")
-                .eq("following_id", value: userUUID.uuidString)
+                .eq("following_id", value: userUUID.uuidString.lowercased())
                 .order("created_at", ascending: false)
                 .execute()
 
@@ -745,7 +786,7 @@ private init() {
             let followResponse = try await supabaseClient
                 .from("follows")
                 .select("following_id")
-                .eq("follower_id", value: userUUID.uuidString)
+                .eq("follower_id", value: userUUID.uuidString.lowercased())
                 .order("created_at", ascending: false)
                 .execute()
 

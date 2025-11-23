@@ -4,6 +4,7 @@
 // Path: GLOBE/Features/Profile/MyPageViewModel.swift
 //======================================================================
 import SwiftUI
+import Foundation
 import Combine
 import Supabase
 import CoreLocation
@@ -31,6 +32,9 @@ final class MyPageViewModel: ObservableObject {
         authService?.currentUser?.id
     }
 
+    // NEW: Flag to prevent auto-loading when viewing another user's profile
+    private var shouldAutoLoad: Bool = true
+
     private let logger = SecureLogger.shared
     private var cancellables = Set<AnyCancellable>()
 
@@ -42,16 +46,20 @@ final class MyPageViewModel: ObservableObject {
         followingCount = 0
         hasLoadedInitially = false
     }
-    
+
     // MARK: - Initialization
 
-    nonisolated init(authService: (any AuthServiceProtocol)? = nil) {
+    nonisolated init(authService: (any AuthServiceProtocol)? = nil, shouldAutoLoad: Bool = true) {
         // Setup must happen on MainActor
         Task { @MainActor in
             // Set authService on MainActor to avoid isolation issues
             self.authService = authService ?? AuthManager.shared
-            // Don't setup observers - let Views handle auth state changes
-            self.loadInitialData()
+            self.shouldAutoLoad = shouldAutoLoad
+
+            // Only auto-load if shouldAutoLoad is true (for viewing own profile)
+            if shouldAutoLoad {
+                self.loadInitialData()
+            }
         }
     }
 
@@ -94,7 +102,7 @@ final class MyPageViewModel: ObservableObject {
             let profileResult = try await client
                 .from("profiles")
                 .select()
-                .eq("id", value: userId)
+                .eq("id", value: userId.lowercased())
                 .execute()
 
             let decoder = JSONDecoder()
@@ -289,7 +297,11 @@ final class MyPageViewModel: ObservableObject {
     }
     
     func updateProfile(displayName: String, bio: String) async {
-        guard let userId = currentUserId else { return }
+        guard let userId = currentUserId else {
+            logger.error("No current user ID")
+            errorMessage = "ユーザーIDが取得できません"
+            return
+        }
 
         isLoading = true
         defer { isLoading = false }
@@ -305,6 +317,7 @@ final class MyPageViewModel: ObservableObject {
             // Display name validation (1-50 characters)
             guard !validatedDisplayName.isEmpty && validatedDisplayName.count >= 1 && validatedDisplayName.count <= 50 else {
                 errorMessage = "表示名は1-50文字で入力してください"
+                logger.warning("Display name validation failed")
                 return
             }
 
@@ -325,14 +338,21 @@ final class MyPageViewModel: ObservableObject {
                 "updated_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))
             ]
 
-            try await client
+            logger.info("Executing UPDATE with userId: \(userId.lowercased())")
+
+            let response = try await client
                 .from("profiles")
                 .update(updateDict)
-                .eq("id", value: userId)
+                .eq("id", value: userId.lowercased())
+                .select()
                 .execute()
 
+            let responseData = String(data: response.data, encoding: .utf8) ?? "nil"
+            logger.info("UPDATE response: \(responseData)")
+
             userProfile = updatedProfile
-            logger.info("Profile updated successfully displayName=\(validatedDisplayName)")
+            errorMessage = nil
+            logger.info("Profile updated successfully")
 
         } catch {
             logger.error("Failed to update profile: \(error.localizedDescription)")
@@ -458,5 +478,72 @@ final class MyPageViewModel: ObservableObject {
     /// Get following count for a user
     func getFollowingCount(userId: String) async -> Int {
         return await SupabaseService.shared.getFollowingCount(userId: userId)
+    }
+
+    //###########################################################################
+    // MARK: - Other User Profile Loading
+    // Function: loadOtherUserProfile
+    // Overview: Load another user's profile, posts, and follower counts
+    // Processing: Query profile → Query posts → Get follower counts → Update published properties
+    //###########################################################################
+
+    func loadOtherUserProfile(userId: String) async {
+        logger.info("Loading profile for user: \(userId)")
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            let client = await SupabaseManager.shared.client
+
+            // Load user profile
+            let profileResult = try await client
+                .from("profiles")
+                .select()
+                .eq("id", value: userId.lowercased())
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            let profiles = try? decoder.decode([UserProfile].self, from: profileResult.data)
+            guard let profile = profiles?.first else {
+                logger.error("Profile not found for userId: \(userId)")
+                errorMessage = "User profile not found"
+                isLoading = false
+                return
+            }
+
+            logger.info("Profile loaded - displayName: \(profile.displayName ?? "none")")
+
+            // Load user's posts
+            let postsResult = try await client
+                .from("posts")
+                .select()
+                .eq("user_id", value: userId)
+                .order("created_at", ascending: false)
+                .execute()
+
+            let posts = (try? decoder.decode([Post].self, from: postsResult.data)) ?? []
+            logger.info("Loaded \(posts.count) posts for user")
+
+            // Load follower/following counts
+            let followers = await SupabaseService.shared.getFollowerCount(userId: userId)
+            let following = await SupabaseService.shared.getFollowingCount(userId: userId)
+
+            // Update all properties on MainActor
+            userProfile = profile
+            userPosts = posts
+            postsCount = posts.count
+            followersCount = followers
+            followingCount = following
+            isLoading = false
+
+            logger.info("Profile loading complete - Followers: \(followers), Following: \(following)")
+
+        } catch {
+            logger.error("Failed to load other user profile: \(error.localizedDescription)")
+            errorMessage = AppError.from(error).localizedDescription
+            isLoading = false
+        }
     }
 }

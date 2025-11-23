@@ -387,6 +387,7 @@ struct PostPin: View {
             }
         }
         .fullScreenCover(isPresented: $showingUserProfile) {
+            let _ = SecureLogger.shared.info("PostPin: Opening profile - authorName: \(post.authorName), authorId: \(post.authorId)")
             UserProfileView(
                 userName: post.authorName,
                 userId: post.authorId,

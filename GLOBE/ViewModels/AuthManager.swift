@@ -1,12 +1,12 @@
 //======================================================================
 // MARK: - AuthManager.swift
-// Purpose: Authentication manager with simple logging for GLOBE
-// Path: GLOBE/Core/Auth/AuthManager.swift
+// Function: Authentication Manager
+// Overview: User authentication, session management, security checks
+// Processing: Supabase Auth integration, input validation, device security monitoring
 //======================================================================
 
 import Foundation
 import Supabase
-import SwiftUI
 import Combine
 import AuthenticationServices
 import CryptoKit
@@ -31,15 +31,6 @@ class AuthManager: AuthServiceProtocol {
     private let logger = SecureLogger.shared
 
     private init() {
-        // 開発環境でのログインスキップチェック
-        #if DEBUG
-        if isDevelopmentLoginSkipEnabled() {
-            enableDevelopmentAuth()
-            logger.info("AuthManager initialized with development login skip")
-            return
-        }
-        #endif
-
         // 初期化時は現在のセッションをチェック
         Task {
             let _ = await checkCurrentUser()
@@ -49,9 +40,14 @@ class AuthManager: AuthServiceProtocol {
 
     // Publisher exposure for protocol requirement
     var isAuthenticatedPublisher: AnyPublisher<Bool, Never> { $isAuthenticated.eraseToAnyPublisher() }
-    
+
+    //###########################################################################
     // MARK: - Session Management
-    
+    // Function: checkCurrentUser
+    // Overview: Verify and restore existing user session
+    // Processing: Fetch Supabase session → Update currentUser → Return auth status
+    //###########################################################################
+
     func checkCurrentUser() async -> Bool {
         do {
             let session = try await (await supabase).auth.session
@@ -63,7 +59,7 @@ class AuthManager: AuthServiceProtocol {
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
-            logger.info("Current user session found: \(user.email ?? "")")
+            logger.info("Current user session found: email=\(user.email ?? "none"), id=\(user.id.uuidString)")
             return true
 
         } catch {
@@ -74,8 +70,13 @@ class AuthManager: AuthServiceProtocol {
         }
     }
     
+    //###########################################################################
     // MARK: - Sign Up
-    
+    // Function: signUp
+    // Overview: Create new user account with email and password
+    // Processing: Validate input → Create Supabase auth user → Create profile → Return success
+    //###########################################################################
+
     func signUp(email: String, password: String, displayName: String, username: String) async throws {
         logger.info("AuthManager.signUp: begin for \(email)")
         // 入力検証
@@ -503,6 +504,8 @@ class AuthManager: AuthServiceProtocol {
 
                 if let profiles = try? decoder.decode([SimpleProfile].self, from: response.data),
                    let latestProfile = profiles.first {
+
+                    logger.info("Development mode: Using latest user from DB - id: \(latestProfile.id), display_name: \(latestProfile.display_name ?? "none")")
 
                     let devUser = AppUser(
                         id: latestProfile.id,

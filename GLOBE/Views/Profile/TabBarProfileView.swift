@@ -10,7 +10,7 @@ import Supabase
 struct TabBarProfileView: View {
     let userId: String? // If nil, shows current user's profile
 
-    @StateObject private var viewModel = MyPageViewModel()
+    @StateObject private var viewModel: MyPageViewModel
     @StateObject private var authManager = AuthManager.shared
     @State private var selectedPost: Post?
     @State private var showingEditProfile = false
@@ -18,6 +18,9 @@ struct TabBarProfileView: View {
     @State private var showingAuth = false
     @State private var isFollowing = false
     @State private var isLoadingFollow = false
+    @State private var isLoadingProfile = true
+    @State private var showingQRScanner = false
+    @State private var scannedUserId: String?
 
     // Grid layout configuration
     private let columns = [
@@ -28,6 +31,13 @@ struct TabBarProfileView: View {
 
     init(userId: String? = nil) {
         self.userId = userId
+
+        // IMPORTANT: Prevent auto-loading when viewing another user's profile
+        // If userId is provided, we'll manually load that user's data
+        let shouldAutoLoad = (userId == nil)
+        _viewModel = StateObject(wrappedValue: MyPageViewModel(shouldAutoLoad: shouldAutoLoad))
+
+        SecureLogger.shared.info("TabBarProfileView.init: userId=\(userId ?? "nil"), shouldAutoLoad=\(shouldAutoLoad)")
     }
 
     var body: some View {
@@ -35,6 +45,17 @@ struct TabBarProfileView: View {
             // Background layer (solid black #121212)
             Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
                 .ignoresSafeArea()
+
+            // Loading indicator
+            if isLoadingProfile {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                    Text("Loading profile...")
+                        .foregroundColor(.white)
+                }
+            }
 
             // Content layer
             ScrollView {
@@ -50,6 +71,9 @@ struct TabBarProfileView: View {
                         isLoadingFollow: isLoadingFollow,
                         onEditProfile: {
                             showingEditProfile = true
+                        },
+                        onQRScan: {
+                            showingQRScanner = true
                         },
                         onFollowToggle: {
                             Task {
@@ -94,6 +118,7 @@ struct TabBarProfileView: View {
                     }
                 }
             }
+            .opacity(isLoadingProfile ? 0 : 1)
         }
         .onAppear {
             Task {
@@ -104,6 +129,14 @@ struct TabBarProfileView: View {
             // Clear data when user signs out
             if !isAuthenticated {
                 viewModel.clearUserData()
+            }
+        }
+        .onChange(of: showingEditProfile) { _, isShowing in
+            // Reload profile when returning from edit screen
+            if !isShowing {
+                Task {
+                    await loadProfile()
+                }
             }
         }
         .navigationTitle("Profile")
@@ -129,13 +162,17 @@ struct TabBarProfileView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingEditProfile) {
-            NavigationStack {
-                ProfileEditView()
-            }
+        .navigationDestination(isPresented: $showingEditProfile) {
+            ProfileEditView()
         }
         .sheet(item: $selectedPost) { post in
             PostDetailSheet(post: post)
+        }
+        .fullScreenCover(isPresented: $showingQRScanner) {
+            QRCodeScannerView(
+                isPresented: $showingQRScanner,
+                scannedUserId: $scannedUserId
+            )
         }
     }
 
@@ -159,60 +196,44 @@ struct TabBarProfileView: View {
 
     // Load profile data
     private func loadProfile() async {
+        SecureLogger.shared.info("TabBarProfileView: loadProfile started for userId: \(userId ?? "nil")")
+        isLoadingProfile = true
+
         // If userId is provided, load that user's data
         if let targetUserId = userId {
+            SecureLogger.shared.info("TabBarProfileView: Loading other user's profile: \(targetUserId)")
             await loadOtherUserProfile(userId: targetUserId)
 
             // Check follow status if viewing someone else's profile
             if !isOwnProfile {
+                SecureLogger.shared.info("TabBarProfileView: Checking follow status for: \(targetUserId)")
                 isFollowing = await viewModel.isFollowing(userId: targetUserId)
+                SecureLogger.shared.info("TabBarProfileView: Follow status result: \(isFollowing)")
             }
         } else {
             // Otherwise load current user's data
+            SecureLogger.shared.info("TabBarProfileView: Loading current user's profile")
             await viewModel.loadUserData()
         }
+
+        isLoadingProfile = false
+        SecureLogger.shared.info("TabBarProfileView: loadProfile completed - displayName: \(viewModel.userProfile?.displayName ?? "none")")
     }
 
-    // Load other user's profile and posts
+    //###########################################################################
+    // MARK: - Other User Profile Loading
+    // Function: loadOtherUserProfile
+    // Overview: Load another user's profile via ViewModel (MVVM compliant)
+    // Processing: Delegate to MyPageViewModel.loadOtherUserProfile()
+    //###########################################################################
+
     private func loadOtherUserProfile(userId: String) async {
-        do {
-            let client = await SupabaseManager.shared.client
+        SecureLogger.shared.info("TabBarProfileView: Loading profile for userId: \(userId)")
 
-            // Load user profile
-            let profileResult = try await client
-                .from("profiles")
-                .select()
-                .eq("id", value: userId)
-                .execute()
+        // Delegate to ViewModel - proper MVVM architecture
+        await viewModel.loadOtherUserProfile(userId: userId)
 
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-
-            let profiles = try? decoder.decode([UserProfile].self, from: profileResult.data)
-            if let profile = profiles?.first {
-                viewModel.userProfile = profile
-            }
-
-            // Load user's posts
-            let postsResult = try await client
-                .from("posts")
-                .select()
-                .eq("user_id", value: userId)
-                .order("created_at", ascending: false)
-                .execute()
-
-            let posts = try? decoder.decode([Post].self, from: postsResult.data)
-            viewModel.userPosts = posts ?? []
-            viewModel.postsCount = viewModel.userPosts.count
-
-            // Load follower/following counts
-            viewModel.followersCount = await SupabaseService.shared.getFollowerCount(userId: userId)
-            viewModel.followingCount = await SupabaseService.shared.getFollowingCount(userId: userId)
-
-            SecureLogger.shared.info("Loaded other user profile: \(userId), posts: \(viewModel.userPosts.count)")
-        } catch {
-            SecureLogger.shared.error("Failed to load other user profile: \(error.localizedDescription)")
-        }
+        SecureLogger.shared.info("TabBarProfileView: Profile loading complete")
     }
 
     // Toggle follow/unfollow
@@ -233,6 +254,8 @@ struct TabBarProfileView: View {
             }
         }
 
+        // Re-check follow status to ensure UI is in sync
+        isFollowing = await viewModel.isFollowing(userId: targetUserId)
         isLoadingFollow = false
     }
 }
@@ -247,6 +270,7 @@ struct ProfileHeaderView: View {
     let isFollowing: Bool
     let isLoadingFollow: Bool
     let onEditProfile: () -> Void
+    let onQRScan: () -> Void
     let onFollowToggle: () -> Void
 
     var body: some View {
@@ -314,69 +338,87 @@ struct ProfileHeaderView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            // Display Name, Username & Bio
-            VStack(alignment: .leading, spacing: 4) {
-                if let displayName = userProfile?.displayName {
-                    Text(displayName)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+            // Display Name with Edit/Follow Button
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let displayName = userProfile?.displayName {
+                        Text(displayName)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
 
-                if let username = userProfile?.username {
-                    Text("@\(username)")
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.white.opacity(0.6))
-                }
+                    if let username = userProfile?.username {
+                        Text("@\(username)")
+                            .font(.system(size: 14, weight: .regular))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
 
-                if let bio = userProfile?.bio, !bio.isEmpty {
-                    Text(bio)
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.8))
-                        .lineLimit(3)
+                    if let bio = userProfile?.bio, !bio.isEmpty {
+                        Text(bio)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineLimit(3)
+                            .padding(.top, 4)
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Edit Profile or Follow Button
-            if isOwnProfile {
-                // Edit Profile Button
-                Button(action: onEditProfile) {
-                    Text("Edit Profile")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 32)
-                        .background(Color.white.opacity(0.15))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                }
-            } else {
-                // Follow/Following Button
-                Button(action: onFollowToggle) {
-                    HStack(spacing: 4) {
-                        if isLoadingFollow {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(0.7)
-                        } else {
-                            Text(isFollowing ? "Following" : "Follow")
+                // Edit Profile or Follow Button (aligned with display name)
+                if isOwnProfile {
+                    // Edit Profile and QR Scan Buttons
+                    HStack(spacing: 8) {
+                        // Edit Profile Button
+                        Button(action: onEditProfile) {
+                            Text("Edit Profile")
                                 .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 90, height: 28)
+                                .background(Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                                )
+                        }
+
+                        // QR Scan Button (square)
+                        Button(action: onQRScan) {
+                            Image(systemName: "qrcode.viewfinder")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                                )
                         }
                     }
-                    .foregroundColor(isFollowing ? .white : .white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 28)
-                    .background(isFollowing ? Color.white.opacity(0.15) : Color(red: 0.0, green: 0.55, blue: 0.75))
-                    .cornerRadius(6)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(isFollowing ? Color.white.opacity(0.3) : Color.clear, lineWidth: 1)
-                    )
+                } else {
+                    // Follow/Following Button
+                    Button(action: onFollowToggle) {
+                        HStack(spacing: 4) {
+                            if isLoadingFollow {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .scaleEffect(0.7)
+                            } else {
+                                Text(isFollowing ? "Following" : "Follow")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                        }
+                        .foregroundColor(.white)
+                        .frame(width: 90, height: 28)
+                        .background(isFollowing ? Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0) : Color(red: 0.0, green: 0.55, blue: 0.75))
+                        .cornerRadius(6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                        )
+                    }
+                    .disabled(isLoadingFollow)
                 }
-                .disabled(isLoadingFollow)
             }
         }
     }

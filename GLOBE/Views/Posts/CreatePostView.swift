@@ -7,7 +7,6 @@ import SwiftUI
 import UIKit
 import CoreLocation
 import MapKit
-import Combine
 
 // MARK: - Post Privacy Options
 enum PostPrivacyType: Equatable, Sendable {
@@ -623,8 +622,16 @@ struct CreatePostView: View {
         .buttonStyle(PlainButtonStyle())
     }
     
+    //###########################################################################
     // MARK: - Action Methods
+    // Function: User interaction handlers
+    // Overview: Process post creation, camera, and location actions
+    // Processing: Validate input, call PostManager, close UI
+    //###########################################################################
 
+    // Function: createPost
+    // Overview: Creates a new post with text, image, and location
+    // Processing: Capture values → Close UI → Call PostManager.createPost asynchronously
     private func createPost() {
         logger.info("Starting post creation")
 
@@ -658,50 +665,12 @@ struct CreatePostView: View {
     }
 
 
+    //###########################################################################
     // MARK: - Helper Functions
-    private func resolveAreaName(for coordinate: CLLocationCoordinate2D) async -> String? {
-        do {
-            let request = MKLocalSearch.Request()
-            request.naturalLanguageQuery = "\(coordinate.latitude),\(coordinate.longitude)"
-            request.resultTypes = [.address]
-            let search = MKLocalSearch(request: request)
-            let response = try await search.start()
-            if let mapItem = response.mapItems.first {
-                var components: [String] = []
-                if let name = mapItem.name {
-                    let cleaned = name
-                        .replacingOccurrences(of: #"[0-9]+-[0-9]+.*"#, with: "", options: .regularExpression)
-                        .replacingOccurrences(of: #"[0-9]+番地.*"#, with: "", options: .regularExpression)
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !cleaned.isEmpty { components.append(cleaned) }
-                }
-                // Skip if no meaningful location name found
-                return components.prefix(2).joined(separator: " ")
-            }
-        } catch {
-            return nil
-        }
-        return nil
-    }
-
-    
-    private func updateAreaLocation(for coordinate: CLLocationCoordinate2D) {
-        // Disabled to prevent deadlock - area name resolution is not critical for posting
-        areaName = ""
-    }
-    
-    private func moveToCurrentLocation() {
-        // Removed - using simpler inline approach in button action
-    }
-
-    // MARK: - Auto acquire current location on demand
-    private func autoAcquireCurrentLocation() {
-        // Removed - using simpler inline approach in button action
-    }
-    
-    private func updatePostLocation() {
-        postLocation = mapManager.region.center
-    }
+    // Function: Utility functions for post creation
+    // Overview: Image processing and validation
+    // Processing: Crop images, validate content before submission
+    //###########################################################################
 
     // MARK: - Image Processing
     private func cropToSquare(image: UIImage) -> UIImage? {

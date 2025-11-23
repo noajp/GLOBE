@@ -35,7 +35,7 @@ final class SecureLogger: @unchecked Sendable {
     }
     
     func info(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
-        guard !minimalLogging else { return } // 最小ログモードではスキップ
+        // DEBUGモードでもinfoログを出力するように変更
         let sanitizedMessage = sanitizeLogMessage(message)
         logMessage(sanitizedMessage, level: .info, logger: generalLogger, file: file, function: function, line: line)
     }

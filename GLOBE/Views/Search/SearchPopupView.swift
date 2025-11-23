@@ -1,17 +1,15 @@
 //======================================================================
 // MARK: - SearchPopupView.swift
-// Purpose: Glass effect search popup for user search
-// Path: GLOBE/Views/Search/SearchPopupView.swift
+// Function: User Search Popup View
+// Overview: Glass effect search popup with user search functionality
+// Processing: Delegate search to SearchViewModel (MVVM compliant)
 //======================================================================
 
 import SwiftUI
 
 struct SearchPopupView: View {
     @Binding var isPresented: Bool
-    @State private var searchText = ""
-    @State private var searchResults: [UserProfile] = []
-    @State private var isSearching = false
-    @StateObject private var authManager = AuthManager.shared
+    @StateObject private var viewModel = SearchViewModel()
     @State private var selectedUserId: String?
     @State private var showUserProfile = false
     @State private var dragOffset: CGFloat = 0
@@ -36,22 +34,21 @@ struct SearchPopupView: View {
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.white.opacity(0.7))
 
-                            TextField("Search users...", text: $searchText)
+                            TextField("Search users...", text: $viewModel.searchQuery)
                                 .font(.system(size: 16))
                                 .foregroundColor(.white)
                                 .tint(.white)
                                 .textFieldStyle(.plain)
                                 .autocorrectionDisabled()
                                 .textInputAutocapitalization(.never)
-                                .onChange(of: searchText) { _, newValue in
-                                    performSearch(query: newValue)
+                                .onChange(of: viewModel.searchQuery) { _, newValue in
+                                    viewModel.performSearch(query: newValue)
                                 }
                                 .colorScheme(.dark)
 
-                            if !searchText.isEmpty {
+                            if !viewModel.searchQuery.isEmpty {
                                 Button(action: {
-                                    searchText = ""
-                                    searchResults = []
+                                    viewModel.searchQuery = ""
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .font(.system(size: 16))
@@ -81,7 +78,7 @@ struct SearchPopupView: View {
                             .background(Color.white.opacity(0.2))
 
                         // Search results
-                        if isSearching {
+                        if viewModel.isSearching {
                             VStack {
                                 Spacer()
                                 ProgressView()
@@ -93,7 +90,7 @@ struct SearchPopupView: View {
                                 Spacer()
                             }
                             .frame(maxWidth: .infinity)
-                        } else if searchText.isEmpty {
+                        } else if viewModel.searchQuery.isEmpty {
                             VStack(spacing: 12) {
                                 Spacer()
                                 Image(systemName: "magnifyingglass")
@@ -112,7 +109,7 @@ struct SearchPopupView: View {
                                     .padding(.horizontal, 32)
                                 Spacer()
                             }
-                        } else if searchResults.isEmpty {
+                        } else if viewModel.searchResults.isEmpty {
                             VStack(spacing: 12) {
                                 Spacer()
                                 Image(systemName: "person.slash")
@@ -132,14 +129,16 @@ struct SearchPopupView: View {
                         } else {
                             ScrollView {
                                 LazyVStack(spacing: 0) {
-                                    ForEach(searchResults) { user in
-                                        SearchResultRow(user: user)
-                                            .onTapGesture {
-                                                selectedUserId = user.id
-                                                showUserProfile = true
-                                            }
+                                    ForEach(viewModel.searchResults) { user in
+                                        Button(action: {
+                                            selectedUserId = user.id
+                                            showUserProfile = true
+                                        }) {
+                                            SearchResultRow(user: user)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
 
-                                        if user.id != searchResults.last?.id {
+                                        if user.id != viewModel.searchResults.last?.id {
                                             Divider()
                                                 .background(Color.white.opacity(0.1))
                                                 .padding(.leading, 70)
@@ -197,45 +196,20 @@ struct SearchPopupView: View {
                         }
                 )
             }
-            .sheet(isPresented: $showUserProfile) {
-                if let userId = selectedUserId {
-                    UserProfileView(
-                        userName: searchResults.first(where: { $0.id == userId })?.displayName ?? "User",
-                        userId: userId,
-                        isPresented: $showUserProfile
-                    )
-                }
-            }
         }
         .ignoresSafeArea()
         .allowsHitTesting(true)
-    }
-
-    // MARK: - Search Function
-    private func performSearch(query: String) {
-        guard !query.isEmpty else {
-            searchResults = []
-            return
-        }
-
-        isSearching = true
-
-        Task {
-            do {
-                let results = await SupabaseService.shared.searchUsers(query: query)
-
-                await MainActor.run {
-                    // Filter out current user from results
-                    if let currentUserId = authManager.currentUser?.id {
-                        searchResults = results.filter { $0.id.lowercased() != currentUserId.lowercased() }
-                    } else {
-                        searchResults = results
-                    }
-                    isSearching = false
-                }
+        .fullScreenCover(isPresented: $showUserProfile) {
+            if let userId = selectedUserId {
+                UserProfileView(
+                    userName: viewModel.searchResults.first(where: { $0.id == userId })?.displayName ?? "User",
+                    userId: userId,
+                    isPresented: $showUserProfile
+                )
             }
         }
     }
+
 }
 
 // MARK: - Search Result Row
@@ -245,7 +219,14 @@ struct SearchResultRow: View {
     @State private var isLoading = false
     @StateObject private var authManager = AuthManager.shared
 
+    init(user: UserProfile) {
+        self.user = user
+        SecureLogger.shared.info("SearchResultRow: Initialized for user: \(user.displayName ?? "Unknown") (id: \(user.id))")
+    }
+
     var body: some View {
+        let _ = SecureLogger.shared.info("SearchResultRow: Rendering body for user: \(user.displayName ?? "Unknown"), isFollowing: \(isFollowing)")
+
         HStack(spacing: 12) {
             // Avatar
             Circle()
@@ -257,51 +238,58 @@ struct SearchResultRow: View {
                         .foregroundColor(.white)
                 )
 
-            // User info
-            VStack(alignment: .leading, spacing: 4) {
-                Text(user.displayName ?? "Unknown User")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
+            // User info with Follow button on the right
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(user.displayName ?? "Unknown User")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
 
-                if let username = user.username {
-                    Text("@\(username)")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-            }
-
-            Spacer()
-
-            // Follow button
-            Button(action: {
-                Task {
-                    await toggleFollow()
-                }
-            }) {
-                HStack(spacing: 4) {
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                            .scaleEffect(0.7)
-                    } else {
-                        Text(isFollowing ? "Following" : "Follow")
-                            .font(.system(size: 12, weight: .semibold))
+                    if let username = user.username {
+                        Text("@\(username)")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.6))
                     }
                 }
-                .foregroundColor(isFollowing ? .white : .white)
-                .frame(width: 90, height: 28)
-                .background(isFollowing ? Color.white.opacity(0.15) : Color(red: 0.0, green: 0.55, blue: 0.75))
-                .cornerRadius(6)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isFollowing ? Color.white.opacity(0.3) : Color.clear, lineWidth: 1)
-                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                // Follow button (aligned with display name)
+                Button(action: {
+                    SecureLogger.shared.info("SearchResultRow: Follow button tapped")
+                    Task {
+                        await toggleFollow()
+                    }
+                }) {
+                    let buttonText = isFollowing ? "Following" : "Follow"
+                    let _ = SecureLogger.shared.info("SearchResultRow: Button text = \(buttonText)")
+
+                    HStack(spacing: 4) {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .scaleEffect(0.7)
+                        } else {
+                            Text(buttonText)
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .frame(height: 28)
+                    .background(isFollowing ? Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0) : Color(red: 0.0, green: 0.55, blue: 0.75))
+                    .cornerRadius(6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                    )
+                }
+                .disabled(isLoading)
             }
-            .disabled(isLoading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .onAppear {
+            SecureLogger.shared.info("SearchResultRow: onAppear called for user: \(user.id)")
             Task {
                 await checkFollowStatus()
             }
@@ -310,33 +298,53 @@ struct SearchResultRow: View {
 
     private func checkFollowStatus() async {
         isLoading = true
+        SecureLogger.shared.info("SearchResultRow: Checking follow status for userId: \(user.id)")
         let status = await SupabaseService.shared.isFollowing(userId: user.id)
+        SecureLogger.shared.info("SearchResultRow: Follow status result: \(status)")
         await MainActor.run {
             isFollowing = status
             isLoading = false
+            SecureLogger.shared.info("SearchResultRow: UI updated - isFollowing: \(isFollowing)")
         }
     }
 
     private func toggleFollow() async {
         isLoading = true
+        SecureLogger.shared.info("SearchResultRow: toggleFollow called - current state: \(isFollowing ? "Following" : "Not Following")")
 
         if isFollowing {
+            SecureLogger.shared.info("SearchResultRow: Attempting to unfollow user: \(user.id)")
             let success = await SupabaseService.shared.unfollowUser(userId: user.id)
-            await MainActor.run {
-                if success {
+            SecureLogger.shared.info("SearchResultRow: Unfollow result: \(success)")
+            if success {
+                await MainActor.run {
                     isFollowing = false
+                    isLoading = false
                 }
-                isLoading = false
+            } else {
+                await MainActor.run {
+                    isLoading = false
+                }
             }
         } else {
+            SecureLogger.shared.info("SearchResultRow: Attempting to follow user: \(user.id)")
             let success = await SupabaseService.shared.followUser(userId: user.id)
-            await MainActor.run {
-                if success {
+            SecureLogger.shared.info("SearchResultRow: Follow result: \(success)")
+            if success {
+                await MainActor.run {
                     isFollowing = true
+                    isLoading = false
                 }
-                isLoading = false
+            } else {
+                await MainActor.run {
+                    isLoading = false
+                }
             }
         }
+
+        // Re-check follow status to ensure UI is in sync
+        SecureLogger.shared.info("SearchResultRow: Re-checking follow status after toggle")
+        await checkFollowStatus()
     }
 }
 

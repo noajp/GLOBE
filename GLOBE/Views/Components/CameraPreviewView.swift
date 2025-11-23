@@ -1,3 +1,10 @@
+//======================================================================
+// MARK: - CameraPreviewView.swift
+// Function: Camera Preview View
+// Overview: Full-screen camera preview with capture and flip controls
+// Processing: Display camera feed → Handle capture button → Allow camera flip → Return captured image
+//======================================================================
+
 import SwiftUI
 import AVFoundation
 import UIKit

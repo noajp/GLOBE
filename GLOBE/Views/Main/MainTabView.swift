@@ -1,8 +1,6 @@
 import SwiftUI
-import UIKit
 import MapKit
 import CoreLocation
-import Combine
 
 struct MainTabView: View {
     @StateObject private var authManager = AuthManager.shared
@@ -236,43 +234,6 @@ struct MainTabView: View {
                 }
             }
         }
-        // TEMPORARILY DISABLED ALL ASYNC TASKS FOR CRASH DEBUGGING
-        // .task {
-        //     // 定期的なセキュリティチェック（バックグラウンドで実行）
-        //     await performPeriodicSecurityChecks()
-        // }
-        // .task {
-        //     // 認証済みユーザーのセッション検証
-        //     guard authManager.isAuthenticated else { return }
-        //
-        //     do {
-        //         let isValidSession = (try? await authManager.validateSession()) ?? false
-        //         if !isValidSession {
-        //             await MainActor.run {
-        //                 showingAuth = true
-        //             }
-        //             return
-        //         }
-        //         // 最初の投稿取得はUI表示後に遅延して実行（起動体感を軽く）
-        //         try await Task.sleep(nanoseconds: 200_000_000)
-        //         await mapManager.fetchInitialPostsIfNeeded()
-        //     } catch {
-        //         SecureLogger.shared.error("Failed to initialize user session: \(error)")
-        //     }
-        // }
-        // .task {
-        //     // Watch for delayed post creation trigger
-        //     while !Task.isCancelled {
-        //         if shouldShowPostAfterDelay {
-        //             try? await Task.sleep(nanoseconds: 500_000_000)
-        //             if !Task.isCancelled {
-        //                 showingCreatePost = true
-        //                 shouldShowPostAfterDelay = false
-        //             }
-        //         }
-        //         try? await Task.sleep(nanoseconds: 100_000_000) // Check every 0.1 seconds
-        //     }
-        // }
         .onDisappear {
             // NotificationCenter observersをクリーンアップ
             for observer in notificationObservers {
@@ -287,28 +248,12 @@ struct MainTabView: View {
 
 extension MainTabView {
     // TEMPORARILY DISABLED FOR CRASH DEBUGGING
-    // // MARK: - Post at Current Location
-    // @MainActor
-    // private func moveToCurrentLocationAndPost() {
-    //     let locationManager = CLLocationManager()
-    //     let status = locationManager.authorizationStatus
-    //
-    //     guard status == .authorizedWhenInUse || status == .authorizedAlways else {
-    //         if status == .notDetermined {
-    //             locationManager.requestWhenInUseAuthorization()
-    //         }
-    //         return
-    //     }
-    //
-    //     if let currentLocation = locationManager.location?.coordinate {
-    //         mapManager.focusOnLocation(currentLocation)
-    //
-    //         // Trigger delayed post creation via state change
-    //         shouldShowPostAfterDelay = true
-    //     }
-    // }
-
+    //###########################################################################
     // MARK: - Location Permission Check
+    // Function: checkLocationPermission
+    // Overview: Verify and request location access permissions
+    // Processing: Check CLAuthorizationStatus and request if needed
+    //###########################################################################
     private func checkLocationPermission() {
         let locationManager = CLLocationManager()
         let status = locationManager.authorizationStatus
@@ -325,92 +270,12 @@ extension MainTabView {
         }
     }
     
-    // TEMPORARILY DISABLED FOR CRASH DEBUGGING
-    // /// アプリ起動時のセキュリティチェック
-    // private func performSecurityChecks() {
-    //     SecureLogger.shared.info("Performing app startup security checks")
-    //
-    //     // デバイスセキュリティチェック
-    //     let deviceInfo = authManager.getDeviceSecurityInfo()
-    //     let deviceInfoStrings: [String: String] = deviceInfo.reduce(into: [:]) { dict, pair in
-    //         dict[pair.key] = String(describing: pair.value)
-    //     }
-    //
-    //     // Jailbreak検出
-    //     if (deviceInfo["is_jailbroken"] as? Bool) == true {
-    //         authManager.reportSecurityEvent(
-    //             "jailbreak_detected",
-    //             severity: .critical,
-    //             details: deviceInfoStrings
-    //         )
-    //     }
-    //
-    //     // シミュレータ検出（本番では警告）
-    //     #if !DEBUG
-    //     if (deviceInfo["is_simulator"] as? Bool) == true {
-    //         authManager.reportSecurityEvent(
-    //             "simulator_detected_in_production",
-    //             severity: .high,
-    //             details: deviceInfoStrings
-    //         )
-    //     }
-    //     #endif
-    //
-    //     // アプリバージョンチェック
-    //     checkAppVersionSecurity()
-    //
-    //     SecureLogger.shared.info("App startup security checks completed")
-    // }
-    
-    // TEMPORARILY DISABLED FOR CRASH DEBUGGING
-    // /// 定期的なセキュリティチェック
-    // private func performPeriodicSecurityChecks() async {
-    //     while !Task.isCancelled {
-    //         // 5分ごとにセキュリティチェックを実行
-    //         do {
-    //             try await Task.sleep(nanoseconds: 300_000_000_000) // 5分
-    //         } catch {
-    //             // Task was cancelled, exit gracefully
-    //             break
-    //         }
-    //
-    //         guard authManager.isAuthenticated && !Task.isCancelled else { continue }
-    //
-    //         SecureLogger.shared.debug("Performing periodic security checks")
-    //
-    //         // Task cancellation check
-    //         guard !Task.isCancelled else { break }
-    //
-    //         // セッション妥当性チェック
-    //         let isValidSession = (try? await authManager.validateSession()) ?? false
-    //         if !isValidSession {
-    //             SecureLogger.shared.securityEvent("Periodic session validation failed")
-    //             await MainActor.run {
-    //                 showingAuth = true
-    //             }
-    //             break
-    //         }
-    //
-    //         // Task cancellation check
-    //         guard !Task.isCancelled else { break }
-    //
-    //         // デバイス状態チェック
-    //         let currentDeviceInfo = authManager.getDeviceSecurityInfo()
-    //         let currentDeviceInfoStrings: [String: String] = currentDeviceInfo.reduce(into: [:]) { dict, pair in
-    //             dict[pair.key] = String(describing: pair.value)
-    //         }
-    //         if (currentDeviceInfo["is_jailbroken"] as? Bool) == true {
-    //             authManager.reportSecurityEvent(
-    //                 "runtime_jailbreak_detected",
-    //                 severity: .critical,
-    //                 details: currentDeviceInfoStrings
-    //             )
-    //             break
-    //         }
-    //     }
-    // }
-    
-    /// アプリバージョンセキュリティチェック
+    //###########################################################################
+    // MARK: - App Version Security
+    // Function: checkAppVersionSecurity
+    // Overview: Verify app version integrity and detect tampering
+    // Processing: Check bundle version, build number, and signature
+    //###########################################################################
     private func checkAppVersionSecurity() {
         guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else {
             SecureLogger.shared.securityEvent("Unable to determine app version")

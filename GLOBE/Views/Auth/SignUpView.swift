@@ -1,5 +1,11 @@
+//======================================================================
+// MARK: - SignUpView.swift
+// Function: Sign Up View
+// Overview: User registration with email, password, display name, and username
+// Processing: Collect user input → Validate fields → Check username availability → Call AuthManager → Handle registration result
+//======================================================================
+
 import SwiftUI
-import Combine
 import Supabase
 
 struct SignUpView: View {
@@ -288,6 +294,13 @@ struct SignUpView: View {
         }
     }
     
+    //###########################################################################
+    // MARK: - Username Availability Check
+    // Function: checkUsernameAvailability
+    // Overview: Verify if username is unique in the database
+    // Processing: Validate length → Query profiles table → Update availability state
+    //###########################################################################
+
     private func checkUsernameAvailability() async {
         // Reset if username is empty
         guard !username.isEmpty else {
@@ -321,6 +334,13 @@ struct SignUpView: View {
             usernameAvailable = nil
         }
     }
+
+    //###########################################################################
+    // MARK: - Sign Up Handler
+    // Function: signUp
+    // Overview: Process user registration with validated credentials
+    // Processing: Validate username → Call AuthManager sign up → Handle success/error → Dismiss on success
+    //###########################################################################
 
     private func signUp() async {
         ConsoleLogger.shared.forceLog("SignUpView: Starting sign up for \(email)")
