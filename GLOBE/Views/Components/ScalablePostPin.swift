@@ -20,9 +20,9 @@ struct ScalablePostPin: View {
     private let cardCornerRadius: CGFloat = 8
     let post: Post
     let mapSpan: Double
-    @StateObject private var commentService = CommentService.shared
-    @StateObject private var likeService = LikeService.shared
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var commentService: CommentService
+    @EnvironmentObject var likeService: LikeService
+    @EnvironmentObject var authManager: AuthManager
     @State private var showingUserProfile = false
     @State private var showingImageViewer = false
     @State private var showingComments = false

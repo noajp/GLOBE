@@ -18,9 +18,9 @@ import UIKit
 
 struct PostCard: View {
     let post: Post
-    @StateObject private var likeService = LikeService.shared
-    @StateObject private var commentService = CommentService.shared
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var likeService: LikeService
+    @EnvironmentObject var commentService: CommentService
+    @EnvironmentObject var authManager: AuthManager
     @State private var showingUserProfile = false
     @State private var showingComments = false
 

@@ -7,7 +7,7 @@
 import SwiftUI
 
 struct PrivacySettingsView: View {
-    @StateObject private var appSettings = AppSettings.shared
+    @EnvironmentObject var appSettings: AppSettings
 
     var body: some View {
         ZStack {

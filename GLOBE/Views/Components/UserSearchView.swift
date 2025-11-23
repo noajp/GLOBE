@@ -7,7 +7,7 @@ import SwiftUI
 
 struct UserSearchView: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
     @State private var searchText = ""
     @State private var searchResults: [UserProfile] = []
     @State private var isSearching = false

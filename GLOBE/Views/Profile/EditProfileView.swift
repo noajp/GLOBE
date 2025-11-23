@@ -18,7 +18,7 @@ import UIKit
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = MyPageViewModel()
-    @StateObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
     
     @State private var displayName = ""
     @State private var bio = ""

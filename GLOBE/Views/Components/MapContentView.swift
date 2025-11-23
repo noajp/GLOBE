@@ -15,7 +15,7 @@ struct MapContentView: View {
     @ObservedObject var locationManager: MapLocationService
     @ObservedObject var postManager: PostManager
     @ObservedObject var authManager: AuthManager
-    @StateObject private var appSettings = AppSettings.shared
+    @EnvironmentObject var appSettings: AppSettings
 
     @Binding var showingCreatePost: Bool
     @Binding var shouldMoveToCurrentLocation: Bool

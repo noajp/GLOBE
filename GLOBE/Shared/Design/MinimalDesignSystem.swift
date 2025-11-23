@@ -37,25 +37,34 @@ extension Color {
 // MARK: - Minimal Design System
 struct MinimalDesign {
     
-    // MARK: - Colors (Dark/Light Mode adaptive)
+    // MARK: - Colors (Dark Theme)
     struct Colors {
-        // Custom dark background #121212
-        static let background = Color(hex: "121212")
-        static let secondaryBackground = Color(hex: "1E1E1E")
-        static let tertiaryBackground = Color(hex: "2C2C2C")
+        // Background colors
+        static let background = Color(hex: "121212") // Main background
+        static let secondaryBackground = Color(hex: "1E1E1E") // Card background
+        static let tertiaryBackground = Color(hex: "2C2C2C") // Input fields
 
-        // Adaptive text colors - white in dark mode, black in light mode
-        static let primary = Color(.label)
-        static let secondary = Color(.secondaryLabel)
-        static let tertiary = Color(.tertiaryLabel)
+        // Text colors (white-based for dark theme)
+        static let text = Color.white // Primary text
+        static let textSecondary = Color.white.opacity(0.7) // Secondary text
+        static let textTertiary = Color.white.opacity(0.5) // Tertiary text/icons
+        static let textDisabled = Color.white.opacity(0.3) // Disabled state
 
-        static let accent = Color(.systemBlue)
-        static let accentRed = Color(red: 0.949, green: 0.098, blue: 0.020) // Custom GLOBE red #F21905
-        static let destructive = Color(.systemRed)
-        static let success = Color(.systemGreen)
+        // Legacy aliases for backward compatibility
+        static let primary = Color.white // Was Color(.label)
+        static let secondary = Color.white.opacity(0.7) // Was Color(.secondaryLabel)
+        static let tertiary = Color.white.opacity(0.5) // Was Color(.tertiaryLabel)
 
-        static let border = Color(.separator)
-        static let divider = Color(.opaqueSeparator)
+        // Accent colors
+        static let accent = Color(red: 0.0, green: 0.55, blue: 0.75) // Blue accent
+        static let accentRed = Color(red: 0.949, green: 0.098, blue: 0.020) // GLOBE red #F21905
+        static let destructive = Color.red
+        static let success = Color.green
+
+        // UI elements
+        static let border = Color.white.opacity(0.3) // Borders and strokes
+        static let divider = Color.white.opacity(0.1) // Dividers
+        static let overlay = Color.white.opacity(0.15) // Semi-transparent overlays
     }
     
     // MARK: - Typography

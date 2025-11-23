@@ -23,10 +23,11 @@ enum FollowListType {
 struct FollowListView: View {
     let userId: String
     let listType: FollowListType
+    @Binding var selectedUserIdForProfile: String?
 
     @StateObject private var viewModel = FollowListViewModel()
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,10 +36,10 @@ struct FollowListView: View {
                 VStack {
                     Spacer()
                     ProgressView()
-                        .tint(MinimalDesign.Colors.primary)
+                        .tint(MinimalDesign.Colors.text)
                     Text("Loading...")
                         .font(.caption)
-                        .foregroundColor(MinimalDesign.Colors.secondary)
+                        .foregroundColor(MinimalDesign.Colors.textSecondary)
                         .padding(.top, 8)
                     Spacer()
                 }
@@ -47,14 +48,14 @@ struct FollowListView: View {
                     Spacer()
                     Image(systemName: listType == .followers ? "person.crop.circle" : "person.crop.circle.badge.plus")
                         .font(.system(size: 48))
-                        .foregroundColor(MinimalDesign.Colors.tertiary)
+                        .foregroundColor(MinimalDesign.Colors.textTertiary)
                     Text("No \(listType.title.lowercased()) yet")
                         .font(.title3)
                         .fontWeight(.medium)
-                        .foregroundColor(MinimalDesign.Colors.primary)
+                        .foregroundColor(MinimalDesign.Colors.text)
                     Text(listType == .followers ? "When people follow this account, they'll appear here." : "When this account follows people, they'll appear here.")
                         .font(.body)
-                        .foregroundColor(MinimalDesign.Colors.secondary)
+                        .foregroundColor(MinimalDesign.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
                     Spacer()
@@ -63,11 +64,14 @@ struct FollowListView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(viewModel.users, id: \.id) { user in
-                            FollowUserRow(user: user, initialFollowState: listType == .following)
+                            NavigationLink(destination: UserProfileNavigationView(userId: user.id, userName: user.displayName ?? "User")) {
+                                FollowUserRow(user: user, initialFollowState: listType == .following)
+                            }
+                            .buttonStyle(PlainButtonStyle())
 
                             if user.id != viewModel.users.last?.id {
                                 Divider()
-                                    .background(MinimalDesign.Colors.border)
+                                    .background(MinimalDesign.Colors.divider)
                                     .padding(.leading, 70)
                             }
                         }
@@ -79,6 +83,8 @@ struct FollowListView: View {
         .background(MinimalDesign.Colors.background)
         .navigationTitle(listType.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(MinimalDesign.Colors.background, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear {
             Task {
                 await viewModel.loadUsers(userId: userId, listType: listType)
@@ -98,7 +104,7 @@ struct FollowUserRow: View {
     @State private var isFollowing = false
     @State private var isLoading = false
     @State private var hasCheckedFollowStatus = false
-    @StateObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
 
     private var isCurrentUser: Bool {
         user.id.lowercased() == authManager.currentUser?.id.lowercased()
@@ -114,7 +120,7 @@ struct FollowUserRow: View {
         HStack(spacing: 12) {
             // Profile Avatar
             Circle()
-                .fill(MinimalDesign.Colors.secondaryBackground)
+                .fill(MinimalDesign.Colors.overlay)
                 .frame(width: 50, height: 50)
                 .overlay(
                     Group {
@@ -126,11 +132,12 @@ struct FollowUserRow: View {
                                     .clipShape(Circle())
                             } placeholder: {
                                 ProgressView()
+                                    .tint(MinimalDesign.Colors.text)
                             }
                         } else {
                             Text(user.displayName?.prefix(1).uppercased() ?? "?")
                                 .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(MinimalDesign.Colors.tertiary)
+                                .foregroundColor(MinimalDesign.Colors.text)
                         }
                     }
                 )
@@ -140,14 +147,14 @@ struct FollowUserRow: View {
                 if let displayName = user.displayName {
                     Text(displayName)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(MinimalDesign.Colors.primary)
+                        .foregroundColor(MinimalDesign.Colors.text)
                         .lineLimit(1)
                 }
 
                 if let bio = user.bio, !bio.isEmpty {
                     Text(bio)
                         .font(.system(size: 14))
-                        .foregroundColor(MinimalDesign.Colors.secondary)
+                        .foregroundColor(MinimalDesign.Colors.textSecondary)
                         .lineLimit(1)
                 }
             }
@@ -160,20 +167,20 @@ struct FollowUserRow: View {
                     HStack {
                         if isLoading {
                             ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: isFollowing ? MinimalDesign.Colors.primary : .white))
+                                .progressViewStyle(CircularProgressViewStyle(tint: MinimalDesign.Colors.text))
                                 .scaleEffect(0.8)
                         } else {
                             Text(isFollowing ? "Following" : "Follow")
                                 .font(.system(size: 14, weight: .semibold))
                         }
                     }
-                    .foregroundColor(isFollowing ? MinimalDesign.Colors.primary : .white)
+                    .foregroundColor(MinimalDesign.Colors.text)
                     .frame(width: 90, height: 28)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(isFollowing ? Color.clear : Color(red: 0.0, green: 0.55, blue: 0.75))
+                        RoundedRectangle(cornerRadius: MinimalDesign.Radius.sm)
+                            .fill(isFollowing ? Color.clear : MinimalDesign.Colors.accent)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: MinimalDesign.Radius.sm)
                                     .stroke(isFollowing ? MinimalDesign.Colors.border : Color.clear, lineWidth: 1)
                             )
                     )
@@ -234,8 +241,34 @@ class FollowListViewModel: ObservableObject {
     }
 }
 
+// MARK: - User Profile Navigation View
+// A simplified version of UserProfileView for use within NavigationStack
+struct UserProfileNavigationView: View {
+    let userId: String
+    let userName: String
+    @EnvironmentObject var authManager: AuthManager
+
+    var body: some View {
+        ZStack {
+            // Background layer (solid black #121212)
+            MinimalDesign.Colors.background
+                .ignoresSafeArea()
+
+            // Embed TabBarProfileView with userId parameter
+            TabBarProfileView(userId: userId, selectedUserIdForProfile: .constant(nil))
+        }
+        .navigationTitle(userName)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(MinimalDesign.Colors.background, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .onAppear {
+            SecureLogger.shared.info("UserProfileNavigationView: Displaying profile for userId: \(userId), userName: \(userName)")
+        }
+    }
+}
+
 #Preview {
     NavigationStack {
-        FollowListView(userId: "test-user-id", listType: .followers)
+        FollowListView(userId: "test-user-id", listType: .followers, selectedUserIdForProfile: .constant(nil))
     }
 }

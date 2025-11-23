@@ -8,43 +8,92 @@ import SwiftUI
 struct SettingsView: View {
     @Binding var isPresented: Bool
     @Binding var showingAuth: Bool
-    @StateObject private var authManager = AuthManager.shared
-    @StateObject private var appSettings = AppSettings.shared
-    
+    @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var appSettings: AppSettings
+
     var body: some View {
         ScrollView {
             VStack(spacing: MinimalDesign.Spacing.lg) {
-                // Privacy Section
-                VStack(alignment: .leading, spacing: MinimalDesign.Spacing.md) {
-                    NavigationLink(destination: PrivacySettingsView()) {
-                        HStack(spacing: MinimalDesign.Spacing.md) {
-                            Image(systemName: "lock.circle")
-                                .font(.system(size: 20))
-                                .foregroundColor(MinimalDesign.Colors.primary)
-                                .frame(width: 24)
-
-                            Text("Privacy")
-                                .font(.system(size: 16))
-                                .foregroundColor(MinimalDesign.Colors.primary)
-
-                            Spacer()
-
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14))
-                                .foregroundColor(MinimalDesign.Colors.tertiary)
+                // Account Section
+                if authManager.isAuthenticated {
+                    SectionHeader(title: "Account")
+                    VStack(alignment: .leading, spacing: 0) {
+                        NavigationLink(destination: AccountSettingsView()) {
+                            SettingsRow(icon: "person.circle", title: "Account Settings")
                         }
-                        .padding(.vertical, MinimalDesign.Spacing.sm)
+                        Divider().padding(.leading, 48)
+
+                        NavigationLink(destination: DataManagementView()) {
+                            SettingsRow(icon: "externaldrive", title: "Data Management")
+                        }
                     }
-                    .buttonStyle(PlainButtonStyle())
                 }
 
-                // App Section
-                VStack(alignment: .leading, spacing: MinimalDesign.Spacing.md) {
-                    SettingsItem(
-                        icon: "questionmark.circle",
-                        title: "Help",
-                        action: {}
-                    )
+                // Privacy & Safety Section
+                SectionHeader(title: "Privacy & Safety")
+                VStack(alignment: .leading, spacing: 0) {
+                    NavigationLink(destination: PrivacySettingsView()) {
+                        SettingsRow(icon: "lock.circle", title: "Privacy Settings")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: LocationSettingsView()) {
+                        SettingsRow(icon: "location.circle", title: "Location Settings")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: BlockedUsersView()) {
+                        SettingsRow(icon: "hand.raised.circle", title: "Blocked Users")
+                    }
+                }
+
+                // Legal Section
+                SectionHeader(title: "Legal")
+                VStack(alignment: .leading, spacing: 0) {
+                    NavigationLink(destination: TermsOfServiceView()) {
+                        SettingsRow(icon: "doc.text", title: "Terms of Service")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: PrivacyPolicyView()) {
+                        SettingsRow(icon: "hand.raised.circle", title: "Privacy Policy")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: CommunityGuidelinesView()) {
+                        SettingsRow(icon: "person.3", title: "Community Guidelines")
+                    }
+                }
+
+                // Support Section
+                SectionHeader(title: "Support")
+                VStack(alignment: .leading, spacing: 0) {
+                    NavigationLink(destination: HelpCenterView()) {
+                        SettingsRow(icon: "questionmark.circle", title: "Help Center")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: ContactSupportView()) {
+                        SettingsRow(icon: "envelope", title: "Contact Support")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: ReportProblemView()) {
+                        SettingsRow(icon: "exclamationmark.bubble", title: "Report a Problem")
+                    }
+                }
+
+                // About Section
+                SectionHeader(title: "About")
+                VStack(alignment: .leading, spacing: 0) {
+                    NavigationLink(destination: AboutView()) {
+                        SettingsRow(icon: "info.circle", title: "About GLOBE")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: LicensesView()) {
+                        SettingsRow(icon: "doc.plaintext", title: "Open Source Licenses")
+                    }
                 }
 
                 // Sign In / Sign Out
@@ -97,32 +146,45 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Settings Item
-struct SettingsItem: View {
+// MARK: - Section Header
+struct SectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(MinimalDesign.Colors.textSecondary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, MinimalDesign.Spacing.md)
+            .padding(.top, MinimalDesign.Spacing.md)
+    }
+}
+
+// MARK: - Settings Row
+struct SettingsRow: View {
     let icon: String
     let title: String
-    let action: () -> Void
-    
+
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: MinimalDesign.Spacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(MinimalDesign.Colors.primary)
-                    .frame(width: 24)
-                
-                Text(title)
-                    .font(.system(size: 16))
-                    .foregroundColor(MinimalDesign.Colors.primary)
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundColor(MinimalDesign.Colors.tertiary)
-            }
-            .padding(.vertical, MinimalDesign.Spacing.sm)
+        HStack(spacing: MinimalDesign.Spacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(MinimalDesign.Colors.text)
+                .frame(width: 24)
+
+            Text(title)
+                .font(.system(size: 16))
+                .foregroundColor(MinimalDesign.Colors.text)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundColor(MinimalDesign.Colors.textTertiary)
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.vertical, 12)
+        .padding(.horizontal, MinimalDesign.Spacing.md)
+        .background(MinimalDesign.Colors.background)
     }
 }

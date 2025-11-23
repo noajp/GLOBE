@@ -3,11 +3,11 @@ import MapKit
 import CoreLocation
 
 struct MainTabView: View {
-    @StateObject private var authManager = AuthManager.shared
-    @StateObject private var postManager = PostManager.shared
+    @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var postManager: PostManager
+    @EnvironmentObject var appSettings: AppSettings
     @StateObject private var mapManager = MapManager()
     @StateObject private var locationManager = MapLocationService()
-    @StateObject private var appSettings = AppSettings.shared
     @State private var showingCreatePost = false
     @State private var showingAuth = false
     @State private var showingProfile = false
@@ -133,7 +133,7 @@ struct MainTabView: View {
                     }
 
                 NavigationStack {
-                    TabBarProfileView()
+                    TabBarProfileView(selectedUserIdForProfile: $selectedUserIdForProfile)
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
@@ -190,8 +190,27 @@ struct MainTabView: View {
             SignInView()
         }
         .onChange(of: selectedUserIdForProfile) { _, newValue in
+            SecureLogger.shared.info("selectedUserIdForProfile changed to: \(newValue ?? "nil")")
             if newValue != nil {
+                SecureLogger.shared.info("Opening user profile for: \(newValue!)")
+                // Dismiss profile overlay if it's showing
+                if showingProfile {
+                    SecureLogger.shared.info("Dismissing profile overlay before showing user profile")
+                    showingProfile = false
+                }
+                // Dismiss search overlay if it's showing
+                if showingSearch {
+                    SecureLogger.shared.info("Dismissing search overlay before showing user profile")
+                    showingSearch = false
+                }
                 showingUserProfile = true
+            }
+        }
+        .onChange(of: showingUserProfile) { _, isShowing in
+            // Reset selectedUserIdForProfile when user profile is dismissed
+            if !isShowing {
+                SecureLogger.shared.info("UserProfile dismissed, resetting selectedUserIdForProfile")
+                selectedUserIdForProfile = nil
             }
         }
         .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in

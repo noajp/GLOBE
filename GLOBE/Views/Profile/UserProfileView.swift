@@ -11,23 +11,18 @@ struct UserProfileView: View {
     let userName: String
     let userId: String
     @Binding var isPresented: Bool
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
 
     var body: some View {
-        print("🔍 UserProfileView body: userId=\(userId), userName=\(userName)")
-        return NavigationStack {
+        NavigationStack {
             ZStack {
                 // Background layer (solid black #121212)
-                Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
+                MinimalDesign.Colors.background
                     .ignoresSafeArea()
 
                 // Embed TabBarProfileView with userId parameter
                 // It will handle loading and displaying the profile
                 TabBarProfileView(userId: userId)
-                    .onAppear {
-                        print("🔍 UserProfileView onAppear: userId=\(userId)")
-                        SecureLogger.shared.info("UserProfileView: Displaying profile for userId: \(userId), currentUserId: \(authManager.currentUser?.id ?? "none")")
-                    }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -37,10 +32,15 @@ struct UserProfileView: View {
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
+                            .foregroundColor(MinimalDesign.Colors.text)
                     }
                 }
             }
+            .toolbarBackground(MinimalDesign.Colors.background, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+        }
+        .onAppear {
+            SecureLogger.shared.info("UserProfileView: Displaying profile for userId: \(userId), userName: \(userName)")
         }
     }
 }

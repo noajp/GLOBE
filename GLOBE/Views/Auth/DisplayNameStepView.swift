@@ -15,7 +15,7 @@ struct DisplayNameStepView: View {
 
     @State private var showError = false
     @State private var errorMessage = ""
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
 
     var body: some View {
         VStack(spacing: 0) {

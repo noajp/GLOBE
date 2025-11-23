@@ -3,6 +3,13 @@ import os.log
 
 @main
 struct GlobeApp: App {
+    // MARK: - Environment Objects (Shared Singletons)
+    @StateObject private var authManager = AuthManager.shared
+    @StateObject private var postManager = PostManager.shared
+    @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var likeService = LikeService.shared
+    @StateObject private var commentService = CommentService.shared
+
     init() {
         // ConsoleLoggerを初期化（本番は静かに）
         let consoleLogger = ConsoleLogger.shared
@@ -62,20 +69,41 @@ struct GlobeApp: App {
             supabaseAnonKey = key
         }
 
-        // Secrets.plistから試行
-        if supabaseURL == nil,
-           let secretsURL = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
-           let secretsData = try? Data(contentsOf: secretsURL),
-           let secrets = try? PropertyListSerialization.propertyList(from: secretsData, format: nil) as? [String: Any] {
-            if let url = secrets["SUPABASE_URL"] as? String,
-               let key = secrets["SUPABASE_ANON_KEY"] as? String {
-                supabaseURL = url
-                supabaseAnonKey = key
+        // Secrets.plistから試行（複数の場所を確認）
+        if supabaseURL == nil {
+            // プロジェクトルートのSecrets.plistを試行
+            let projectRoot = URL(fileURLWithPath: #file)
+                .deletingLastPathComponent() // App
+                .deletingLastPathComponent() // GLOBE
+                .deletingLastPathComponent() // プロジェクトルート
+            let secretsPath = projectRoot.appendingPathComponent("Secrets.plist")
+
+            if let secretsData = try? Data(contentsOf: secretsPath),
+               let secrets = try? PropertyListSerialization.propertyList(from: secretsData, format: nil) as? [String: Any] {
+                if let url = secrets["SUPABASE_URL"] as? String,
+                   let key = secrets["SUPABASE_ANON_KEY"] as? String {
+                    supabaseURL = url
+                    supabaseAnonKey = key
+                    SecureLogger.shared.info("Loaded config from Secrets.plist at project root")
+                }
+            }
+
+            // バンドル内のSecrets.plistも試行
+            if supabaseURL == nil,
+               let secretsURL = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+               let secretsData = try? Data(contentsOf: secretsURL),
+               let secrets = try? PropertyListSerialization.propertyList(from: secretsData, format: nil) as? [String: Any] {
+                if let url = secrets["SUPABASE_URL"] as? String,
+                   let key = secrets["SUPABASE_ANON_KEY"] as? String {
+                    supabaseURL = url
+                    supabaseAnonKey = key
+                    SecureLogger.shared.info("Loaded config from Secrets.plist in bundle")
+                }
             }
         }
 
         guard let url = supabaseURL, let key = supabaseAnonKey else {
-            SecureLogger.shared.warning("Supabase configuration not found in Info.plist or Secrets.plist")
+            SecureLogger.shared.error("Supabase configuration not found in any location")
             return
         }
 
@@ -114,10 +142,15 @@ struct GlobeApp: App {
         }
     }
 
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(authManager)
+                .environmentObject(postManager)
+                .environmentObject(appSettings)
+                .environmentObject(likeService)
+                .environmentObject(commentService)
         }
     }
 }

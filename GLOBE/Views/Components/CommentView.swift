@@ -9,8 +9,8 @@ import CoreLocation
 
 struct CommentView: View {
     let post: Post
-    @StateObject private var commentService = CommentService.shared
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var commentService: CommentService
+    @EnvironmentObject var authManager: AuthManager
     @State private var newCommentText = ""
     @State private var isSubmitting = false
     @Environment(\.dismiss) private var dismiss

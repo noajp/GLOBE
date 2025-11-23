@@ -9,7 +9,7 @@ import CoreLocation
 
 struct PrivacySelectionView: View {
     @Binding var isPresented: Bool
-    @StateObject private var postManager = PostManager.shared
+    @EnvironmentObject var postManager: PostManager
     
     let postText: String
     let selectedImageData: Data?

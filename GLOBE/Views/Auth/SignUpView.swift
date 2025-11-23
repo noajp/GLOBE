@@ -19,7 +19,7 @@ struct SignUpView: View {
     @State private var errorMessage = ""
 
     @Environment(\.dismiss) var dismiss
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable {

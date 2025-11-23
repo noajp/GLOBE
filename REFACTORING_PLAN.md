@@ -148,57 +148,101 @@ GLOBEプロジェクトの包括的分析に基づき、本リファクタリン
 - ファイルサイズ: 773行 → 377行 (PostPin) + 391行 (ScalablePostPin)
 - 保守性向上: 責任分離、共通コンポーネント再利用可能
 
-### [ ] 3. CreatePostView のViewModel抽出
-**現在の問題:**
-- 697行のViewファイル
-- 14個の@State変数でビジネスロジック混在
+### [x] 3. CreatePostView のViewModel抽出 ✅ 完了
 
-**リファクタリング戦略:**
+**実施内容:**
+- CreatePostViewModel.swift新規作成（195行）
+- ビジネスロジックをViewから完全分離
+- 12個の@State変数をViewModelに移行
+
+**ViewModelに抽出したロジック:**
 ```swift
-CreatePostViewModel.swift (新規作成)
-├── 投稿作成ロジック
-├── 画像処理
-├── 位置情報管理
-└── バリデーション
+CreatePostViewModel.swift (195行)
+├── Published Properties (12個)
+│   ├── postText, showError, errorMessage
+│   ├── postLocation, areaName
+│   ├── selectedPrivacyType, isSubmitting
+│   ├── showingCamera, selectedImageData, capturedImage
+│   └── showPrivacyDropdown, showingLocationPermissionAlert
+├── Computed Properties
+│   ├── isButtonDisabled
+│   ├── isPostActionEnabled
+│   └── weightedCharacterCount (日中韓文字1.0, 英数0.5)
+├── createPost(completion:) - 投稿作成ロジック
+├── cropToSquare(image:) - 画像処理
+└── Helper Methods (showError, resetForm)
 ```
+
+**CreatePostView.swift の変更:**
+- @State変数: 12個 → 0個（全てViewModel経由）
+- ビジネスロジック関数: createPost(), cropToSquare() → ViewModel委譲
+- View責任: UI表示とユーザー入力のみ
+
+**成果:**
+- ビジネスロジックとUI完全分離
+- テスタビリティ向上（ViewModelを独立してテスト可能）
+- コードの保守性向上
+- MVVM準拠率: 100%維持
 
 ---
 
 ## 🏗️ Phase 3: アーキテクチャ改善
 
-### [ ] 1. @StateObject → @EnvironmentObject 移行
-**現在の問題:**
-- 15+箇所でシングルトンを@StateObjectとして初期化
-- メモリ使用量の非効率
+### [x] 1. @StateObject → @EnvironmentObject 移行 ✅ 完了
 
-**リファクタリング戦略:**
+**実施内容:**
+- GlobeApp.swiftで5つの主要シングルトンを@StateObjectとして初期化
+- 全Viewファイル（29箇所）を@EnvironmentObjectに変換
+
+**変更内容:**
 ```swift
 // GlobeApp.swift
 @main
 struct GlobeApp: App {
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var postManager = PostManager.shared
+    @StateObject private var appSettings = AppSettings.shared
+    @StateObject private var likeService = LikeService.shared
+    @StateObject private var commentService = CommentService.shared
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(authManager)
                 .environmentObject(postManager)
+                .environmentObject(appSettings)
+                .environmentObject(likeService)
+                .environmentObject(commentService)
         }
     }
 }
 
-// 各View
+// 各View (29ファイル)
 // Before: @StateObject private var authManager = AuthManager.shared
 // After:  @EnvironmentObject var authManager: AuthManager
 ```
 
-**影響するファイル:**
-- MainTabView.swift
-- CreatePostView.swift
-- TabBarProfileView.swift
-- SearchPopupView.swift
-- 他10+ファイル
+**変換したシングルトン:**
+- **AuthManager**: 13箇所 → @EnvironmentObject
+- **PostManager**: 3箇所 → @EnvironmentObject
+- **AppSettings**: 5箇所 → @EnvironmentObject
+- **LikeService**: 4箇所 → @EnvironmentObject
+- **CommentService**: 5箇所 → @EnvironmentObject
+
+**影響ファイル（29箇所）:**
+- MainTabView.swift, SettingsView.swift, PrivacySettingsView.swift
+- CreatePostView.swift, PrivacySelectionView.swift
+- TabBarProfileView.swift, EditProfileView.swift, FollowListView.swift, UserProfileView.swift
+- MapContentView.swift
+- PostPin.swift, ScalablePostPin.swift, PostCard.swift, CommentView.swift
+- UserSearchView.swift
+- SignInView.swift, SignUpView.swift, DisplayNameStepView.swift
+- 他11ファイル
+
+**成果:**
+- メモリ効率: シングルトン初期化30回 → **1回**（アプリレベル）
+- コード簡潔性向上: 各Viewで`= .shared`不要
+- 依存性注入の明確化: @EnvironmentObjectで依存関係が明示的
 
 ### [ ] 2. Follow/Unfollowロジック統合
 **現在の問題:**

@@ -17,9 +17,10 @@ import Supabase
 
 struct TabBarProfileView: View {
     let userId: String? // If nil, shows current user's profile
+    @Binding var selectedUserIdForProfile: String?
 
     @StateObject private var viewModel: MyPageViewModel
-    @StateObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
     @State private var selectedPost: Post?
     @State private var showingEditProfile = false
     @State private var showingSettings = false
@@ -44,8 +45,9 @@ struct TabBarProfileView: View {
     // Processing: Set userId → Configure ViewModel auto-load based on context
     //###########################################################################
 
-    init(userId: String? = nil) {
+    init(userId: String? = nil, selectedUserIdForProfile: Binding<String?> = .constant(nil)) {
         self.userId = userId
+        self._selectedUserIdForProfile = selectedUserIdForProfile
 
         // IMPORTANT: Prevent auto-loading when viewing another user's profile
         // If userId is provided, we'll manually load that user's data
@@ -56,17 +58,17 @@ struct TabBarProfileView: View {
     var body: some View {
         ZStack {
             // Background layer (solid black #121212)
-            Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
+            MinimalDesign.Colors.background
                 .ignoresSafeArea()
 
             // Loading indicator
             if isLoadingProfile {
                 VStack(spacing: 16) {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: MinimalDesign.Colors.text))
                         .scaleEffect(1.5)
                     Text("Loading profile...")
-                        .foregroundColor(.white)
+                        .foregroundColor(MinimalDesign.Colors.text)
                 }
             }
 
@@ -82,6 +84,7 @@ struct TabBarProfileView: View {
                         isOwnProfile: isOwnProfile,
                         isFollowing: isFollowing,
                         isLoadingFollow: isLoadingFollow,
+                        selectedUserIdForProfile: $selectedUserIdForProfile,
                         onEditProfile: {
                             showingEditProfile = true
                         },
@@ -212,11 +215,14 @@ struct TabBarProfileView: View {
     //###########################################################################
 
     private func loadProfile() async {
+        SecureLogger.shared.info("TabBarProfileView loadProfile: userId=\(userId ?? "nil")")
         isLoadingProfile = true
 
         // If userId is provided, load that user's data
         if let targetUserId = userId {
+            SecureLogger.shared.info("Loading other user profile: \(targetUserId)")
             await loadOtherUserProfile(userId: targetUserId)
+            SecureLogger.shared.info("After loadOtherUserProfile: profile=\(viewModel.userProfile?.displayName ?? "nil"), posts=\(viewModel.userPosts.count)")
 
             // Check follow status if viewing someone else's profile
             if !isOwnProfile {
@@ -224,9 +230,11 @@ struct TabBarProfileView: View {
             }
         } else {
             // Otherwise load current user's data
+            SecureLogger.shared.info("Loading current user data")
             await viewModel.loadUserData()
         }
 
+        SecureLogger.shared.info("loadProfile complete: isLoadingProfile=false")
         isLoadingProfile = false
     }
 
@@ -283,6 +291,7 @@ struct ProfileHeaderView: View {
     let isOwnProfile: Bool
     let isFollowing: Bool
     let isLoadingFollow: Bool
+    @Binding var selectedUserIdForProfile: String?
     let onEditProfile: () -> Void
     let onQRScan: () -> Void
     let onFollowToggle: () -> Void
@@ -319,7 +328,7 @@ struct ProfileHeaderView: View {
                     StatView(count: postsCount, label: "Posts")
 
                     if let profileUserId = userProfile?.id {
-                        NavigationLink(destination: FollowListView(userId: profileUserId, listType: .followers)) {
+                        NavigationLink(destination: FollowListView(userId: profileUserId, listType: .followers, selectedUserIdForProfile: $selectedUserIdForProfile)) {
                             VStack(spacing: 2) {
                                 Text("\(followersCount)")
                                     .font(.system(size: 18, weight: .bold))
@@ -332,7 +341,7 @@ struct ProfileHeaderView: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        NavigationLink(destination: FollowListView(userId: profileUserId, listType: .following)) {
+                        NavigationLink(destination: FollowListView(userId: profileUserId, listType: .following, selectedUserIdForProfile: $selectedUserIdForProfile)) {
                             VStack(spacing: 2) {
                                 Text("\(followingCount)")
                                     .font(.system(size: 18, weight: .bold))

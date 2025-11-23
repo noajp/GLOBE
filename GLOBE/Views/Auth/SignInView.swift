@@ -14,7 +14,7 @@ struct SignInView: View {
     @State private var showSignUp = false
 
     @Environment(\.dismiss) var dismiss
-    @ObservedObject private var authManager = AuthManager.shared
+    @EnvironmentObject var authManager: AuthManager
 
     // カスタムデザイン用の色定義
     private let customBlack = MinimalDesign.Colors.background
