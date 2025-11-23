@@ -28,20 +28,59 @@ struct GlobeApp: App {
     }
     
     private func initializeSupabaseConfig() {
-        // Supabase設定をInfo.plistから読み込んでKeychainに保存
+        // Supabase設定をKeychainに保存（起動時に一度だけ実行）
         let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
 
-        // Info.plistから読み込み
-        guard let supabaseURL = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
-              let supabaseAnonKey = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String,
-              !supabaseURL.isEmpty,
-              !supabaseAnonKey.isEmpty else {
-            SecureLogger.shared.warning("Supabase configuration not found in Info.plist")
+        // Keychainに既に保存されているかチェック
+        let checkQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "supabase_anon_key",
+            kSecAttrService as String: service,
+            kSecReturnData as String: false,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(checkQuery as CFDictionary, &result)
+
+        // 既に存在する場合はスキップ
+        if status == errSecSuccess {
+            SecureLogger.shared.info("Supabase credentials already in Keychain")
+            return
+        }
+
+        // 認証情報を取得（Info.plist → Secrets.plist の順）
+        var supabaseURL: String?
+        var supabaseAnonKey: String?
+
+        // Info.plistから試行
+        if let url = Bundle.main.infoDictionary?["SUPABASE_URL"] as? String,
+           let key = Bundle.main.infoDictionary?["SUPABASE_ANON_KEY"] as? String,
+           !url.hasPrefix("YOUR_SUPABASE_"),
+           !key.hasPrefix("YOUR_SUPABASE_") {
+            supabaseURL = url
+            supabaseAnonKey = key
+        }
+
+        // Secrets.plistから試行
+        if supabaseURL == nil,
+           let secretsURL = Bundle.main.url(forResource: "Secrets", withExtension: "plist"),
+           let secretsData = try? Data(contentsOf: secretsURL),
+           let secrets = try? PropertyListSerialization.propertyList(from: secretsData, format: nil) as? [String: Any] {
+            if let url = secrets["SUPABASE_URL"] as? String,
+               let key = secrets["SUPABASE_ANON_KEY"] as? String {
+                supabaseURL = url
+                supabaseAnonKey = key
+            }
+        }
+
+        guard let url = supabaseURL, let key = supabaseAnonKey else {
+            SecureLogger.shared.warning("Supabase configuration not found in Info.plist or Secrets.plist")
             return
         }
 
         // URLをKeychainに保存
-        let urlData = supabaseURL.data(using: .utf8)!
+        let urlData = url.data(using: .utf8)!
         let urlQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "supabase_url",
@@ -49,10 +88,16 @@ struct GlobeApp: App {
             kSecValueData as String: urlData
         ]
         SecItemDelete(urlQuery as CFDictionary)
-        SecItemAdd(urlQuery as CFDictionary, nil)
+        let urlStatus = SecItemAdd(urlQuery as CFDictionary, nil)
+
+        if urlStatus == errSecSuccess {
+            SecureLogger.shared.info("Supabase URL saved to Keychain")
+        } else {
+            SecureLogger.shared.error("Failed to save Supabase URL: \(urlStatus)")
+        }
 
         // Anon KeyをKeychainに保存
-        let keyData = supabaseAnonKey.data(using: .utf8)!
+        let keyData = key.data(using: .utf8)!
         let keyQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "supabase_anon_key",
@@ -60,7 +105,13 @@ struct GlobeApp: App {
             kSecValueData as String: keyData
         ]
         SecItemDelete(keyQuery as CFDictionary)
-        SecItemAdd(keyQuery as CFDictionary, nil)
+        let keyStatus = SecItemAdd(keyQuery as CFDictionary, nil)
+
+        if keyStatus == errSecSuccess {
+            SecureLogger.shared.info("Supabase Anon Key saved to Keychain")
+        } else {
+            SecureLogger.shared.error("Failed to save Supabase Anon Key: \(keyStatus)")
+        }
     }
 
     
