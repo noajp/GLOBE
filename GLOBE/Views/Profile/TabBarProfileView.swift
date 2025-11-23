@@ -1,11 +1,19 @@
 //======================================================================
 // MARK: - TabBarProfileView.swift
-// Purpose: Instagram-style profile view with photo grid (for own profile from tab bar)
-// Path: GLOBE/Views/Profile/TabBarProfileView.swift
+// Function: Tab Bar Profile View
+// Overview: Instagram-style profile with stats, photo grid, and follow functionality
+// Processing: Load profile → Display stats → Render post grid → Handle follow/edit actions
 //======================================================================
 
 import SwiftUI
 import Supabase
+
+//###########################################################################
+// MARK: - Tab Bar Profile View
+// Function: TabBarProfileView
+// Overview: Main profile view accessible from tab bar with own/other user support
+// Processing: Initialize ViewModel → Load user data → Display profile header → Show post grid → Handle interactions
+//###########################################################################
 
 struct TabBarProfileView: View {
     let userId: String? // If nil, shows current user's profile
@@ -29,6 +37,13 @@ struct TabBarProfileView: View {
         GridItem(.flexible(), spacing: 2)
     ]
 
+    //###########################################################################
+    // MARK: - Initialization
+    // Function: init
+    // Overview: Initialize profile view for own or other user
+    // Processing: Set userId → Configure ViewModel auto-load based on context
+    //###########################################################################
+
     init(userId: String? = nil) {
         self.userId = userId
 
@@ -36,8 +51,6 @@ struct TabBarProfileView: View {
         // If userId is provided, we'll manually load that user's data
         let shouldAutoLoad = (userId == nil)
         _viewModel = StateObject(wrappedValue: MyPageViewModel(shouldAutoLoad: shouldAutoLoad))
-
-        SecureLogger.shared.info("TabBarProfileView.init: userId=\(userId ?? "nil"), shouldAutoLoad=\(shouldAutoLoad)")
     }
 
     var body: some View {
@@ -186,38 +199,35 @@ struct TabBarProfileView: View {
     // Check if this is the current user's own profile
     private var isOwnProfile: Bool {
         guard let currentUserId = authManager.currentUser?.id else {
-            SecureLogger.shared.info("TabBarProfileView: No current user, showing as other's profile")
             return false
         }
-        let isOwn = userId == nil || userId?.lowercased() == currentUserId.lowercased()
-        SecureLogger.shared.info("TabBarProfileView: userId=\(userId ?? "nil"), currentUserId=\(currentUserId), isOwnProfile=\(isOwn)")
-        return isOwn
+        return userId == nil || userId?.lowercased() == currentUserId.lowercased()
     }
 
-    // Load profile data
+    //###########################################################################
+    // MARK: - Profile Loading
+    // Function: loadProfile
+    // Overview: Load profile data for current or specified user
+    // Processing: Check userId → Load own/other user data → Check follow status → Update loading state
+    //###########################################################################
+
     private func loadProfile() async {
-        SecureLogger.shared.info("TabBarProfileView: loadProfile started for userId: \(userId ?? "nil")")
         isLoadingProfile = true
 
         // If userId is provided, load that user's data
         if let targetUserId = userId {
-            SecureLogger.shared.info("TabBarProfileView: Loading other user's profile: \(targetUserId)")
             await loadOtherUserProfile(userId: targetUserId)
 
             // Check follow status if viewing someone else's profile
             if !isOwnProfile {
-                SecureLogger.shared.info("TabBarProfileView: Checking follow status for: \(targetUserId)")
                 isFollowing = await viewModel.isFollowing(userId: targetUserId)
-                SecureLogger.shared.info("TabBarProfileView: Follow status result: \(isFollowing)")
             }
         } else {
             // Otherwise load current user's data
-            SecureLogger.shared.info("TabBarProfileView: Loading current user's profile")
             await viewModel.loadUserData()
         }
 
         isLoadingProfile = false
-        SecureLogger.shared.info("TabBarProfileView: loadProfile completed - displayName: \(viewModel.userProfile?.displayName ?? "none")")
     }
 
     //###########################################################################
@@ -228,15 +238,19 @@ struct TabBarProfileView: View {
     //###########################################################################
 
     private func loadOtherUserProfile(userId: String) async {
-        SecureLogger.shared.info("TabBarProfileView: Loading profile for userId: \(userId)")
-
+        print("🔍 TabBarProfileView: loadOtherUserProfile called with userId: \(userId)")
         // Delegate to ViewModel - proper MVVM architecture
         await viewModel.loadOtherUserProfile(userId: userId)
-
-        SecureLogger.shared.info("TabBarProfileView: Profile loading complete")
+        print("🔍 TabBarProfileView: After load - profile: \(viewModel.userProfile?.displayName ?? "nil"), posts: \(viewModel.userPosts.count)")
     }
 
-    // Toggle follow/unfollow
+    //###########################################################################
+    // MARK: - Follow Actions
+    // Function: toggleFollow
+    // Overview: Toggle follow/unfollow status for viewed user
+    // Processing: Check if viewing other user → Call ViewModel follow/unfollow → Update UI state
+    //###########################################################################
+
     private func toggleFollow() async {
         guard let targetUserId = userId, !isOwnProfile else { return }
 
@@ -480,6 +494,13 @@ struct PhotoGridItem: View {
         }
         .aspectRatio(1, contentMode: .fit)
     }
+
+    //###########################################################################
+    // MARK: - UI Helper Views
+    // Function: placeholderView
+    // Overview: Display placeholder for posts without images
+    // Processing: Create colored rectangle with icon
+    //###########################################################################
 
     private func placeholderView(size: CGFloat) -> some View {
         Rectangle()

@@ -1,11 +1,19 @@
 //======================================================================
 // MARK: - EditProfileView.swift
-// Purpose: Custom profile editing interface
-// Path: GLOBE/Views/EditProfileView.swift
+// Function: Profile Editing View
+// Overview: Full-screen profile editor with avatar, display name, and bio
+// Processing: Load current profile → Allow photo/text editing → Validate input → Save to Supabase → Dismiss
 //======================================================================
 import SwiftUI
 import PhotosUI
 import UIKit
+
+//###########################################################################
+// MARK: - Edit Profile View
+// Function: EditProfileView
+// Overview: Navigation-based profile editing interface with photo picker and form validation
+// Processing: Initialize state → Load user data → Handle photo selection → Validate and save changes
+//###########################################################################
 
 struct EditProfileView: View {
     @Environment(\.dismiss) private var dismiss
@@ -201,6 +209,13 @@ struct EditProfileView: View {
         }
     }
     
+    //###########################################################################
+    // MARK: - Profile Placeholder
+    // Function: profilePlaceholder
+    // Overview: Default avatar placeholder when no image is set
+    // Processing: Create circle → Fill with secondary color → Add person icon
+    //###########################################################################
+
     private var profilePlaceholder: some View {
         Circle()
             .fill(MinimalDesign.Colors.secondary)
@@ -211,10 +226,17 @@ struct EditProfileView: View {
             )
     }
     
+    //###########################################################################
+    // MARK: - Profile Loading
+    // Function: loadCurrentProfile
+    // Overview: Load current user profile data on view appear
+    // Processing: Call ViewModel loadUserData → Extract profile fields → Populate form state
+    //###########################################################################
+
     private func loadCurrentProfile() {
         Task {
             await viewModel.loadUserData()
-            
+
             if let profile = viewModel.userProfile {
                 displayName = profile.displayName ?? ""
                 bio = profile.bio ?? ""
@@ -223,10 +245,17 @@ struct EditProfileView: View {
         }
     }
     
+    //###########################################################################
+    // MARK: - Profile Saving
+    // Function: saveProfile
+    // Overview: Validate and save profile changes to Supabase
+    // Processing: Validate inputs → Set loading state → Call ViewModel update → Handle errors → Dismiss on success
+    //###########################################################################
+
     private func saveProfile() async {
         // Input validation
         guard validateInputs() else { return }
-        
+
         isLoading = true
         defer { isLoading = false }
 
@@ -234,7 +263,7 @@ struct EditProfileView: View {
             displayName: displayName,
             bio: bio
         )
-        
+
         if let error = viewModel.errorMessage, !error.isEmpty {
             errorMessage = error
             showError = true
@@ -244,6 +273,13 @@ struct EditProfileView: View {
         }
     }
     
+    //###########################################################################
+    // MARK: - Input Validation
+    // Function: validateInputs
+    // Overview: Validate display name before saving
+    // Processing: Check not empty → Check minimum length (2 chars) → Show error if invalid → Return validation result
+    //###########################################################################
+
     private func validateInputs() -> Bool {
         // Display name validation
         if displayName.isEmpty {
@@ -251,13 +287,13 @@ struct EditProfileView: View {
             showError = true
             return false
         }
-        
+
         if displayName.count < 2 {
             errorMessage = "Display name must be at least 2 characters"
             showError = true
             return false
         }
-        
+
         return true
     }
 }

@@ -18,6 +18,8 @@ struct MainTabView: View {
     @State private var vTipPoint: CGPoint = CGPoint.zero
     @State private var hasSetInitialLocation = false
     @State private var showingSearch = false
+    @State private var selectedUserIdForProfile: String?
+    @State private var showingUserProfile = false
 
 
     // カスタムデザイン用の色定義
@@ -165,9 +167,21 @@ struct MainTabView: View {
 
             // Search overlay
             if showingSearch {
-                SearchPopupView(isPresented: $showingSearch)
+                SearchPopupView(
+                    isPresented: $showingSearch,
+                    selectedUserIdForProfile: $selectedUserIdForProfile
+                )
                     .transition(.move(edge: .bottom))
                     .zIndex(101)
+            }
+        }
+        .fullScreenCover(isPresented: $showingUserProfile) {
+            if let userId = selectedUserIdForProfile {
+                UserProfileView(
+                    userName: "User",
+                    userId: userId,
+                    isPresented: $showingUserProfile
+                )
             }
         }
         .animation(.easeInOut(duration: 0.3), value: showingProfile)
@@ -175,7 +189,11 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $showingAuth) {
             SignInView()
         }
-
+        .onChange(of: selectedUserIdForProfile) { _, newValue in
+            if newValue != nil {
+                showingUserProfile = true
+            }
+        }
         .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
             if !isAuthenticated {
                 // Dismiss any existing sheets before presenting auth to avoid

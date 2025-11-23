@@ -154,7 +154,6 @@ class CommentService: ObservableObject {
                     commentCounts[postId] = loadedComments.count
                 }
 
-                logger.info("Loaded \(loadedComments.count) comments for post \(postId)")
             } catch {
                 logger.error("Failed to load comments: \(error.localizedDescription)")
                 await MainActor.run {

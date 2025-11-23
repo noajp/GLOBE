@@ -203,23 +203,28 @@ struct SecureConfig {
     }
     
     private func getFromKeychain(key: KeychainKey) -> String? {
+        let bundleId = Bundle.main.bundleIdentifier ?? "com.globe.app"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key.rawValue,
-            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.globe.app",
+            kSecAttrService as String: bundleId,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        
+
+        SecureLogger.shared.info("Keychain lookup: key=\(key.rawValue), service=\(bundleId)")
+
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        
+
         if status == errSecSuccess,
            let data = result as? Data,
            let string = String(data: data, encoding: .utf8) {
+            SecureLogger.shared.info("Keychain success: key=\(key.rawValue)")
             return string
         }
-        
+
+        SecureLogger.shared.warning("Keychain lookup failed: key=\(key.rawValue), status=\(status)")
         return nil
     }
 

@@ -24,7 +24,6 @@ class SupabaseManager {
                     fatalError("Invalid Supabase URL configuration")
                 }
 
-                logger.info("Initializing Supabase client connection")
                 let newClient = SupabaseClient(supabaseURL: supabaseURL, supabaseKey: key)
                 _client = newClient
             }
@@ -46,7 +45,6 @@ class SupabaseManager {
         let key = SecureConfig.shared.supabaseAnonKey
         let client = SupabaseClient(supabaseURL: url, supabaseKey: key)
         _client = client
-        logger.info("Initializing Supabase client connection (sync)")
         return client
     }
 }

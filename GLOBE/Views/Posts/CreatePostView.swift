@@ -1,21 +1,32 @@
 //======================================================================
 // MARK: - CreatePostView.swift
-// Purpose: Post creation popup with full-screen photo background
-// Path: GLOBE/Views/Posts/CreatePostView.swift
+// Function: Post Creation View
+// Overview: Full-screen post creation with text, image, location, and privacy options
+// Processing: Capture input → Validate content → Get location → Upload image → Create post → Dismiss
 //======================================================================
 import SwiftUI
 import UIKit
 import CoreLocation
 import MapKit
 
-// MARK: - Post Privacy Options
+//###########################################################################
+// MARK: - Post Privacy Types
+// Function: PostPrivacyType
+// Overview: Privacy options for post visibility
+// Processing: publicPost (visible to all) | anonymous (hide author identity)
+//###########################################################################
+
 enum PostPrivacyType: Equatable, Sendable {
     case publicPost
     case anonymous
 }
 
-// MARK: - Post Type Options
-
+//###########################################################################
+// MARK: - Create Post View
+// Function: CreatePostView
+// Overview: Main post creation interface with camera, text input, and privacy controls
+// Processing: Initialize state → Render UI → Handle user input → Validate → Submit post
+//###########################################################################
 
 struct CreatePostView: View {
     @Binding var isPresented: Bool
@@ -45,7 +56,14 @@ struct CreatePostView: View {
     @State private var capturedImage: UIImage?
     // App settings
     @StateObject private var appSettings = AppSettings.shared
-    
+
+    //###########################################################################
+    // MARK: - Computed Properties
+    // Function: Validation and UI state calculations
+    // Overview: Calculate button states, character counts, and validation results
+    // Processing: Check conditions → Apply business rules → Return computed value
+    //###########################################################################
+
     // Computed properties to reduce complexity
     private var isButtonDisabled: Bool {
         postText.isEmpty || weightedCharacterCount > Double(maxTextLength)
@@ -480,6 +498,13 @@ struct CreatePostView: View {
         .clipShape(Capsule())
     }
 
+    //###########################################################################
+    // MARK: - Action Handlers
+    // Function: Button action handlers
+    // Overview: Handle user interactions for location and camera buttons
+    // Processing: Request permissions → Update state → Trigger appropriate action
+    //###########################################################################
+
     private func handleLocationButton() {
         // Request location permission if needed
         mapLocationService.startLocationServices()
@@ -620,17 +645,14 @@ struct CreatePostView: View {
         }
         .buttonStyle(PlainButtonStyle())
     }
-    
+
     //###########################################################################
-    // MARK: - Action Methods
-    // Function: User interaction handlers
-    // Overview: Process post creation, camera, and location actions
-    // Processing: Validate input, call PostManager, close UI
+    // MARK: - Post Creation
+    // Function: createPost
+    // Overview: Create new post with text, image, and location data
+    // Processing: Capture form values → Close UI → Call PostManager async → Handle errors
     //###########################################################################
 
-    // Function: createPost
-    // Overview: Creates a new post with text, image, and location
-    // Processing: Capture values → Close UI → Call PostManager.createPost asynchronously
     private func createPost() {
         logger.info("Starting post creation")
 
@@ -665,13 +687,12 @@ struct CreatePostView: View {
 
 
     //###########################################################################
-    // MARK: - Helper Functions
-    // Function: Utility functions for post creation
-    // Overview: Image processing and validation
-    // Processing: Crop images, validate content before submission
+    // MARK: - Image Processing
+    // Function: cropToSquare
+    // Overview: Crop image to square aspect ratio from center
+    // Processing: Calculate side length → Determine crop rect → Crop CGImage → Return UIImage
     //###########################################################################
 
-    // MARK: - Image Processing
     private func cropToSquare(image: UIImage) -> UIImage? {
         let originalWidth = image.size.width
         let originalHeight = image.size.height

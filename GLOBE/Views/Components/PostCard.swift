@@ -1,12 +1,20 @@
 //======================================================================
 // MARK: - PostCard.swift
-// Purpose: Reusable post card component for displaying posts
-// Path: GLOBE/Views/Components/PostCard.swift
+// Function: Post Card Component
+// Overview: Reusable card for displaying posts with media, likes, and comments
+// Processing: Render card layout → Display media/text → Show metadata → Handle interactions
 //======================================================================
 
 import SwiftUI
 import MapKit
 import UIKit
+
+//###########################################################################
+// MARK: - Post Card View
+// Function: PostCard
+// Overview: Glass-effect card component for post display with full interaction support
+// Processing: Calculate layout → Render media → Display metadata → Handle like/comment actions
+//###########################################################################
 
 struct PostCard: View {
     let post: Post
@@ -19,6 +27,13 @@ struct PostCard: View {
     private let cardCornerRadius: CGFloat = 18
     private let mediaAspectRatio: CGFloat = 4.0 / 5.0
 
+    //###########################################################################
+    // MARK: - Computed Properties
+    // Function: Content checks and identifiers
+    // Overview: Calculate post metadata and media presence
+    // Processing: Check media existence → Generate post identifier
+    //###########################################################################
+
     private var hasMediaAttachment: Bool {
         post.imageData != nil || post.imageUrl != nil
     }
@@ -27,7 +42,13 @@ struct PostCard: View {
         String(post.id.uuidString.prefix(8)).uppercased()
     }
 
-    // MARK: - Speech Bubble Tail
+    //###########################################################################
+    // MARK: - UI Components
+    // Function: speechBubbleTail
+    // Overview: Decorative triangle tail for speech bubble effect
+    // Processing: Create triangle → Apply glass effect → Rotate and position
+    //###########################################################################
+
     private var speechBubbleTail: some View {
         Triangle()
             .fill(Color.clear)
@@ -93,6 +114,13 @@ struct PostCard: View {
         }
     }
 
+    //###########################################################################
+    // MARK: - Media Section
+    // Function: mediaSection
+    // Overview: Display post media (image or async loaded URL)
+    // Processing: Check imageData → Fallback to imageUrl → Display AsyncImage → Show placeholder on error
+    //###########################################################################
+
     @ViewBuilder
     private func mediaSection(width: CGFloat, height: CGFloat) -> some View {
         if let imageData = post.imageData,
@@ -117,6 +145,13 @@ struct PostCard: View {
         }
     }
 
+    //###########################################################################
+    // MARK: - Media Image Display
+    // Function: mediaImageView
+    // Overview: Render post image with rounded top corners and gradient overlay
+    // Processing: Create shape → Apply image scaling → Add gradient overlay → Clip to shape
+    //###########################################################################
+
     private func mediaImageView(_ image: Image, width: CGFloat, height: CGFloat) -> some View {
         let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
 
@@ -140,6 +175,13 @@ struct PostCard: View {
             .clipped()
             .accessibilityHidden(true)
     }
+
+    //###########################################################################
+    // MARK: - Media Placeholder
+    // Function: mediaPlaceholder
+    // Overview: Display placeholder for loading or failed images
+    // Processing: Create gradient background → Show progress/icon based on state → Clip to shape
+    //###########################################################################
 
     private func mediaPlaceholder(width: CGFloat, height: CGFloat, showProgress: Bool = false) -> some View {
         let imageShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.topLeft, .topRight])
@@ -168,6 +210,13 @@ struct PostCard: View {
         .accessibilityHidden(true)
     }
 
+    //###########################################################################
+    // MARK: - Content Section
+    // Function: contentSection
+    // Overview: Display post text and interaction buttons
+    // Processing: Render text with dynamic sizing → Add interaction row → Apply glass backdrop
+    //###########################################################################
+
     private func contentSection(hasMedia: Bool) -> some View {
         let contentShape = RoundedCornerShape(radius: cardCornerRadius - 2, corners: [.bottomLeft, .bottomRight])
 
@@ -192,6 +241,13 @@ struct PostCard: View {
         .clipShape(contentShape)
     }
 
+    //###########################################################################
+    // MARK: - Content Backdrop
+    // Function: contentBackdrop
+    // Overview: Generate glass effect background for content area
+    // Processing: Check hasMedia → Apply ultra-thin material OR black overlay → Add stroke
+    //###########################################################################
+
     private func contentBackdrop(hasMedia: Bool, shape: RoundedCornerShape) -> some View {
         Group {
             if hasMedia {
@@ -208,6 +264,13 @@ struct PostCard: View {
             }
         }
     }
+
+    //###########################################################################
+    // MARK: - Metadata Row
+    // Function: metadataRow
+    // Overview: Display post metadata (avatar, identifier, timestamp)
+    // Processing: Render avatar → Show post ID → Display time ago → Style with black background
+    //###########################################################################
 
     private func metadataRow(width: CGFloat) -> some View {
         HStack(spacing: 12) {
@@ -240,11 +303,25 @@ struct PostCard: View {
         )
     }
 
+    //###########################################################################
+    // MARK: - Divider Line
+    // Function: dividerLine
+    // Overview: Horizontal separator line between sections
+    // Processing: Create rectangle → Fill with semi-transparent white → Set to thin height
+    //###########################################################################
+
     private func dividerLine(width: CGFloat) -> some View {
         Rectangle()
             .fill(Color.white.opacity(0.08))
         .frame(width: width, height: 0.8)
     }
+
+    //###########################################################################
+    // MARK: - Interaction Row
+    // Function: interactionRowCompact
+    // Overview: Display like, comment, and map buttons with counts
+    // Processing: Show location if available → Render like button with count → Show comment button → Add map button
+    //###########################################################################
 
     private var interactionRowCompact: some View {
         HStack(spacing: 16) {
@@ -307,6 +384,13 @@ struct PostCard: View {
         }
     }
 
+    //###########################################################################
+    // MARK: - Avatar Badge
+    // Function: avatarBadge
+    // Overview: Circular avatar button with async image loading
+    // Processing: Create circle background → Load avatar URL → Fallback to initials → Handle tap for profile view
+    //###########################################################################
+
     private func avatarBadge(size: CGFloat) -> some View {
         Button(action: {
             showingUserProfile = true
@@ -341,6 +425,13 @@ struct PostCard: View {
         .buttonStyle(.plain)
     }
 
+    //###########################################################################
+    // MARK: - Like Action Handler
+    // Function: handleLikeTap
+    // Overview: Toggle like state and provide haptic feedback
+    // Processing: Get current user → Toggle like in service → Trigger haptic if liked
+    //###########################################################################
+
     private func handleLikeTap() {
         guard let userId = authManager.currentUser?.id else { return }
         let newState = likeService.toggleLike(for: post, userId: userId)
@@ -349,6 +440,13 @@ struct PostCard: View {
             impactFeedback.impactOccurred()
         }
     }
+
+    //###########################################################################
+    // MARK: - Time Display Helper
+    // Function: timeAgoText
+    // Overview: Convert timestamp to Japanese relative time string
+    // Processing: Calculate time difference → Format as hours/minutes → Show "期限切れ" after 24h
+    //###########################################################################
 
     private func timeAgoText(from date: Date) -> String {
         let calendar = Calendar.current
@@ -368,7 +466,13 @@ struct PostCard: View {
     }
 }
 
+//###########################################################################
 // MARK: - Rounded Corner Helper
+// Function: RoundedCornerShape
+// Overview: Custom Shape for selective corner rounding
+// Processing: Create UIBezierPath with specified corners → Convert to SwiftUI Path
+//###########################################################################
+
 private struct RoundedCornerShape: Shape {
     var radius: CGFloat
     var corners: UIRectCorner

@@ -14,7 +14,8 @@ struct UserProfileView: View {
     @ObservedObject private var authManager = AuthManager.shared
 
     var body: some View {
-        NavigationStack {
+        print("🔍 UserProfileView body: userId=\(userId), userName=\(userName)")
+        return NavigationStack {
             ZStack {
                 // Background layer (solid black #121212)
                 Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
@@ -24,6 +25,7 @@ struct UserProfileView: View {
                 // It will handle loading and displaying the profile
                 TabBarProfileView(userId: userId)
                     .onAppear {
+                        print("🔍 UserProfileView onAppear: userId=\(userId)")
                         SecureLogger.shared.info("UserProfileView: Displaying profile for userId: \(userId), currentUserId: \(authManager.currentUser?.id ?? "none")")
                     }
             }

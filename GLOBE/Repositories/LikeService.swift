@@ -161,7 +161,6 @@ class LikeService: ObservableObject {
                 }
             }
 
-            logger.info("Loaded likes for post \(postId) - count=\(count)")
         } catch {
             logger.error("Failed to load likes: \(error.localizedDescription)")
         }

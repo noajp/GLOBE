@@ -191,7 +191,6 @@ final class MyPageViewModel: ObservableObject {
             let _ = session.user.userMetadata["username"]?.stringValue ??
                          session.user.email?.components(separatedBy: "@").first ?? "user"
 
-            logger.info("Checking profile for user: \(userId)")
 
             // まずプロフィールが既に存在するか確認
             let existingProfile = try await client
@@ -206,7 +205,6 @@ final class MyPageViewModel: ObservableObject {
             let profiles = try? decoder.decode([UserProfile].self, from: existingProfile.data)
 
             if let profile = profiles?.first {
-                logger.info("Profile already exists for user: \(userId)")
                 userProfile = profile
             } else {
                 // プロフィールが存在しない場合、handle_new_userトリガーが作成するのを待つ
@@ -223,7 +221,6 @@ final class MyPageViewModel: ObservableObject {
 
                 let retryProfiles = try? decoder.decode([UserProfile].self, from: retryProfile.data)
                 if let profile = retryProfiles?.first {
-                    logger.info("Profile found after retry")
                     userProfile = profile
 
                     // プロフィールが見つかった場合のみ、投稿データを読み込む
@@ -265,7 +262,6 @@ final class MyPageViewModel: ObservableObject {
             return
         }
 
-        logger.info("Syncing profile with auth data")
 
         do {
             // Get Supabase client
@@ -285,7 +281,6 @@ final class MyPageViewModel: ObservableObject {
             if let existingProfile = profiles.first {
                 // プロフィールが存在する場合、ローカルに反映
                 userProfile = existingProfile
-                logger.info("Profile synced successfully")
             } else {
                 // プロフィールが存在しない場合は作成
                 await createProfileFromAuthData()
@@ -338,22 +333,17 @@ final class MyPageViewModel: ObservableObject {
                 "updated_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))
             ]
 
-            logger.info("Executing UPDATE with userId: \(userId)")
 
             // Try without .lowercased() - the database should handle UUID comparison
-            let response = try await client
+            _ = try await client
                 .from("profiles")
                 .update(updateDict)
                 .eq("id", value: userId)
                 .select()
                 .execute()
 
-            let responseData = String(data: response.data, encoding: .utf8) ?? "nil"
-            logger.info("UPDATE response: \(responseData)")
-
             userProfile = updatedProfile
             errorMessage = nil
-            logger.info("Profile updated successfully")
 
         } catch {
             logger.error("Failed to update profile: \(error.localizedDescription)")
@@ -399,7 +389,6 @@ final class MyPageViewModel: ObservableObject {
             }
 
             let fileName = "\(userId)/avatar_\(UUID().uuidString).jpg"
-            logger.info("Uploading avatar for user to avatars/\(fileName)")
 
             // Upload to 'avatars' bucket (SDK default options)
             try await client.storage
@@ -435,7 +424,6 @@ final class MyPageViewModel: ObservableObject {
                 await loadUserData()
             }
 
-            logger.info("Avatar updated successfully")
         } catch {
             logger.error("Failed to update avatar: \(error.localizedDescription)")
             errorMessage = "アバターの更新に失敗しました: \(error.localizedDescription)"
@@ -489,7 +477,6 @@ final class MyPageViewModel: ObservableObject {
     //###########################################################################
 
     func loadOtherUserProfile(userId: String) async {
-        logger.info("Loading profile for user: \(userId)")
         isLoading = true
         errorMessage = nil
 
@@ -514,7 +501,6 @@ final class MyPageViewModel: ObservableObject {
                 return
             }
 
-            logger.info("Profile loaded - displayName: \(profile.displayName ?? "none")")
 
             // Load user's posts
             let postsResult = try await client
@@ -525,7 +511,6 @@ final class MyPageViewModel: ObservableObject {
                 .execute()
 
             let posts = (try? decoder.decode([Post].self, from: postsResult.data)) ?? []
-            logger.info("Loaded \(posts.count) posts for user")
 
             // Load follower/following counts
             let followers = await SupabaseService.shared.getFollowerCount(userId: userId)
@@ -539,7 +524,6 @@ final class MyPageViewModel: ObservableObject {
             followingCount = following
             isLoading = false
 
-            logger.info("Profile loading complete - Followers: \(followers), Following: \(following)")
 
         } catch {
             logger.error("Failed to load other user profile: \(error.localizedDescription)")

@@ -35,7 +35,6 @@ class AuthManager: AuthServiceProtocol {
         Task {
             let _ = await checkCurrentUser()
         }
-        logger.info("AuthManager initialized")
     }
 
     // Publisher exposure for protocol requirement
@@ -59,7 +58,6 @@ class AuthManager: AuthServiceProtocol {
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
-            logger.info("Current user session found: email=\(user.email ?? "none"), id=\(user.id.uuidString)")
             return true
 
         } catch {
@@ -505,7 +503,6 @@ class AuthManager: AuthServiceProtocol {
                 if let profiles = try? decoder.decode([SimpleProfile].self, from: response.data),
                    let latestProfile = profiles.first {
 
-                    logger.info("Development mode: Using latest user from DB - id: \(latestProfile.id), display_name: \(latestProfile.display_name ?? "none")")
 
                     let devUser = AppUser(
                         id: latestProfile.id,
@@ -516,7 +513,6 @@ class AuthManager: AuthServiceProtocol {
                     await MainActor.run {
                         self.currentUser = devUser
                         self.isAuthenticated = true
-                        self.logger.info("Development authentication enabled for user: \(devUser.id) (\(latestProfile.display_name ?? "Unknown"))")
                     }
                 } else {
                     // DBにユーザーがいない場合は認証状態をクリア

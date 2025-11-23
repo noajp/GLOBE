@@ -30,6 +30,7 @@ struct ProfileEditView: View {
                 VStack(spacing: 24) {
                     // Profile Photo Section
                     VStack(spacing: 12) {
+                        let currentProfile = viewModel.userProfile
                         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
                             ZStack(alignment: .bottomTrailing) {
                                 // Avatar
@@ -45,7 +46,8 @@ struct ProfileEditView: View {
                                                     .aspectRatio(contentMode: .fill)
                                                     .frame(width: 100, height: 100)
                                                     .clipShape(Circle())
-                                            } else if let avatarUrl = viewModel.userProfile?.avatarUrl,
+                                            } else if let profile = currentProfile,
+                                                      let avatarUrl = profile.avatarUrl,
                                                       let url = URL(string: avatarUrl) {
                                                 AsyncImage(url: url) { image in
                                                     image
@@ -173,7 +175,6 @@ struct ProfileEditView: View {
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear {
-            SecureLogger.shared.info("ProfileEditView: onAppear - loading user data")
             loadUserData()
         }
         .alert("Error", isPresented: $showError) {
@@ -185,11 +186,9 @@ struct ProfileEditView: View {
 
     private func loadUserData() {
         Task {
-            SecureLogger.shared.info("ProfileEditView: loadUserData - starting")
             await viewModel.loadUserData()
             displayName = viewModel.userProfile?.displayName ?? ""
             bio = viewModel.userProfile?.bio ?? ""
-            SecureLogger.shared.info("ProfileEditView: loadUserData - loaded displayName=\(displayName), bio=\(bio)")
         }
     }
 
@@ -200,18 +199,15 @@ struct ProfileEditView: View {
             return
         }
 
-        SecureLogger.shared.info("ProfileEditView: Saving profile - displayName=\(displayName), bio=\(bio)")
         isLoading = true
 
         Task {
             // Upload avatar if changed
             if let photoData = selectedPhotoData {
-                SecureLogger.shared.info("ProfileEditView: Uploading avatar")
                 await viewModel.updateAvatar(imageData: photoData)
             }
 
             // Update profile info
-            SecureLogger.shared.info("ProfileEditView: Updating profile with displayName=\(displayName)")
             await viewModel.updateProfile(displayName: displayName, bio: bio)
 
             if let error = viewModel.errorMessage {
@@ -220,7 +216,6 @@ struct ProfileEditView: View {
                 showError = true
                 isLoading = false
             } else {
-                SecureLogger.shared.info("ProfileEditView: Update successful, dismissing")
                 isLoading = false
                 // Dismiss screen after successful save
                 dismiss()
