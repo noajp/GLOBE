@@ -21,7 +21,6 @@ struct CreatePostView: View {
     @Binding var isPresented: Bool
     let mapManager: MapManager  // Remove @ObservedObject
     let initialLocation: CLLocationCoordinate2D? // Add parameter for exact post location
-    var postType: PostType = .textPost // Default to text post
     @StateObject private var mapLocationService = MapLocationService()
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var postManager = PostManager.shared

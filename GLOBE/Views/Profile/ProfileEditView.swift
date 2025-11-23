@@ -82,7 +82,7 @@ struct ProfileEditView: View {
                             }
                         }
                         .onChange(of: selectedPhotoItem) { _, newItem in
-                            Task {
+                            Task { @MainActor in
                                 if let data = try? await newItem?.loadTransferable(type: Data.self) {
                                     selectedPhotoData = data
                                 }

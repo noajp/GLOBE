@@ -338,12 +338,13 @@ final class MyPageViewModel: ObservableObject {
                 "updated_at": AnyJSON.string(ISO8601DateFormatter().string(from: Date()))
             ]
 
-            logger.info("Executing UPDATE with userId: \(userId.lowercased())")
+            logger.info("Executing UPDATE with userId: \(userId)")
 
+            // Try without .lowercased() - the database should handle UUID comparison
             let response = try await client
                 .from("profiles")
                 .update(updateDict)
-                .eq("id", value: userId.lowercased())
+                .eq("id", value: userId)
                 .select()
                 .execute()
 
