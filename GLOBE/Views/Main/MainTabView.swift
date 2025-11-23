@@ -19,6 +19,7 @@ struct MainTabView: View {
     @State private var tappedLocation: CLLocationCoordinate2D?
     @State private var vTipPoint: CGPoint = CGPoint.zero
     @State private var hasSetInitialLocation = false
+    @State private var showingSearch = false
 
 
     // カスタムデザイン用の色定義
@@ -43,49 +44,81 @@ struct MainTabView: View {
                     .environmentObject(appSettings)
                     .ignoresSafeArea(.all)
 
-                LiquidGlassBottomTabBar(
-                    onProfileTapped: {
-                        SecureLogger.shared.info("Profile button tapped in tab bar")
-                        // 投稿作成カードが開いている場合は閉じる
-                        if showingCreatePost {
-                            showingCreatePost = false
-                        }
-                        // プロフィール画面を表示
-                        showingProfile = true
-                    },
-                    onPostTapped: {
-                        SecureLogger.shared.info("Post button tapped in tab bar")
-                        if authManager.isAuthenticated {
-                            // 投稿作成カードをトグル（開いている場合は閉じる）
+                // Bottom UI: Search button and Tab bar
+                HStack(spacing: 12) {
+                    // Search button (left side) - circular glass effect
+                    GlassEffectContainer {
+                        Button(action: {
+                            SecureLogger.shared.info("Search button tapped")
                             if showingCreatePost {
                                 showingCreatePost = false
-                            } else {
-                                tappedLocation = mapManager.region.center
-                                showingCreatePost = true
                             }
-                        } else {
-                            showingAuth = true
-                        }
-                    },
-                    onLocationTapped: {
-                        SecureLogger.shared.info("Location button tapped in tab bar")
-                        // 投稿作成カードが開いている場合は閉じる
-                        if showingCreatePost {
-                            showingCreatePost = false
-                        }
-
-                        // Request location permission if needed
-                        locationManager.startLocationServices()
-
-                        // Move to current location if available
-                        if let currentLocation = locationManager.location?.coordinate {
-                            mapManager.focusOnLocation(currentLocation, zoomLevel: 0.0008)
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                showingSearch = true
+                            }
+                        }) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.white)
+                                .frame(width: 52, height: 52)
                         }
                     }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .trailing, vertical: .bottom))
+                    .coordinatedGlassEffect(id: "search-button")
+                    .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+
+                    Spacer()
+
+                    // Tab bar (right side)
+                    LiquidGlassBottomTabBar(
+                        onProfileTapped: {
+                            SecureLogger.shared.info("Profile button tapped in tab bar")
+                            // 投稿作成カードが開いている場合は閉じる
+                            if showingCreatePost {
+                                showingCreatePost = false
+                            }
+                            // 認証されている場合のみプロフィール画面を表示
+                            if authManager.isAuthenticated {
+                                showingProfile = true
+                            } else {
+                                showingAuth = true
+                            }
+                        },
+                        onPostTapped: {
+                            SecureLogger.shared.info("Post button tapped in tab bar")
+                            if authManager.isAuthenticated {
+                                // 投稿作成カードをトグル（開いている場合は閉じる）
+                                if showingCreatePost {
+                                    showingCreatePost = false
+                                } else {
+                                    tappedLocation = mapManager.region.center
+                                    showingCreatePost = true
+                                }
+                            } else {
+                                showingAuth = true
+                            }
+                        },
+                        onLocationTapped: {
+                            SecureLogger.shared.info("Location button tapped in tab bar")
+                            // 投稿作成カードが開いている場合は閉じる
+                            if showingCreatePost {
+                                showingCreatePost = false
+                            }
+
+                            // Request location permission if needed
+                            locationManager.startLocationServices()
+
+                            // Move to current location if available
+                            if let currentLocation = locationManager.location?.coordinate {
+                                mapManager.focusOnLocation(currentLocation, zoomLevel: 0.0008)
+                            }
+                        }
+                    )
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .center, vertical: .bottom))
+                .padding(.leading, max(safeInsets.leading, 0) + 20)
                 .padding(.trailing, max(safeInsets.trailing, 0) + 20)
                 .padding(.bottom, 0)
+                .offset(y: showingSearch ? 200 : 0)
             }
             .ignoresSafeArea(.keyboard)
 
@@ -100,7 +133,7 @@ struct MainTabView: View {
                     }
 
                 NavigationStack {
-                    ProfileView()
+                    TabBarProfileView()
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
@@ -131,10 +164,18 @@ struct MainTabView: View {
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: showingCreatePost)
             }
+
+            // Search overlay
+            if showingSearch {
+                SearchPopupView(isPresented: $showingSearch)
+                    .transition(.move(edge: .bottom))
+                    .zIndex(101)
+            }
         }
         .animation(.easeInOut(duration: 0.3), value: showingProfile)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: showingSearch)
         .fullScreenCover(isPresented: $showingAuth) {
-            AuthenticationView()
+            SignInView()
         }
 
         .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in

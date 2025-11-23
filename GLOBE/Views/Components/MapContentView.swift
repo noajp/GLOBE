@@ -82,7 +82,7 @@ struct MapContentView: View {
                 .annotationTitles(.hidden)
             }
         }
-        .mapStyle(.hybrid(elevation: .realistic, pointsOfInterest: .all))
+        .mapStyle(.hybrid(elevation: .realistic, pointsOfInterest: .excludingAll))
     }
 
     var body: some View {
@@ -98,31 +98,9 @@ struct MapContentView: View {
             lastUpdateTime = now
 
             // Update MapManager's region when map camera changes
-            // Limit maximum zoom level (minimum span = 0.004 ≈ 400m)
-            let minSpan = 0.004
-
-            // Clamp the span values to minimum
-            let latDelta = max(context.region.span.latitudeDelta, minSpan)
-            let lngDelta = max(context.region.span.longitudeDelta, minSpan)
-
-            // スムーズに制限を適用（カクつき防止）
-            if context.region.span.latitudeDelta < minSpan || context.region.span.longitudeDelta < minSpan {
-                // アニメーションなしで静かに制限
-                DispatchQueue.main.async {
-                    let restrictedRegion = MKCoordinateRegion(
-                        center: context.camera.centerCoordinate,
-                        span: MKCoordinateSpan(latitudeDelta: minSpan, longitudeDelta: minSpan)
-                    )
-                    mapCameraPosition = .region(restrictedRegion)
-                }
-            }
-
             let newRegion = MKCoordinateRegion(
                 center: context.camera.centerCoordinate,
-                span: MKCoordinateSpan(
-                    latitudeDelta: latDelta,
-                    longitudeDelta: lngDelta
-                )
+                span: context.region.span
             )
 
             mapManager.region = newRegion

@@ -103,6 +103,7 @@ struct ProfileImageView: View {
         ProfileImageView(
             userProfile: UserProfile(
                 id: "test-id",
+                username: "testuser",
                 displayName: "Test User",
                 bio: "Test bio",
                 avatarUrl: "https://via.placeholder.com/150",

@@ -20,39 +20,17 @@ enum SecuritySeverity {
     case critical
 }
 
-// MARK: - Login Attempt Persistence Model
-
-/// Codable wrapper for login attempt data (for Keychain persistence)
-private struct LoginAttemptData: Codable {
-    let count: Int
-    let lastAttempt: Date
-}
-
 @MainActor
 class AuthManager: AuthServiceProtocol {
     static let shared = AuthManager()
-    
+
     @Published var currentUser: AppUser?
     @Published var isAuthenticated = false
     @Published var isLoading = false
-    
-    private let logger = SecureLogger.shared
-    
-    /// 最大ログイン試行回数
-    private let maxLoginAttempts = 5
-    
-    /// アカウントロック期間（15分）
-    private let lockoutDuration: TimeInterval = 900
-    
-    /// ログイン試行回数の追跡
-    private var loginAttempts: [String: (count: Int, lastAttempt: Date)] = [:]
 
-    /// Keychain key for storing login attempts
-    private let loginAttemptsKey = "login_attempts_data"
+    private let logger = SecureLogger.shared
 
     private init() {
-        // Load persisted login attempts from Keychain
-        loadLoginAttempts()
         // 開発環境でのログインスキップチェック
         #if DEBUG
         if isDevelopmentLoginSkipEnabled() {
@@ -98,7 +76,7 @@ class AuthManager: AuthServiceProtocol {
     
     // MARK: - Sign Up
     
-    func signUp(email: String, password: String, displayName: String) async throws {
+    func signUp(email: String, password: String, displayName: String, username: String) async throws {
         logger.info("AuthManager.signUp: begin for \(email)")
         // 入力検証
         let emailValidation = InputValidator.validateEmail(email)
@@ -107,11 +85,14 @@ class AuthManager: AuthServiceProtocol {
             throw AuthError.invalidInput("有効なメールアドレスを入力してください")
         }
 
+        #if !DEBUG
+        // 本番環境のみパスワード検証
         let passwordValidation = InputValidator.validatePassword(password)
         guard passwordValidation.isValid else {
             logger.error("AuthManager.signUp: weak password")
             throw AuthError.weakPassword(["パスワードは8文字以上で、英字と数字を含む必要があります"])
         }
+        #endif
 
         // Display name validation: 1-50 characters
         let trimmedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -120,23 +101,37 @@ class AuthManager: AuthServiceProtocol {
             throw AuthError.invalidInput("表示名は1-50文字で入力してください")
         }
         let validDisplayName = trimmedDisplayName
-        
+
+        // Username validation: 3-30 characters, lowercase alphanumeric with underscores
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmedUsername.isEmpty && trimmedUsername.count >= 3 && trimmedUsername.count <= 30 else {
+            logger.error("AuthManager.signUp: invalid username length")
+            throw AuthError.invalidInput("ユーザーネームは3-30文字で入力してください")
+        }
+        guard trimmedUsername.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "_" }) else {
+            logger.error("AuthManager.signUp: invalid username format")
+            throw AuthError.invalidInput("ユーザーネームは英数字とアンダースコアのみ使用できます")
+        }
+        let validUsername = trimmedUsername
+
         isLoading = true
         defer { isLoading = false }
-        
+
         logger.info("Sign up attempt for: \(validEmail)")
         SecureLogger.shared.authEvent("sign_up_attempt", userID: nil)
-        
+
         do {
             let response = try await (await supabase).auth.signUp(
                 email: validEmail,
                 password: password,
                 data: [
-                    "display_name": AnyJSON.string(validDisplayName)
+                    "display_name": AnyJSON.string(validDisplayName),
+                    "username": AnyJSON.string(validUsername)
                 ]
             )
 
             let user = response.user
+            print("✅ [AuthManager] Sign up SUCCESS for user: \(user.id.uuidString), email: \(user.email ?? "none")")
             logger.info("Sign up successful for user: \(user.id.uuidString)")
             logger.info("AuthManager.signUp: success user=\(user.id.uuidString)")
             SecureLogger.shared.authEvent("sign_up_success", userID: user.id.uuidString)
@@ -148,12 +143,13 @@ class AuthManager: AuthServiceProtocol {
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
-            
+
             // handle_new_user関数が自動的にプロフィールを作成するため、
             // ここでは作成しない（RLSポリシー違反を避ける）
-            logger.info("Profile will be created by handle_new_user trigger")
-            
+            logger.info("Profile will be created by handle_new_user trigger with username: \(validUsername)")
+
         } catch {
+            print("❌ [AuthManager] Sign up FAILED: \(error.localizedDescription)")
             logger.error("Sign up failed: \(error.localizedDescription)")
             let ns = error as NSError
             logger.error("AuthManager.signUp failed: \(error.localizedDescription)")
@@ -177,10 +173,7 @@ class AuthManager: AuthServiceProtocol {
             logger.error("AuthManager.signIn: empty password")
             throw AuthError.invalidInput("パスワードを入力してください")
         }
-        
-        // レート制限チェック
-        try checkEmailRateLimit(for: validEmail)
-        
+
         isLoading = true
         defer { isLoading = false }
         
@@ -207,10 +200,7 @@ class AuthManager: AuthServiceProtocol {
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
-            
-            // ログイン成功時はレート制限をリセット
-            resetLoginAttempts(for: validEmail)
-            
+
         } catch {
             logger.error("Sign in failed for \(validEmail): \(error.localizedDescription)")
             
@@ -234,13 +224,11 @@ class AuthManager: AuthServiceProtocol {
                 default:
                     errorMessage = "サインインに失敗しました: \(nsError.localizedDescription)"
                 }
-                
-                recordFailedLoginAttempt(for: validEmail)
+
                 SecureLogger.shared.authEvent("sign_in_failed_\(nsError.code)", userID: nil)
                 throw AuthError.unknown(errorMessage)
             }
-            
-            recordFailedLoginAttempt(for: validEmail)
+
             SecureLogger.shared.authEvent("sign_in_failed_unknown", userID: nil)
             throw AuthError.unknown("サインインに失敗しました: \(error.localizedDescription)")
         }
@@ -375,124 +363,8 @@ class AuthManager: AuthServiceProtocol {
     // MARK: - Rate Limiting
 
     func checkRateLimit(for operation: String) -> Bool {
-        // Default implementation for protocol conformance
+        // Rate limiting disabled
         return true
-    }
-
-    private func checkEmailRateLimit(for email: String) throws {
-        let now = Date()
-        if let attempt = loginAttempts[email] {
-            let timeSinceLastAttempt = now.timeIntervalSince(attempt.lastAttempt)
-            
-            if timeSinceLastAttempt < lockoutDuration && attempt.count >= maxLoginAttempts {
-                let remainingTime = lockoutDuration - timeSinceLastAttempt
-                logger.warning("Rate limit exceeded for: \(email)")
-                throw AuthError.rateLimitExceeded(remainingTime)
-            }
-        }
-    }
-    
-    private func recordFailedLoginAttempt(for email: String) {
-        let now = Date()
-        if let attempt = loginAttempts[email] {
-            let timeSinceLastAttempt = now.timeIntervalSince(attempt.lastAttempt)
-
-            if timeSinceLastAttempt > lockoutDuration {
-                // ロックアウト期間を過ぎているのでリセット
-                loginAttempts[email] = (count: 1, lastAttempt: now)
-            } else {
-                // カウントを増やす
-                loginAttempts[email] = (count: attempt.count + 1, lastAttempt: now)
-            }
-        } else {
-            // 初回試行
-            loginAttempts[email] = (count: 1, lastAttempt: now)
-        }
-
-        let currentCount = loginAttempts[email]?.count ?? 0
-        saveLoginAttempts()  // Persist to Keychain
-        logger.warning("Failed login recorded for: \(email) (attempts: \(currentCount))")
-    }
-    
-    private func resetLoginAttempts(for email: String) {
-        loginAttempts.removeValue(forKey: email)
-        saveLoginAttempts()
-        logger.info("Login attempts reset for: \(email)")
-    }
-
-    // MARK: - Login Attempts Persistence
-
-    /// Load login attempts from Keychain
-    private func loadLoginAttempts() {
-        let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: loginAttemptsKey,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        if status == errSecSuccess, let data = result as? Data {
-            do {
-                let decoder = JSONDecoder()
-                let decoded = try decoder.decode([String: LoginAttemptData].self, from: data)
-
-                // Convert back to tuple format and filter expired entries
-                let now = Date()
-                loginAttempts = decoded.compactMapValues { attemptData in
-                    let timeSinceLastAttempt = now.timeIntervalSince(attemptData.lastAttempt)
-                    // Only keep entries that haven't expired (within lockout duration)
-                    guard timeSinceLastAttempt < lockoutDuration else { return nil }
-                    return (count: attemptData.count, lastAttempt: attemptData.lastAttempt)
-                }
-
-                logger.info("Loaded \(loginAttempts.count) persisted login attempt records")
-            } catch {
-                logger.error("Failed to decode login attempts: \(error.localizedDescription)")
-            }
-        } else if status != errSecItemNotFound {
-            logger.warning("Keychain read failed for login attempts: \(status)")
-        }
-    }
-
-    /// Save login attempts to Keychain
-    private func saveLoginAttempts() {
-        // Convert tuple dictionary to Codable format
-        let encodable = loginAttempts.mapValues { LoginAttemptData(count: $0.count, lastAttempt: $0.lastAttempt) }
-
-        do {
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(encodable)
-
-            let service = Bundle.main.bundleIdentifier ?? "com.globe.app"
-            let query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrAccount as String: loginAttemptsKey,
-                kSecAttrService as String: service
-            ]
-
-            // Try to update first
-            let updateQuery: [String: Any] = [kSecValueData as String: data]
-            var status = SecItemUpdate(query as CFDictionary, updateQuery as CFDictionary)
-
-            // If item doesn't exist, create it
-            if status == errSecItemNotFound {
-                var createQuery = query
-                createQuery[kSecValueData as String] = data
-                status = SecItemAdd(createQuery as CFDictionary, nil)
-            }
-
-            if status == errSecSuccess {
-                logger.info("Login attempts persisted to Keychain")
-            } else {
-                logger.error("Failed to save login attempts to Keychain: \(status)")
-            }
-        } catch {
-            logger.error("Failed to encode login attempts: \(error.localizedDescription)")
-        }
     }
 
     // MARK: - Session Validation
@@ -607,17 +479,59 @@ class AuthManager: AuthServiceProtocol {
         return UserDefaults.standard.bool(forKey: "DEV_SKIP_LOGIN")
     }
 
-    /// 開発環境用の認証状態を設定
+    /// 開発環境用の認証状態を設定（DBから最新ユーザーを動的に取得）
     func enableDevelopmentAuth() {
-        let devUser = AppUser(
-            id: "dev-user-\(UUID().uuidString.prefix(8))",
-            email: "dev@globe.app",
-            createdAt: ISO8601DateFormatter().string(from: Date())
-        )
+        Task {
+            do {
+                // Service roleキーを使用してDBから直接ユーザー情報を取得
+                // 注意: これは開発環境専用で、本番では絶対に使用しないこと
+                let response = try await (await supabase)
+                    .from("profiles")
+                    .select("id, display_name, created_at")
+                    .order("created_at", ascending: false)
+                    .limit(1)
+                    .execute()
 
-        currentUser = devUser
-        isAuthenticated = true
-        logger.info("Development authentication enabled for user: \(devUser.id)")
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+
+                struct SimpleProfile: Codable {
+                    let id: String
+                    let display_name: String?
+                    let created_at: Date
+                }
+
+                if let profiles = try? decoder.decode([SimpleProfile].self, from: response.data),
+                   let latestProfile = profiles.first {
+
+                    let devUser = AppUser(
+                        id: latestProfile.id,
+                        email: "dev@localhost.test", // 開発用ダミーメール
+                        createdAt: latestProfile.created_at.ISO8601Format()
+                    )
+
+                    await MainActor.run {
+                        self.currentUser = devUser
+                        self.isAuthenticated = true
+                        self.logger.info("Development authentication enabled for user: \(devUser.id) (\(latestProfile.display_name ?? "Unknown"))")
+                    }
+                } else {
+                    // DBにユーザーがいない場合は認証状態をクリア
+                    await MainActor.run {
+                        self.logger.warning("No users found in DB for development auth")
+                        self.currentUser = nil
+                        self.isAuthenticated = false
+                    }
+                }
+            } catch {
+                // エラー時は認証状態をクリア
+                await MainActor.run {
+                    self.logger.error("Failed to enable development auth: \(error.localizedDescription)")
+                    self.currentUser = nil
+                    self.isAuthenticated = false
+                }
+            }
+        }
     }
 
     /// 開発環境ログインスキップの有効化
@@ -625,7 +539,7 @@ class AuthManager: AuthServiceProtocol {
         UserDefaults.standard.set(true, forKey: "DEV_SKIP_LOGIN")
         logger.info("Development login skip enabled")
 
-        // 即座に認証状態を設定
+        // 非同期で認証状態を設定
         enableDevelopmentAuth()
     }
 

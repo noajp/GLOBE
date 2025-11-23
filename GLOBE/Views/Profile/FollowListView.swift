@@ -63,7 +63,7 @@ struct FollowListView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(viewModel.users, id: \.id) { user in
-                            FollowUserRow(user: user)
+                            FollowUserRow(user: user, initialFollowState: listType == .following)
 
                             if user.id != viewModel.users.last?.id {
                                 Divider()
@@ -93,6 +93,7 @@ struct FollowListView: View {
 // MARK: - Follow User Row
 struct FollowUserRow: View {
     let user: UserProfile
+    let initialFollowState: Bool // Track if this user should initially be shown as following
 
     @State private var isFollowing = false
     @State private var isLoading = false
@@ -101,6 +102,12 @@ struct FollowUserRow: View {
 
     private var isCurrentUser: Bool {
         user.id.lowercased() == authManager.currentUser?.id.lowercased()
+    }
+
+    init(user: UserProfile, initialFollowState: Bool = false) {
+        self.user = user
+        self.initialFollowState = initialFollowState
+        _isFollowing = State(initialValue: initialFollowState)
     }
 
     var body: some View {
@@ -161,12 +168,12 @@ struct FollowUserRow: View {
                         }
                     }
                     .foregroundColor(isFollowing ? MinimalDesign.Colors.primary : .white)
-                    .frame(width: 90, height: 32)
+                    .frame(width: 90, height: 28)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isFollowing ? Color.clear : Color.cyan)
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isFollowing ? Color.clear : Color(red: 0.0, green: 0.55, blue: 0.75))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8)
+                                RoundedRectangle(cornerRadius: 6)
                                     .stroke(isFollowing ? MinimalDesign.Colors.border : Color.clear, lineWidth: 1)
                             )
                     )

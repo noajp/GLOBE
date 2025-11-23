@@ -202,7 +202,10 @@ struct AuthenticationView: View {
         do {
             if isSignUp {
                 // サインアップ
-                try await authManager.signUp(email: email, password: password, displayName: displayName)
+                // TODO: Add username field to this view or redirect to SignUpView
+                // For now, generate a temporary username from email
+                let tempUsername = email.components(separatedBy: "@").first?.lowercased().filter { $0.isLetter || $0.isNumber } ?? "user\(Int.random(in: 1000...9999))"
+                try await authManager.signUp(email: email, password: password, displayName: displayName, username: tempUsername)
             } else {
                 // サインイン
                 try await authManager.signIn(email: email, password: password)

@@ -10,8 +10,12 @@ final class ConsoleLogger {
     static let shared = ConsoleLogger()
     private init() {}
 
+    // 最小ログモード: エラーのみ出力
+    private let minimalLogging = true
+
     func forceLog(_ message: String) {
         #if DEBUG
+        guard !minimalLogging else { return }
         print("📝 [Console] \(message)")
         #endif
     }

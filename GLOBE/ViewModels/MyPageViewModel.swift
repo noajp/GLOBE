@@ -34,15 +34,7 @@ final class MyPageViewModel: ObservableObject {
     private let logger = SecureLogger.shared
     private var cancellables = Set<AnyCancellable>()
 
-    private func handleAuthStateChange() async {
-        if authService?.isAuthenticated == true {
-            await loadUserDataIfNeeded()
-        } else {
-            clearUserData()
-        }
-    }
-
-    private func clearUserData() {
+    func clearUserData() {
         userProfile = nil
         userPosts = []
         postsCount = 0
@@ -58,25 +50,15 @@ final class MyPageViewModel: ObservableObject {
         Task { @MainActor in
             // Set authService on MainActor to avoid isolation issues
             self.authService = authService ?? AuthManager.shared
-            self.setupObservers()
+            // Don't setup observers - let Views handle auth state changes
             self.loadInitialData()
         }
     }
 
     // MARK: - Setup
 
-    private func setupObservers() {
-        // Observe authentication state changes
-        guard let authService = authService else { return }
-        authService.isAuthenticatedPublisher
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    await self.handleAuthStateChange()
-                }
-            }
-            .store(in: &cancellables)
+    deinit {
+        cancellables.removeAll()
     }
 
     private func loadInitialData() {
@@ -118,15 +100,24 @@ final class MyPageViewModel: ObservableObject {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
 
-            let profiles = try? decoder.decode([UserProfile].self, from: profileResult.data)
+            do {
+                let profiles = try decoder.decode([UserProfile].self, from: profileResult.data)
 
-            if let profile = profiles?.first {
-                userProfile = profile
-                SecureLogger.shared.info("Profile loaded successfully display_name=\(profile.displayName ?? "none")")
-            } else {
-                // プロフィールが存在しない場合、認証情報から作成
-                SecureLogger.shared.warning("Profile not found, creating from auth data")
-                await createProfileFromAuthData()
+                if let profile = profiles.first {
+                    userProfile = profile
+                    SecureLogger.shared.info("Profile loaded successfully display_name=\(profile.displayName ?? "none") username=\(profile.username ?? "none")")
+                } else {
+                    // プロフィールが存在しない場合、認証情報から作成
+                    SecureLogger.shared.warning("Profile not found in DB for user: \(userId)")
+                    await createProfileFromAuthData()
+                    hasLoadedInitially = true
+                    isLoading = false
+                    return
+                }
+            } catch {
+                SecureLogger.shared.error("Failed to decode profile: \(error.localizedDescription)")
+                SecureLogger.shared.error("Profile data: \(String(data: profileResult.data, encoding: .utf8) ?? "invalid")")
+                errorMessage = "プロフィールのデコードに失敗しました"
                 hasLoadedInitially = true
                 isLoading = false
                 return
@@ -150,6 +141,7 @@ final class MyPageViewModel: ObservableObject {
             if var profile = userProfile {
                 profile = UserProfile(
                     id: profile.id,
+                    username: profile.username,
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: profile.avatarUrl,
@@ -318,6 +310,7 @@ final class MyPageViewModel: ObservableObject {
 
             let updatedProfile = UserProfile(
                 id: userId,
+                username: userProfile?.username,
                 displayName: validatedDisplayName,
                 bio: validatedBio.isEmpty ? nil : validatedBio,
                 avatarUrl: userProfile?.avatarUrl,
@@ -408,6 +401,7 @@ final class MyPageViewModel: ObservableObject {
             if var profile = userProfile {
                 profile = UserProfile(
                     id: profile.id,
+                    username: profile.username,
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: publicURL,

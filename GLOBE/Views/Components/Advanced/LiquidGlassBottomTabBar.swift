@@ -20,20 +20,20 @@ struct LiquidGlassBottomTabBar: View {
     @State private var selectedTab: TabType = .post
     @Namespace private var namespace
 
-    private let buttonWidth: CGFloat = 32
-    private let buttonHeight: CGFloat = 32
+    private let buttonWidth: CGFloat = 44
+    private let buttonHeight: CGFloat = 44
 
     var body: some View {
         GlassEffectContainer {
-            HStack(spacing: 20) {
+            HStack(spacing: 24) {
                 // Post Button
                 Button(action: {
                     selectedTab = .post
                     onPostTapped()
                 }) {
                     Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Color.gray)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(selectedTab == .post ? Color.white : Color.gray)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -50,8 +50,8 @@ struct LiquidGlassBottomTabBar: View {
                     onLocationTapped()
                 }) {
                     Image(systemName: "location.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.gray)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(selectedTab == .location ? Color.white : Color.gray)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -68,8 +68,8 @@ struct LiquidGlassBottomTabBar: View {
                     onProfileTapped()
                 }) {
                     Image(systemName: "person.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.gray)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(selectedTab == .profile ? Color.white : Color.gray)
                         .frame(width: buttonWidth, height: buttonHeight)
                 }
                 .background {
@@ -80,9 +80,9 @@ struct LiquidGlassBottomTabBar: View {
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .frame(height: 40)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .frame(height: 52)
         }
         .animation(.smooth(duration: 0.3), value: selectedTab)
         .coordinatedGlassEffect(id: "bottom-tab-bar")

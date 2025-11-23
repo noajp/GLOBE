@@ -58,8 +58,7 @@ class PostManager: PostServiceProtocol {
         isAnonymous: Bool = false
     ) async throws {
         // 認証状態を確認
-        guard AuthManager.shared.isAuthenticated,
-              let userIdString = AuthManager.shared.currentUser?.id else {
+        guard AuthManager.shared.isAuthenticated else {
             throw AuthError.userNotAuthenticated
         }
 
@@ -90,8 +89,8 @@ class PostManager: PostServiceProtocol {
         let sanitizedLocationName = locationName.map { InputValidator.sanitizeText($0, maxLength: 100) }
 
         // Use SupabaseService to create post with proper validation
+        // Don't pass userId - let SupabaseService get it from session
         let success = await supabaseService.createPostWithRPC(
-            userId: userIdString,
             content: sanitizedContent,
             imageData: imageData,
             latitude: location.latitude,

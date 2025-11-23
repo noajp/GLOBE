@@ -1,11 +1,14 @@
 import SwiftUI
 import Combine
-import SwiftUI
+import Supabase
 
 struct SignUpView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var displayName = ""
+    @State private var username = ""
+    @State private var isCheckingUsername = false
+    @State private var usernameAvailable: Bool? = nil
     @State private var showError = false
     @State private var errorMessage = ""
 
@@ -14,7 +17,7 @@ struct SignUpView: View {
     @FocusState private var focusedField: Field?
 
     enum Field: Hashable {
-        case displayName, email, password
+        case displayName, username, email, password
     }
     
     // カスタムデザイン用の色定義
@@ -79,10 +82,74 @@ struct SignUpView: View {
                             .submitLabel(.next)
                             .focused($focusedField, equals: .displayName)
                             .onSubmit {
-                                focusedField = .email
+                                focusedField = .username
                             }
                     }
-                    
+
+                    // ユーザーネーム入力
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Username")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+
+                        HStack(spacing: 0) {
+                            Text("@")
+                                .font(.system(size: 17))
+                                .foregroundColor(.white.opacity(0.5))
+                                .padding(.leading, 16)
+
+                            TextField("username", text: $username)
+                                .font(.system(size: 17))
+                                .foregroundColor(.white)
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .padding(.leading, 4)
+                                .padding(.trailing, 16)
+                                .padding(.vertical, 16)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .textContentType(.username)
+                                .submitLabel(.next)
+                                .focused($focusedField, equals: .username)
+                                .onChange(of: username) { _, newValue in
+                                    // Convert to lowercase and filter invalid characters
+                                    let filtered = newValue.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "_" }
+                                    if filtered != newValue {
+                                        username = filtered
+                                    }
+                                    // Check username availability
+                                    Task {
+                                        await checkUsernameAvailability()
+                                    }
+                                }
+                                .onSubmit {
+                                    focusedField = .email
+                                }
+
+                            // Availability indicator
+                            if isCheckingUsername {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                                    .padding(.trailing, 16)
+                            } else if let available = usernameAvailable, !username.isEmpty {
+                                Image(systemName: available ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundColor(available ? .green : .red)
+                                    .padding(.trailing, 16)
+                            }
+                        }
+                        .background(.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(usernameAvailable == false && !username.isEmpty ? Color.red.opacity(0.5) : .white.opacity(0.2), lineWidth: 1)
+                        )
+
+                        if usernameAvailable == false && !username.isEmpty {
+                            Text("This username is already taken")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red.opacity(0.8))
+                        }
+                    }
+
                     // メールアドレス入力
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email Address")
@@ -169,8 +236,8 @@ struct SignUpView: View {
                 
                         }
                     }
-                    .disabled(authManager.isLoading || displayName.isEmpty || email.isEmpty || password.isEmpty)
-                    .opacity((authManager.isLoading || displayName.isEmpty || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
+                    .disabled(authManager.isLoading || displayName.isEmpty || username.isEmpty || email.isEmpty || password.isEmpty || usernameAvailable != true)
+                    .opacity((authManager.isLoading || displayName.isEmpty || username.isEmpty || email.isEmpty || password.isEmpty || usernameAvailable != true) ? 0.6 : 1.0)
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 40)
@@ -221,13 +288,56 @@ struct SignUpView: View {
         }
     }
     
+    private func checkUsernameAvailability() async {
+        // Reset if username is empty
+        guard !username.isEmpty else {
+            usernameAvailable = nil
+            return
+        }
+
+        // Minimum length check
+        guard username.count >= 3 else {
+            usernameAvailable = false
+            return
+        }
+
+        isCheckingUsername = true
+        defer { isCheckingUsername = false }
+
+        do {
+            let client = await SupabaseManager.shared.client
+            let result = try await client
+                .from("profiles")
+                .select("username")
+                .eq("username", value: username)
+                .execute()
+
+            // If we get any results, username is taken
+            let decoder = JSONDecoder()
+            let profiles = try? decoder.decode([[String: String]].self, from: result.data)
+            usernameAvailable = profiles?.isEmpty ?? true
+        } catch {
+            SecureLogger.shared.error("Failed to check username availability: \(error.localizedDescription)")
+            usernameAvailable = nil
+        }
+    }
+
     private func signUp() async {
         ConsoleLogger.shared.forceLog("SignUpView: Starting sign up for \(email)")
+
+        // Validate username one more time before signup
+        guard usernameAvailable == true else {
+            errorMessage = "Please choose an available username"
+            showError = true
+            return
+        }
+
         do {
             try await authManager.signUp(
                 email: email,
                 password: password,
-                displayName: displayName
+                displayName: displayName,
+                username: username
             )
             ConsoleLogger.shared.forceLog("SignUpView: Sign up SUCCESS")
         } catch {

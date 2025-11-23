@@ -304,7 +304,6 @@ private init() {
     
     
     func createPostWithRPC(
-        userId: String,
         content: String,
         imageData: Data?,
         latitude: Double,
@@ -314,20 +313,17 @@ private init() {
     ) async -> Bool {
         await MainActor.run { isLoading = true }
         defer { Task { @MainActor in isLoading = false } }
-        
+
         secureLogger.info("Creating post using direct insert")
-        
+
         do {
-            guard let userUUID = UUID(uuidString: userId) else {
-                await MainActor.run { 
-                    self.error = "ユーザーIDが無効です"
-                }
-                return false
-            }
-            
+            // Get userId from current session
+            let session = try await supabaseClient.auth.session
+            let currentUserId = session.user.id
+
             var imageUrl: String? = nil
             if let imageData = imageData {
-                let fileName = "\(userId)/post_\(UUID().uuidString).jpg"
+                let fileName = "\(currentUserId.uuidString)/post_\(UUID().uuidString).jpg"
                 
                 do {
                     _ = try await supabaseClient.storage
@@ -346,10 +342,10 @@ private init() {
                     return false
                 }
             }
-            
+
             // 投稿の有効期限を無効化（永続化）
             var postData: [String: AnyJSON] = [
-                "user_id": .string(userUUID.uuidString),
+                "user_id": .string(currentUserId.uuidString),
                 "content": .string(content),
                 "image_url": imageUrl.map { .string($0) } ?? .null,
                 "location_name": locationName.map { .string($0) } ?? .null,
@@ -376,7 +372,7 @@ private init() {
                     let profileResponse = try await supabaseClient
                         .from("profiles")
                         .select("avatar_url,display_name")
-                        .eq("id", value: userUUID.uuidString)
+                        .eq("id", value: currentUserId.uuidString)
                         .single()
                         .execute()
 
@@ -403,7 +399,7 @@ private init() {
                 imageUrl: imageUrl,
                 text: content,
                 authorName: isAnonymous ? "匿名ユーザー" : displayName,
-                authorId: isAnonymous ? "anonymous" : userId,
+                authorId: isAnonymous ? "anonymous" : currentUserId.uuidString,
                 isPublic: true,  // 常に公開（匿名でも投稿内容は表示）
                 isAnonymous: isAnonymous,
                 authorAvatarUrl: isAnonymous ? nil : avatarUrl  // 匿名の場合はアバターURLもnilに
@@ -538,6 +534,15 @@ private init() {
                 return false
             }
 
+            // Prevent self-follow
+            if currentUserId.uuidString.lowercased() == followingUUID.uuidString.lowercased() {
+                secureLogger.warning("Cannot follow yourself")
+                await MainActor.run {
+                    self.error = "自分自身をフォローすることはできません"
+                }
+                return false
+            }
+
             // Check if already following
             let existing = try await supabaseClient
                 .from("follows")
@@ -554,17 +559,13 @@ private init() {
                 return true
             }
 
-            // Create follow record
-            let follow = DatabaseFollow(
-                id: UUID(),
-                follower_id: currentUserId,
-                following_id: followingUUID,
-                created_at: Date()
-            )
-
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let followData = try encoder.encode(follow)
+            // Create follow record as dictionary
+            let followData: [String: String] = [
+                "id": UUID().uuidString,
+                "follower_id": currentUserId.uuidString,
+                "following_id": followingUUID.uuidString,
+                "created_at": ISO8601DateFormatter().string(from: Date())
+            ]
 
             _ = try await supabaseClient
                 .from("follows")
@@ -777,6 +778,146 @@ private init() {
             return []
         }
     }
+
+    // MARK: - Notifications
+
+    /// Get notifications for current user
+    func getNotifications() async -> [AppNotification] {
+        do {
+            let session = try await supabaseClient.auth.session
+            let currentUserId = session.user.id
+
+            let response = try await supabaseClient
+                .from("notifications")
+                .select("""
+                    id,
+                    recipient_id,
+                    actor_id,
+                    type,
+                    post_id,
+                    is_read,
+                    created_at,
+                    profiles!notifications_actor_id_fkey(display_name, avatar_url)
+                """)
+                .eq("recipient_id", value: currentUserId.uuidString)
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            struct NotificationResponse: Codable {
+                let id: String
+                let recipient_id: String
+                let actor_id: String
+                let type: String
+                let post_id: String?
+                let is_read: Bool
+                let created_at: Date
+                let profiles: ProfileData?
+
+                struct ProfileData: Codable {
+                    let display_name: String?
+                    let avatar_url: String?
+                }
+            }
+
+            let notificationResponses = try decoder.decode([NotificationResponse].self, from: response.data)
+
+            let notifications = notificationResponses.map { notif in
+                AppNotification(
+                    id: notif.id,
+                    type: NotificationType(rawValue: notif.type) ?? .follow,
+                    actorName: notif.profiles?.display_name ?? "Someone",
+                    actorId: notif.actor_id,
+                    actorAvatarUrl: notif.profiles?.avatar_url,
+                    postId: notif.post_id,
+                    createdAt: notif.created_at,
+                    isRead: notif.is_read
+                )
+            }
+
+            secureLogger.info("Fetched \(notifications.count) notifications")
+            return notifications
+
+        } catch {
+            secureLogger.error("Failed to get notifications: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// Mark notification as read
+    func markNotificationAsRead(notificationId: String) async -> Bool {
+        do {
+            _ = try await supabaseClient
+                .from("notifications")
+                .update(["is_read": true])
+                .eq("id", value: notificationId)
+                .execute()
+
+            secureLogger.info("Marked notification as read: \(notificationId)")
+            return true
+
+        } catch {
+            secureLogger.error("Failed to mark notification as read: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Get unread notification count
+    func getUnreadNotificationCount() async -> Int {
+        do {
+            let session = try await supabaseClient.auth.session
+            let currentUserId = session.user.id
+
+            let response = try await supabaseClient
+                .from("notifications")
+                .select("id", head: true, count: .exact)
+                .eq("recipient_id", value: currentUserId.uuidString)
+                .eq("is_read", value: false)
+                .execute()
+
+            return response.count ?? 0
+
+        } catch {
+            secureLogger.error("Failed to get unread count: \(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    // MARK: - User Search
+
+    /// Search users by display name or username
+    func searchUsers(query: String) async -> [UserProfile] {
+        secureLogger.info("Searching users with query: \(query)")
+
+        guard !query.isEmpty else {
+            return []
+        }
+
+        do {
+            // Search by display_name or username using ilike (case-insensitive)
+            let response = try await supabaseClient
+                .from("profiles")
+                .select("id,display_name,username,avatar_url,bio,created_at")
+                .or("display_name.ilike.%\(query)%,username.ilike.%\(query)%")
+                .order("display_name", ascending: true)
+                .limit(20)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let profiles = try decoder.decode([UserProfile].self, from: response.data)
+
+            secureLogger.info("Found \(profiles.count) users matching query: \(query)")
+            return profiles
+
+        } catch {
+            secureLogger.error("Failed to search users: \(error.localizedDescription)")
+            return []
+        }
+    }
 }
 
 // MARK: - Data Models
@@ -813,4 +954,16 @@ struct DatabaseFollow: Codable {
     let follower_id: UUID
     let following_id: UUID
     let created_at: Date
+}
+
+struct DatabaseNotification: Codable {
+    let id: String
+    let recipient_id: String
+    let actor_id: String
+    let type: String
+    let post_id: String?
+    let is_read: Bool
+    let created_at: Date
+    let actor_display_name: String?
+    let actor_avatar_url: String?
 }

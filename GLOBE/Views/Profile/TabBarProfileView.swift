@@ -1,12 +1,13 @@
 //======================================================================
-// MARK: - ProfileView.swift
-// Purpose: Instagram-style profile view with photo grid
-// Path: GLOBE/Views/Profile/ProfileView.swift
+// MARK: - TabBarProfileView.swift
+// Purpose: Instagram-style profile view with photo grid (for own profile from tab bar)
+// Path: GLOBE/Views/Profile/TabBarProfileView.swift
 //======================================================================
 
 import SwiftUI
+import Supabase
 
-struct ProfileView: View {
+struct TabBarProfileView: View {
     let userId: String? // If nil, shows current user's profile
 
     @StateObject private var viewModel = MyPageViewModel()
@@ -99,14 +100,32 @@ struct ProfileView: View {
                 await loadProfile()
             }
         }
+        .onChange(of: authManager.isAuthenticated) { _, isAuthenticated in
+            // Clear data when user signs out
+            if !isAuthenticated {
+                viewModel.clearUserData()
+            }
+        }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                NavigationLink(destination: SettingsView(isPresented: $showingSettings, showingAuth: $showingAuth)) {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white)
+            if isOwnProfile {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack(spacing: 16) {
+                        // Notification Bell
+                        NavigationLink(destination: NotificationListView()) {
+                            Image(systemName: "bell")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+
+                        // Settings Menu
+                        NavigationLink(destination: SettingsView(isPresented: $showingSettings, showingAuth: $showingAuth)) {
+                            Image(systemName: "line.3.horizontal")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white)
+                        }
+                    }
                 }
             }
         }
@@ -129,19 +148,70 @@ struct ProfileView: View {
 
     // Check if this is the current user's own profile
     private var isOwnProfile: Bool {
-        guard let currentUserId = authManager.currentUser?.id else { return false }
-        return userId == nil || userId == currentUserId
+        guard let currentUserId = authManager.currentUser?.id else {
+            SecureLogger.shared.info("TabBarProfileView: No current user, showing as other's profile")
+            return false
+        }
+        let isOwn = userId == nil || userId?.lowercased() == currentUserId.lowercased()
+        SecureLogger.shared.info("TabBarProfileView: userId=\(userId ?? "nil"), currentUserId=\(currentUserId), isOwnProfile=\(isOwn)")
+        return isOwn
     }
 
     // Load profile data
     private func loadProfile() async {
         // If userId is provided, load that user's data
-        // Otherwise load current user's data
-        await viewModel.loadUserData()
+        if let targetUserId = userId {
+            await loadOtherUserProfile(userId: targetUserId)
 
-        // Check follow status if viewing someone else's profile
-        if let targetUserId = userId, !isOwnProfile {
-            isFollowing = await viewModel.isFollowing(userId: targetUserId)
+            // Check follow status if viewing someone else's profile
+            if !isOwnProfile {
+                isFollowing = await viewModel.isFollowing(userId: targetUserId)
+            }
+        } else {
+            // Otherwise load current user's data
+            await viewModel.loadUserData()
+        }
+    }
+
+    // Load other user's profile and posts
+    private func loadOtherUserProfile(userId: String) async {
+        do {
+            let client = await SupabaseManager.shared.client
+
+            // Load user profile
+            let profileResult = try await client
+                .from("profiles")
+                .select()
+                .eq("id", value: userId)
+                .execute()
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            let profiles = try? decoder.decode([UserProfile].self, from: profileResult.data)
+            if let profile = profiles?.first {
+                viewModel.userProfile = profile
+            }
+
+            // Load user's posts
+            let postsResult = try await client
+                .from("posts")
+                .select()
+                .eq("user_id", value: userId)
+                .order("created_at", ascending: false)
+                .execute()
+
+            let posts = try? decoder.decode([Post].self, from: postsResult.data)
+            viewModel.userPosts = posts ?? []
+            viewModel.postsCount = viewModel.userPosts.count
+
+            // Load follower/following counts
+            viewModel.followersCount = await SupabaseService.shared.getFollowerCount(userId: userId)
+            viewModel.followingCount = await SupabaseService.shared.getFollowingCount(userId: userId)
+
+            SecureLogger.shared.info("Loaded other user profile: \(userId), posts: \(viewModel.userPosts.count)")
+        } catch {
+            SecureLogger.shared.error("Failed to load other user profile: \(error.localizedDescription)")
         }
     }
 
@@ -244,12 +314,18 @@ struct ProfileHeaderView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            // Display Name & Bio
+            // Display Name, Username & Bio
             VStack(alignment: .leading, spacing: 4) {
                 if let displayName = userProfile?.displayName {
                     Text(displayName)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
+                }
+
+                if let username = userProfile?.username {
+                    Text("@\(username)")
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundColor(.white.opacity(0.6))
                 }
 
                 if let bio = userProfile?.bio, !bio.isEmpty {
@@ -284,19 +360,19 @@ struct ProfileHeaderView: View {
                         if isLoadingFollow {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
-                                .scaleEffect(0.8)
+                                .scaleEffect(0.7)
                         } else {
                             Text(isFollowing ? "Following" : "Follow")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                         }
                     }
                     .foregroundColor(isFollowing ? .white : .white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 32)
-                    .background(isFollowing ? Color.white.opacity(0.15) : Color.cyan)
-                    .cornerRadius(8)
+                    .frame(height: 28)
+                    .background(isFollowing ? Color.white.opacity(0.15) : Color(red: 0.0, green: 0.55, blue: 0.75))
+                    .cornerRadius(6)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 6)
                             .stroke(isFollowing ? Color.white.opacity(0.3) : Color.clear, lineWidth: 1)
                     )
                 }
@@ -485,6 +561,6 @@ struct PostDetailSheet: View {
 
 #Preview {
     NavigationStack {
-        ProfileView()
+        TabBarProfileView()
     }
 }

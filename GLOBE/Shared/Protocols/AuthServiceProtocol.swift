@@ -15,7 +15,7 @@ protocol AuthServiceProtocol: ObservableObject {
 
     // MARK: - Authentication Methods
     func signIn(email: String, password: String) async throws
-    func signUp(email: String, password: String, displayName: String) async throws
+    func signUp(email: String, password: String, displayName: String, username: String) async throws
     func signOut() async
     func checkCurrentUser() async -> Bool
     func validateSession() async throws -> Bool

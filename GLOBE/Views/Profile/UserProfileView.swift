@@ -28,47 +28,41 @@ struct UserProfileView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Background layer (solid black #121212)
-            Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    isPresented = false
-                }
-
-            // Content layer
-            VStack(spacing: 0) {
-                // Close button at top
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        isPresented = false
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
-                    }
-                    .padding(.trailing, 16)
-                    .padding(.top, 16)
-                }
+        NavigationStack {
+            ZStack {
+                // Background layer (solid black #121212)
+                Color(red: 0x12 / 255.0, green: 0x12 / 255.0, blue: 0x12 / 255.0)
+                    .ignoresSafeArea()
 
                 // Profile content
                 if isLoading {
-                    Spacer()
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(1.5)
-                    Spacer()
                 } else {
-                    // Embed ProfileView with userId parameter
-                    ProfileView(userId: userId)
+                    // Embed TabBarProfileView with userId parameter
+                    TabBarProfileView(userId: userId)
+                        .onAppear {
+                            SecureLogger.shared.info("UserProfileView: Displaying profile for userId: \(userId), currentUserId: \(authManager.currentUser?.id ?? "none")")
+                        }
                 }
             }
-        }
-        .onAppear {
-            Task {
-                await loadUserProfile()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        isPresented = false
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .onAppear {
+                Task {
+                    await loadUserProfile()
+                }
             }
         }
     }

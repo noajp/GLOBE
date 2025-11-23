@@ -9,12 +9,21 @@ import os.log
 /// セキュアなログ管理システム
 final class SecureLogger: @unchecked Sendable {
     static let shared = SecureLogger()
-    
+
     private let subsystem = Bundle.main.bundleIdentifier ?? "com.globe"
     private let generalLogger = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "com.globe", category: "general")
     private let securityLogger = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "com.globe", category: "security")
     private let authLogger = OSLog(subsystem: Bundle.main.bundleIdentifier ?? "com.globe", category: "auth")
-    
+
+    // ログレベル設定（開発環境では最小限のログのみ）
+    private var minimalLogging: Bool {
+        #if DEBUG
+        return true // 開発環境ではエラーと重要なログのみ
+        #else
+        return false
+        #endif
+    }
+
     private init() {}
     
     // MARK: - Standard Logging
@@ -26,6 +35,7 @@ final class SecureLogger: @unchecked Sendable {
     }
     
     func info(_ message: String, file: String = #file, function: String = #function, line: Int = #line) {
+        guard !minimalLogging else { return } // 最小ログモードではスキップ
         let sanitizedMessage = sanitizeLogMessage(message)
         logMessage(sanitizedMessage, level: .info, logger: generalLogger, file: file, function: function, line: line)
     }
@@ -56,10 +66,11 @@ final class SecureLogger: @unchecked Sendable {
     }
     
     func authEvent(_ event: String, userID: String? = nil, file: String = #file, function: String = #function, line: Int = #line) {
+        guard !minimalLogging else { return } // 最小ログモードではスキップ
         let maskedUserID = userID.map { maskUserID($0) } ?? "unknown"
         let sanitizedEvent = sanitizeLogMessage(event)
         let message = "AUTH: \(sanitizedEvent) | User: \(maskedUserID)"
-        
+
         logMessage(message, level: .info, logger: authLogger, file: file, function: function, line: line)
     }
     

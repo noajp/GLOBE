@@ -218,6 +218,7 @@ struct UserSearchView: View {
         let mockUsers = [
             UserProfile(
                 id: "user1",
+                username: "johndoe",
                 displayName: "John Doe",
                 bio: "iOS Developer",
                 avatarUrl: nil,
@@ -227,6 +228,7 @@ struct UserSearchView: View {
             ),
             UserProfile(
                 id: "user2",
+                username: "janesmith",
                 displayName: "Jane Smith",
                 bio: "Designer & Photographer",
                 avatarUrl: nil,
