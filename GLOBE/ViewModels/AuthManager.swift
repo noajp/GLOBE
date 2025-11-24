@@ -135,13 +135,22 @@ class AuthManager: AuthServiceProtocol {
             logger.info("AuthManager.signUp: success user=\(user.id.uuidString)")
             SecureLogger.shared.authEvent("sign_up_success", userID: user.id.uuidString)
 
-            // メール認証をスキップして直接認証済み状態にする
+            #if DEBUG
+            // 開発環境: メール認証をスキップして直接認証済み状態にする
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
                 createdAt: user.createdAt.ISO8601Format()
             )
             isAuthenticated = true
+            logger.info("Development mode: Email verification skipped")
+            #else
+            // 本番環境: メール認証が必要
+            // ユーザーは認証メールを確認してログインする必要がある
+            currentUser = nil
+            isAuthenticated = false
+            logger.info("Production mode: Email verification required. Please check your email to verify your account.")
+            #endif
 
             // handle_new_user関数が自動的にプロフィールを作成するため、
             // ここでは作成しない（RLSポリシー違反を避ける）

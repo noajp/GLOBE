@@ -223,8 +223,8 @@ struct SearchResultRow: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
 
-                if let username = user.username {
-                    Text("@\(username)")
+                if let userid = user.userid {
+                    Text("@\(userid)")
                         .font(.system(size: 14))
                         .foregroundColor(.white.opacity(0.6))
                 }

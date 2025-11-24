@@ -22,6 +22,7 @@ struct LiquidGlassBottomTabBar: View {
 
     private let buttonWidth: CGFloat = 44
     private let buttonHeight: CGFloat = 44
+    private let selectedColor = Color(red: 0.0, green: 0.55, blue: 0.75) // Same as Follow button
 
     var body: some View {
         GlassEffectContainer {
@@ -33,15 +34,8 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "plus")
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(selectedTab == .post ? Color.white : Color.gray)
+                        .foregroundStyle(selectedTab == .post ? selectedColor : Color.white)
                         .frame(width: buttonWidth, height: buttonHeight)
-                }
-                .background {
-                    if selectedTab == .post {
-                        Circle()
-                            .fill(Color.black.opacity(0.25))
-                            .matchedGeometryEffect(id: "tab_selection", in: namespace)
-                    }
                 }
 
                 // Location Button
@@ -51,15 +45,8 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "location.fill")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(selectedTab == .location ? Color.white : Color.gray)
+                        .foregroundStyle(selectedTab == .location ? selectedColor : Color.white)
                         .frame(width: buttonWidth, height: buttonHeight)
-                }
-                .background {
-                    if selectedTab == .location {
-                        Circle()
-                            .fill(Color.black.opacity(0.25))
-                            .matchedGeometryEffect(id: "tab_selection", in: namespace)
-                    }
                 }
 
                 // Profile Button
@@ -69,15 +56,8 @@ struct LiquidGlassBottomTabBar: View {
                 }) {
                     Image(systemName: "person.fill")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(selectedTab == .profile ? Color.white : Color.gray)
+                        .foregroundStyle(selectedTab == .profile ? selectedColor : Color.white)
                         .frame(width: buttonWidth, height: buttonHeight)
-                }
-                .background {
-                    if selectedTab == .profile {
-                        Circle()
-                            .fill(Color.black.opacity(0.25))
-                            .matchedGeometryEffect(id: "tab_selection", in: namespace)
-                    }
                 }
             }
             .padding(.horizontal, 20)

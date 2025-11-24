@@ -113,7 +113,7 @@ final class MyPageViewModel: ObservableObject {
 
                 if let profile = profiles.first {
                     userProfile = profile
-                    SecureLogger.shared.info("Profile loaded successfully display_name=\(profile.displayName ?? "none") username=\(profile.username ?? "none")")
+                    SecureLogger.shared.info("Profile loaded successfully display_name=\(profile.displayName ?? "none") userid=\(profile.userid ?? "none")")
                 } else {
                     // プロフィールが存在しない場合、認証情報から作成
                     SecureLogger.shared.warning("Profile not found in DB for user: \(userId)")
@@ -149,7 +149,7 @@ final class MyPageViewModel: ObservableObject {
             if var profile = userProfile {
                 profile = UserProfile(
                     id: profile.id,
-                    username: profile.username,
+                    userid: profile.userid,
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: profile.avatarUrl,
@@ -318,7 +318,7 @@ final class MyPageViewModel: ObservableObject {
 
             let updatedProfile = UserProfile(
                 id: userId,
-                username: userProfile?.username,
+                userid: userProfile?.userid,
                 displayName: validatedDisplayName,
                 bio: validatedBio.isEmpty ? nil : validatedBio,
                 avatarUrl: userProfile?.avatarUrl,
@@ -411,7 +411,7 @@ final class MyPageViewModel: ObservableObject {
             if var profile = userProfile {
                 profile = UserProfile(
                     id: profile.id,
-                    username: profile.username,
+                    userid: profile.userid,
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: publicURL,

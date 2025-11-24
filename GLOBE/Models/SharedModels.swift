@@ -5,7 +5,7 @@ import SwiftUI
 
 struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
     let id: String
-    let username: String?
+    let userid: String?
     let displayName: String?
     let bio: String?
     let avatarUrl: String?
@@ -15,7 +15,7 @@ struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case username
+        case userid
         case displayName = "display_name"
         case bio
         case avatarUrl = "avatar_url"

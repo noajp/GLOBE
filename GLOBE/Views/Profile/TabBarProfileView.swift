@@ -21,6 +21,7 @@ struct TabBarProfileView: View {
 
     @StateObject private var viewModel: MyPageViewModel
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var followManager: FollowManager
     @State private var selectedPost: Post?
     @State private var showingEditProfile = false
     @State private var showingSettings = false
@@ -226,7 +227,7 @@ struct TabBarProfileView: View {
 
             // Check follow status if viewing someone else's profile
             if !isOwnProfile {
-                isFollowing = await viewModel.isFollowing(userId: targetUserId)
+                isFollowing = await followManager.isFollowing(userId: targetUserId)
             }
         } else {
             // Otherwise load current user's data
@@ -264,20 +265,13 @@ struct TabBarProfileView: View {
 
         isLoadingFollow = true
 
-        if isFollowing {
-            let success = await viewModel.unfollowUser(userId: targetUserId)
-            if success {
-                isFollowing = false
-            }
-        } else {
-            let success = await viewModel.followUser(userId: targetUserId)
-            if success {
-                isFollowing = true
-            }
+        let success = await followManager.toggleFollow(userId: targetUserId)
+
+        if success {
+            // Re-check follow status to ensure UI is in sync
+            isFollowing = await followManager.isFollowing(userId: targetUserId)
         }
 
-        // Re-check follow status to ensure UI is in sync
-        isFollowing = await viewModel.isFollowing(userId: targetUserId)
         isLoadingFollow = false
     }
 }
@@ -370,8 +364,8 @@ struct ProfileHeaderView: View {
                             .foregroundColor(.white)
                     }
 
-                    if let username = userProfile?.username {
-                        Text("@\(username)")
+                    if let userid = userProfile?.userid {
+                        Text("@\(userid)")
                             .font(.system(size: 14, weight: .regular))
                             .foregroundColor(.white.opacity(0.6))
                     }

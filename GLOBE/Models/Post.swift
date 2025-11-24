@@ -46,6 +46,16 @@ struct Post: Identifiable, Equatable, Codable {
         let minutes = Int((remaining.truncatingRemainder(dividingBy: 3600)) / 60)
         return "\(hours)時間\(minutes)分"
     }
+
+    // 投稿からの経過時間を相対表示（"5 minutes ago", "2 hours ago"）
+    var timeAgoText: String {
+        TimeFormatter.timeAgoString(from: createdAt)
+    }
+
+    // 短縮版の経過時間（"5m", "2h"）
+    var shortTimeAgoText: String {
+        TimeFormatter.shortTimeAgoString(from: createdAt)
+    }
     
     init(
         id: UUID = UUID(),

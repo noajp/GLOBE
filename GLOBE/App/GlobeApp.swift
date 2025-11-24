@@ -9,6 +9,7 @@ struct GlobeApp: App {
     @StateObject private var appSettings = AppSettings.shared
     @StateObject private var likeService = LikeService.shared
     @StateObject private var commentService = CommentService.shared
+    @StateObject private var followManager = FollowManager.shared
 
     init() {
         // ConsoleLoggerを初期化（本番は静かに）
@@ -151,6 +152,22 @@ struct GlobeApp: App {
                 .environmentObject(appSettings)
                 .environmentObject(likeService)
                 .environmentObject(commentService)
+                .environmentObject(followManager)
+                .onOpenURL { url in
+                    SecureLogger.shared.info("Received Deep Link URL: \(url.absoluteString)")
+                    Task {
+                        do {
+                            // Supabaseの認証URLを処理
+                            try await supabase.auth.session(from: url)
+                            SecureLogger.shared.info("Successfully handled auth URL")
+
+                            // セッション確立後、AuthManagerを更新
+                            await authManager.validateSession()
+                        } catch {
+                            SecureLogger.shared.error("Failed to handle auth URL: \(error.localizedDescription)")
+                        }
+                    }
+                }
         }
     }
 }

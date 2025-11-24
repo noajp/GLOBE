@@ -26,6 +26,7 @@ struct FollowListView: View {
     @Binding var selectedUserIdForProfile: String?
 
     @StateObject private var viewModel = FollowListViewModel()
+    @EnvironmentObject var followManager: FollowManager
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
 
@@ -105,6 +106,7 @@ struct FollowUserRow: View {
     @State private var isLoading = false
     @State private var hasCheckedFollowStatus = false
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var followManager: FollowManager
 
     private var isCurrentUser: Bool {
         user.id.lowercased() == authManager.currentUser?.id.lowercased()
@@ -193,27 +195,22 @@ struct FollowUserRow: View {
         .background(MinimalDesign.Colors.background)
         .onAppear {
             if !isCurrentUser && !hasCheckedFollowStatus {
-                checkFollowStatus()
+                Task {
+                    await checkFollowStatus()
+                }
             }
         }
     }
 
-    private func checkFollowStatus() {
-        Task {
-            isFollowing = await SupabaseService.shared.isFollowing(userId: user.id)
-            hasCheckedFollowStatus = true
-        }
+    private func checkFollowStatus() async {
+        isFollowing = await followManager.isFollowing(userId: user.id)
     }
 
     private func toggleFollow() {
         isLoading = true
         Task {
-            if isFollowing {
-                _ = await SupabaseService.shared.unfollowUser(userId: user.id)
-            } else {
-                _ = await SupabaseService.shared.followUser(userId: user.id)
-            }
-            checkFollowStatus() // Re-check status after action
+            _ = await followManager.toggleFollow(userId: user.id)
+            await checkFollowStatus()
             isLoading = false
         }
     }

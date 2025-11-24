@@ -21,11 +21,6 @@ struct SettingsView: View {
                         NavigationLink(destination: AccountSettingsView()) {
                             SettingsRow(icon: "person.circle", title: "Account Settings")
                         }
-                        Divider().padding(.leading, 48)
-
-                        NavigationLink(destination: DataManagementView()) {
-                            SettingsRow(icon: "externaldrive", title: "Data Management")
-                        }
                     }
                 }
 
@@ -34,16 +29,6 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     NavigationLink(destination: PrivacySettingsView()) {
                         SettingsRow(icon: "lock.circle", title: "Privacy Settings")
-                    }
-                    Divider().padding(.leading, 48)
-
-                    NavigationLink(destination: LocationSettingsView()) {
-                        SettingsRow(icon: "location.circle", title: "Location Settings")
-                    }
-                    Divider().padding(.leading, 48)
-
-                    NavigationLink(destination: BlockedUsersView()) {
-                        SettingsRow(icon: "hand.raised.circle", title: "Blocked Users")
                     }
                 }
 
@@ -62,6 +47,16 @@ struct SettingsView: View {
 
                     NavigationLink(destination: CommunityGuidelinesView()) {
                         SettingsRow(icon: "person.3", title: "Community Guidelines")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: ContentModerationPolicyView()) {
+                        SettingsRow(icon: "shield.checkered", title: "Content Moderation Policy")
+                    }
+                    Divider().padding(.leading, 48)
+
+                    NavigationLink(destination: CommercialTransactionsView()) {
+                        SettingsRow(icon: "building.2", title: "Commercial Transactions Act")
                     }
                 }
 

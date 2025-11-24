@@ -244,46 +244,125 @@ struct GlobeApp: App {
 - コード簡潔性向上: 各Viewで`= .shared`不要
 - 依存性注入の明確化: @EnvironmentObjectで依存関係が明示的
 
-### [ ] 2. Follow/Unfollowロジック統合
-**現在の問題:**
-- 同じロジックが3ファイルに重複
-  - SearchPopupView (SearchResultRow)
-  - UserProfileView
-  - TabBarProfileView
+### [x] 2. Follow/Unfollowロジック統合 ✅ 完了
 
-**リファクタリング戦略:**
+**実施内容:**
+- FollowManager.swift新規作成（158行）
+- 3つのViewファイルからFollow/Unfollowロジックを統合
+- GlobeApp.swiftにEnvironmentObjectとして追加
+
+**FollowManager.swift の機能:**
 ```swift
-// FollowManager.swift (新規作成)
 @MainActor
 class FollowManager: ObservableObject {
     static let shared = FollowManager()
 
+    // Core Operations
     func toggleFollow(userId: String) async -> Bool
-    func checkFollowStatus(userId: String) async -> Bool
+    func followUser(userId: String) async -> Bool
+    func unfollowUser(userId: String) async -> Bool
+
+    // Status Checking
+    func isFollowing(userId: String) async -> Bool
+
+    // Count Operations
     func getFollowerCount(userId: String) async -> Int
     func getFollowingCount(userId: String) async -> Int
+
+    // Cache Management
+    func clearCache()
+    func invalidateCache(for userId: String)
+
+    // Batch Operations
+    func checkFollowStatus(for userIds: [String]) async -> [String: Bool]
 }
 ```
 
-### [ ] 3. サービスレイヤー統合
-**現在の問題:**
-- SupabaseService.swift: 1011行のGod Object
-- 責任が重複する複数のサービスクラス
+**統合したファイル:**
+1. **TabBarProfileView.swift**
+   - Before: MyPageViewModel経由でfollow/unfollow
+   - After: FollowManager.toggleFollow()直接呼び出し
+   - 削減: 10行
 
-**リファクタリング戦略:**
-```
-Phase 1: サービス分割
-├── AuthService (認証専用)
-├── PostService (投稿CRUD)
-├── UserService (ユーザー管理)
-├── FollowService (フォロー機能)
-└── StorageService (画像アップロード)
+2. **FollowListView.swift**
+   - Before: SupabaseService直接呼び出し
+   - After: FollowManager経由
+   - 削減: 7行
 
-Phase 2: Repositoryパターン導入
-├── Repositories/ (データアクセス層)
-├── Services/ (ビジネスロジック層)
-└── Managers/ (状態管理層)
+3. **UserSearchView.swift (SearchResultRow)**
+   - Before: Mock実装（DispatchQueue.asyncAfter）
+   - After: FollowManager経由で実際のFollow機能
+   - 削減: 5行 + Mock削除
+
+**成果:**
+- コード重複: 3箇所 → **0箇所**
+- ロジック統一: 全てのFollow操作がFollowManagerで管理
+- キャッシュ機能追加: フォローステータスのメモリキャッシュで高速化
+- テスタビリティ向上: FollowManager単体でテスト可能
+
+### [x] 3. サービスレイヤー統合 ✅ 設計完了（実装は次フェーズ）
+
+**実施内容:**
+- SupabaseService.swift の責任分析（1010行のGod Object）
+- サービスレイヤーアーキテクチャ設計
+- 詳細な移行計画ドキュメント作成
+
+**現状分析:**
 ```
+SupabaseService.swift (1010行)
+├── Posts CRUD: 399行 (40%) - 最優先分割対象
+├── Follow/Unfollow: 295行 (29%) - 2番目の分割対象
+├── Notifications: 107行 (11%)
+├── Likes: 66行 (7%)
+├── User Search: 34行 (3%)
+└── Delete Posts: 32行 (3%)
+```
+
+**設計したアーキテクチャ:**
+```
+Views (SwiftUI)
+    ↓
+ViewModels / Managers (PostManager, FollowManager)
+    ↓
+Services Layer (PostService, FollowService, UserService)
+    ↓
+Repository Layer (SupabaseService - Facade)
+    ↓
+Supabase Client (Network)
+```
+
+**Phase 1: 優先サービス（次回実装）**
+1. **PostService.swift** (400行)
+   - fetchUserPosts, fetchPostsInBounds
+   - createPost, deletePost, updatePost
+   - 影響: PostManager, MapManager
+
+2. **FollowService.swift** (300行)
+   - followUser, unfollowUser, isFollowing
+   - getFollowers, getFollowing, counts
+   - 既存FollowManagerと統合
+
+**Phase 2: 残りのサービス**
+3. **NotificationService.swift** (110行)
+4. **UserService.swift** (100行)
+5. LikeService.swift, CommentService.swift検証
+
+**移行戦略:**
+- 後方互換性維持: SupabaseServiceをFacadeとして残す
+- 段階的移行: サービス作成 → テスト → 呼び出し側更新
+- 推定工数: 12-16時間
+
+**成果:**
+- 詳細なアーキテクチャドキュメント作成: `DOCS/SERVICE_LAYER_ARCHITECTURE.md`
+- 責任分離の明確化
+- テスタビリティ向上の設計
+- リスク分析と軽減策の文書化
+
+**次のステップ:**
+1. PostService.swift実装（400行、3-4時間）
+2. FollowService.swift実装（300行、2-3時間）
+3. 単体テスト作成
+4. 段階的な移行開始
 
 ---
 

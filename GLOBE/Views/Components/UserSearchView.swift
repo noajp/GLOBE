@@ -218,7 +218,7 @@ struct UserSearchView: View {
         let mockUsers = [
             UserProfile(
                 id: "user1",
-                username: "johndoe",
+                userid: "johndoe",
                 displayName: "John Doe",
                 bio: "iOS Developer",
                 avatarUrl: nil,
@@ -228,7 +228,7 @@ struct UserSearchView: View {
             ),
             UserProfile(
                 id: "user2",
-                username: "janesmith",
+                userid: "janesmith",
                 displayName: "Jane Smith",
                 bio: "Designer & Photographer",
                 avatarUrl: nil,
@@ -249,6 +249,7 @@ struct UserSearchView: View {
 struct UserSearchResultRow: View {
     let user: UserProfile
     let isCurrentUser: Bool
+    @EnvironmentObject var followManager: FollowManager
     @State private var isFollowing = false
     @State private var isLoading = false
     
@@ -342,11 +343,10 @@ struct UserSearchResultRow: View {
     private func toggleFollow() {
         isLoading = true
 
-        // Mock follow/unfollow action
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            isFollowing.toggle()
+        Task {
+            _ = await followManager.toggleFollow(userId: user.id)
+            isFollowing = await followManager.isFollowing(userId: user.id)
             isLoading = false
-            print("\(isFollowing ? "Followed" : "Unfollowed") \(user.displayName ?? user.id)")
         }
     }
 }

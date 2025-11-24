@@ -449,20 +449,8 @@ struct PostCard: View {
     //###########################################################################
 
     private func timeAgoText(from date: Date) -> String {
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents([.hour, .minute], from: date, to: now)
-
-        if let hours = components.hour, hours > 0 {
-            if hours >= 24 {
-                return "期限切れ"
-            }
-            return "\(hours)時間前"
-        } else if let minutes = components.minute, minutes > 0 {
-            return "\(minutes)分前"
-        } else {
-            return "たった今"
-        }
+        // Use TimeFormatter for consistent relative time display
+        return TimeFormatter.timeAgoString(from: date)
     }
 }
 
