@@ -1,5 +1,6 @@
 import SwiftUI
 import os.log
+import Supabase
 
 @main
 struct GlobeApp: App {
@@ -164,7 +165,7 @@ struct GlobeApp: App {
                             SecureLogger.shared.info("Successfully handled auth URL")
 
                             // セッション確立後、AuthManagerを更新
-                            await authManager.validateSession()
+                            _ = try await authManager.validateSession()
                         } catch {
                             SecureLogger.shared.error("Failed to handle auth URL: \(error.localizedDescription)")
                         }

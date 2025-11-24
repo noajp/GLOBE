@@ -300,18 +300,19 @@ class FollowManager: ObservableObject {
 - キャッシュ機能追加: フォローステータスのメモリキャッシュで高速化
 - テスタビリティ向上: FollowManager単体でテスト可能
 
-### [x] 3. サービスレイヤー統合 ✅ 設計完了（実装は次フェーズ）
+### [x] 3. サービスレイヤー統合 ✅ PostService実装完了
 
 **実施内容:**
 - SupabaseService.swift の責任分析（1010行のGod Object）
 - サービスレイヤーアーキテクチャ設計
 - 詳細な移行計画ドキュメント作成
+- **PostService.swift実装完了（477行）**
 
 **現状分析:**
 ```
-SupabaseService.swift (1010行)
-├── Posts CRUD: 399行 (40%) - 最優先分割対象
-├── Follow/Unfollow: 295行 (29%) - 2番目の分割対象
+SupabaseService.swift (1010行 → 約800行に削減予定)
+├── Posts CRUD: 399行 (40%) - ✅ PostServiceに分離完了
+├── Follow/Unfollow: 295行 (29%) - 次の分割対象
 ├── Notifications: 107行 (11%)
 ├── Likes: 66行 (7%)
 ├── User Search: 34行 (3%)
@@ -324,45 +325,86 @@ Views (SwiftUI)
     ↓
 ViewModels / Managers (PostManager, FollowManager)
     ↓
-Services Layer (PostService, FollowService, UserService)
+Services Layer (PostService ✅, FollowService, UserService)
     ↓
 Repository Layer (SupabaseService - Facade)
     ↓
 Supabase Client (Network)
 ```
 
-**Phase 1: 優先サービス（次回実装）**
-1. **PostService.swift** (400行)
-   - fetchUserPosts, fetchPostsInBounds
-   - createPost, deletePost, updatePost
-   - 影響: PostManager, MapManager
+**Phase 1: PostService実装 ✅ 完了**
+1. **PostService.swift** (477行) - ✅ 実装完了
+   - **Fetch Operations:**
+     - `fetchUserPosts(userId:)` - ユーザー別投稿取得
+     - `fetchPostsInBounds(minLat:maxLat:minLng:maxLng:zoomLevel:)` - 地理的範囲での投稿取得
+     - `fetchPosts()` - 最新投稿取得（リトライロジック付き）
+   - **Create/Delete Operations:**
+     - `createPost(content:imageData:latitude:longitude:locationName:isAnonymous:)` - 新規投稿作成（画像アップロード対応）
+     - `deletePost(_:)` - 投稿削除
+   - **Helper Methods:**
+     - `mapDatabasePostToPost(_:)` - DBモデル→Postモデル変換
 
-2. **FollowService.swift** (300行)
+2. **SupabaseService.swift 更新** - ✅ Facade化完了
+   - 全ての投稿関連メソッドをPostServiceに委譲
+   - `@available(*, deprecated)` で非推奨化
+   - 後方互換性維持（既存コードは動作継続）
+
+3. **GlobeApp.swift 更新** - ✅ 完了
+   - PostServiceをEnvironmentObjectとして追加
+   - 全Viewで利用可能に
+
+**Phase 2: 残りのサービス（次回実装）**
+1. **FollowService.swift** (300行予定)
+   - 既存FollowManagerと統合
    - followUser, unfollowUser, isFollowing
    - getFollowers, getFollowing, counts
-   - 既存FollowManagerと統合
 
-**Phase 2: 残りのサービス**
-3. **NotificationService.swift** (110行)
-4. **UserService.swift** (100行)
-5. LikeService.swift, CommentService.swift検証
+2. **NotificationService.swift** (110行予定)
+3. **UserService.swift** (100行予定)
+4. LikeService.swift, CommentService.swift検証
 
 **移行戦略:**
-- 後方互換性維持: SupabaseServiceをFacadeとして残す
-- 段階的移行: サービス作成 → テスト → 呼び出し側更新
-- 推定工数: 12-16時間
+- ✅ 後方互換性維持: SupabaseServiceをFacadeとして残す
+- ✅ 段階的移行: サービス作成 → Facade化 → 段階的移行
+- ⏳ 次: 呼び出し側の段階的更新
 
 **成果:**
-- 詳細なアーキテクチャドキュメント作成: `DOCS/SERVICE_LAYER_ARCHITECTURE.md`
-- 責任分離の明確化
-- テスタビリティ向上の設計
-- リスク分析と軽減策の文書化
+- ✅ 詳細なアーキテクチャドキュメント作成: `DOCS/SERVICE_LAYER_ARCHITECTURE.md`
+- ✅ PostService.swift実装完了（477行）
+- ✅ SupabaseService.swiftのFacade化完了
+- ✅ 責任分離の実装（Posts操作が完全分離）
+- ✅ テスタビリティ向上（PostServiceは独立してテスト可能）
 
 **次のステップ:**
-1. PostService.swift実装（400行、3-4時間）
-2. FollowService.swift実装（300行、2-3時間）
+1. FollowService.swift実装（300行、2-3時間予定）
+2. NotificationService.swift実装（110行、1-2時間予定）
 3. 単体テスト作成
-4. 段階的な移行開始
+4. 呼び出し側の段階的移行（PostManager → PostService）
+
+### Phase 3 統計サマリー
+
+**完了タスク: 3/3 (100%)** ✅
+
+| タスク | ステータス | 成果 |
+|-------|----------|------|
+| @StateObject→@EnvironmentObject | ✅ 完了 | 30箇所→1箇所に集約、メモリ効率向上 |
+| FollowManager統合 | ✅ 完了 | 3箇所のコード重複削除、キャッシュ追加 |
+| PostService実装 | ✅ 完了 | 477行の新サービス、責任分離達成 |
+
+**ファイル作成:**
+- FollowManager.swift (158行)
+- PostService.swift (477行)
+
+**ファイル更新:**
+- GlobeApp.swift (EnvironmentObject追加: 5→7個)
+- SupabaseService.swift (Facade化、deprecation追加)
+- 29個のViewファイル (@StateObject→@EnvironmentObject)
+- 3個のViewファイル (FollowManager統合)
+
+**アーキテクチャ改善:**
+- サービスレイヤー分離開始（PostService）
+- 依存性注入の統一（@EnvironmentObject）
+- Follow操作の中央管理化
 
 ---
 
@@ -535,11 +577,26 @@ class PostRepository: BaseRepository {
 - 保守性: 大幅向上（責任分離、再利用可能）
 ```
 
+**Task 3: CreatePostViewModel抽出** ✅
+```
+元ファイル:
+- CreatePostView.swift: 696行 (ビジネスロジックとUI混在)
+
+分割後:
+- CreatePostViewModel.swift: 195行 (ビジネスロジック)
+- CreatePostView.swift: 約500行 (UI専用)
+
+成果:
+- MVVM準拠: ViewとViewModelを分離
+- テスタビリティ向上: ViewModelを単体テスト可能
+- 保守性向上: ロジックとUIの責任分離
+```
+
 **Phase 2 統計:**
-- 完了タスク: **2/4** (50%)
+- 完了タスク: **3/4** (75%)
 - コメント追加: **2,725行**
 - コード削減: **~350行** (重複削除効果)
-- ファイル作成: **2個** (ScalablePostPin.swift, PostPinShared.swift)
+- ファイル作成: **3個** (ScalablePostPin.swift, PostPinShared.swift, CreatePostViewModel.swift)
 
 ### Phase 1 詳細レポート
 

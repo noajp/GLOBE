@@ -1,17 +1,20 @@
 //======================================================================
 // MARK: - SignInView.swift
-// Purpose: Sign in screen with Sign Up button at bottom
+// Purpose: Sign in screen with email/password and Apple Sign In
 // Path: GLOBE/Views/Auth/SignInView.swift
 //======================================================================
 
 import SwiftUI
+import AuthenticationServices
+import Supabase
 
 struct SignInView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var showSignUp = false
+    @State private var showAppleProfileSetup = false
+    @State private var appleUserSession: Session?
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthManager
@@ -125,33 +128,38 @@ struct SignInView: View {
                     .opacity((authManager.isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
                 }
                 .padding(.horizontal, 32)
-                .padding(.bottom, 40)
 
-                Spacer()
-
-                // Sign Up ボタン（下部）
-                VStack(spacing: 16) {
+                // Divider
+                HStack(spacing: 16) {
                     Rectangle()
-                        .fill(.white.opacity(0.1))
+                        .fill(.white.opacity(0.2))
                         .frame(height: 1)
-                        .padding(.horizontal, 32)
 
-                    HStack(spacing: 4) {
-                        Text("Don't have an account?")
-                            .font(.system(size: 14, weight: .regular))
-                            .foregroundColor(.white.opacity(0.7))
+                    Text("OR")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white.opacity(0.5))
 
-                        Button(action: {
-                            showSignUp = true
-                        }) {
-                            Text("Sign Up")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                                .underline()
-                        }
+                    Rectangle()
+                        .fill(.white.opacity(0.2))
+                        .frame(height: 1)
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 24)
+
+                // Apple Sign Up Button
+                SignInWithAppleButton(.signUp) { request in
+                    request.requestedScopes = [.fullName, .email]
+                } onCompletion: { result in
+                    Task {
+                        await handleAppleSignIn(result)
                     }
                 }
-                .padding(.bottom, 40)
+                .signInWithAppleButtonStyle(.white)
+                .frame(height: 52)
+                .cornerRadius(26)
+                .padding(.horizontal, 32)
+
+                Spacer()
             }
         }
         .alert("Error", isPresented: $showError) {
@@ -164,8 +172,11 @@ struct SignInView: View {
                 dismiss()
             }
         }
-        .fullScreenCover(isPresented: $showSignUp) {
-            SignUpFlowView()
+        .navigationDestination(isPresented: $showAppleProfileSetup) {
+            if let session = appleUserSession {
+                AppleSignUpProfileSetupView(session: session)
+                    .environmentObject(authManager)
+            }
         }
     }
 
@@ -181,8 +192,74 @@ struct SignInView: View {
             showError = true
         }
     }
+
+    private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
+        switch result {
+        case .success(let authorization):
+            guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                SecureLogger.shared.error("Failed to get Apple ID credential")
+                return
+            }
+
+            guard let identityToken = appleIDCredential.identityToken,
+                  let identityTokenString = String(data: identityToken, encoding: .utf8) else {
+                SecureLogger.shared.error("Failed to get identity token")
+                return
+            }
+
+            do {
+                // Supabaseに認証情報を送信
+                let session = try await supabase.auth.signInWithIdToken(
+                    credentials: .init(
+                        provider: .apple,
+                        idToken: identityTokenString
+                    )
+                )
+
+                SecureLogger.shared.info("Apple Sign In successful: \(session.user.id)")
+
+                // プロフィールが存在するかチェック
+                let profileExists = try await checkProfileExists(userId: session.user.id.uuidString)
+
+                if profileExists {
+                    // 既存ユーザー → ログイン完了
+                    _ = try? await authManager.validateSession()
+                    dismiss()
+                } else {
+                    // 新規ユーザー → プロフィール設定画面へ
+                    appleUserSession = session
+                    showAppleProfileSetup = true
+                }
+            } catch {
+                SecureLogger.shared.error("Apple Sign In failed: \(error.localizedDescription)")
+                errorMessage = "Apple Sign In failed. Please try again."
+                showError = true
+            }
+
+        case .failure(let error):
+            SecureLogger.shared.error("Apple Sign In authorization failed: \(error.localizedDescription)")
+            if (error as NSError).code != 1001 { // 1001 = user cancelled
+                errorMessage = "Apple Sign In failed. Please try again."
+                showError = true
+            }
+        }
+    }
+
+    private func checkProfileExists(userId: String) async throws -> Bool {
+        let response = try await supabase
+            .from("profiles")
+            .select("id")
+            .eq("id", value: userId)
+            .execute()
+
+        let decoder = JSONDecoder()
+        let profiles = try? decoder.decode([UserProfile].self, from: response.data)
+
+        return !(profiles?.isEmpty ?? true)
+    }
 }
 
 #Preview {
     SignInView()
+        .environmentObject(AuthManager.shared)
 }
