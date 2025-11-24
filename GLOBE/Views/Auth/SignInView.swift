@@ -223,8 +223,8 @@ struct SignInView: View {
 
                 if profileExists {
                     // 既存ユーザー → ログイン完了
-                    _ = try? await authManager.validateSession()
-                    dismiss()
+                    await authManager.checkCurrentUser()
+                    // onChangeでdismissが自動的に呼ばれるため、ここではdismiss()不要
                 } else {
                     // 新規ユーザー → プロフィール設定画面へ
                     appleUserSession = session
