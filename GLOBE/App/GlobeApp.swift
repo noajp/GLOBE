@@ -6,6 +6,7 @@ struct GlobeApp: App {
     // MARK: - Environment Objects (Shared Singletons)
     @StateObject private var authManager = AuthManager.shared
     @StateObject private var postManager = PostManager.shared
+    @StateObject private var postService = PostService.shared
     @StateObject private var appSettings = AppSettings.shared
     @StateObject private var likeService = LikeService.shared
     @StateObject private var commentService = CommentService.shared
@@ -149,6 +150,7 @@ struct GlobeApp: App {
             ContentView()
                 .environmentObject(authManager)
                 .environmentObject(postManager)
+                .environmentObject(postService)
                 .environmentObject(appSettings)
                 .environmentObject(likeService)
                 .environmentObject(commentService)

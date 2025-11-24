@@ -12,85 +12,28 @@ import Combine
 @MainActor
 class SupabaseService: ObservableObject {
     static let shared = SupabaseService()
-    
+
     private let secureConfig = SecureConfig.shared
     private let secureLogger = SecureLogger.shared
-    
+    private let postService = PostService.shared
+
     // Supabase client (sync accessor to avoid async init in singleton)
     private let supabaseClient: SupabaseClient
-    
+
     @Published var posts: [Post] = []
     @Published var isLoading = false
     @Published var error: String?
-    
+
 private init() {
         // Use sync client for singleton construction
         supabaseClient = SupabaseManager.shared.syncClient
     }
     
-    // MARK: - Posts
-    
+    // MARK: - Posts (Delegating to PostService)
+
+    @available(*, deprecated, message: "Use PostService.shared.fetchUserPosts(userId:) instead")
     func fetchUserPosts(userId: String) async -> [Post] {
-        secureLogger.info("Fetching posts for user: \(userId)")
-
-        do {
-            // UUIDとして有効か確認
-            guard let userUUID = UUID(uuidString: userId) else {
-                secureLogger.warning("Invalid user ID format: \(userId)")
-                return []
-            }
-
-            let selectColumns = "id,user_id,content,image_url,location_name,latitude,longitude,is_public,is_anonymous,created_at,expires_at,like_count"
-
-            let response = try await supabaseClient
-                .from("posts")
-                .select(selectColumns)
-                .eq("user_id", value: userUUID.uuidString)
-                .order("created_at", ascending: false)
-                .limit(100)
-                .execute()
-
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let dbPosts = try decoder.decode([DatabasePost].self, from: response.data)
-
-            let posts = dbPosts.map { dbPost in
-                let name: String
-                let avatar: String?
-                if dbPost.is_anonymous ?? false {
-                    name = "匿名ユーザー"
-                    avatar = nil
-                } else {
-                    name = "ユーザー"
-                    avatar = nil
-                }
-                return Post(
-                    id: dbPost.id,
-                    createdAt: dbPost.created_at,
-                    expiresAt: dbPost.expires_at,
-                    location: CLLocationCoordinate2D(
-                        latitude: dbPost.latitude,
-                        longitude: dbPost.longitude
-                    ),
-                    locationName: dbPost.location_name,
-                    imageData: nil,
-                    imageUrl: dbPost.image_url,
-                    text: dbPost.content,
-                    authorName: name,
-                    authorId: (dbPost.is_anonymous ?? false) ? "anonymous" : dbPost.user_id.uuidString,
-                    isAnonymous: dbPost.is_anonymous ?? false,
-                    authorAvatarUrl: avatar
-                )
-            }
-
-            secureLogger.info("Successfully fetched \(posts.count) posts for user \(userId)")
-            return posts
-
-        } catch {
-            let nsError = error as NSError
-            secureLogger.error("Failed to fetch user posts: \(nsError.localizedDescription)")
-            return []
-        }
+        return await postService.fetchUserPosts(userId: userId)
     }
     
     /// Fetch posts within a geographic bounding box with smart zoom-based filtering
