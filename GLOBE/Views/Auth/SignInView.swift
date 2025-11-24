@@ -45,15 +45,16 @@ struct SignInView: View {
 
                 // ロゴエリア
                 VStack(spacing: 12) {
-                    Text("Welcome Back")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                    Text("GLOBE")
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
-                        .tracking(1)
+                        .tracking(2)
 
-                    Text("Sign in to continue")
+                    Text("Break free from the timeline,\nexpand your world")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.white.opacity(0.7))
-                        .tracking(0.5)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
                 }
                 .padding(.bottom, 60)
 

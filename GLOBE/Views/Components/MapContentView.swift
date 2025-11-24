@@ -24,7 +24,7 @@ struct MapContentView: View {
 
     @State private var mapCameraPosition: MapCameraPosition = .camera(
         MapCamera(
-            centerCoordinate: CLLocationCoordinate2D(latitude: 35.6895, longitude: 139.6917),
+            centerCoordinate: LandmarkCoordinates.getCurrentLocaleCoordinate(),
             distance: 1500,
             heading: 0,
             pitch: 45
@@ -143,15 +143,46 @@ struct MapContentView: View {
         .onAppear {
             locationManager.startLocationServices()
 
-            if let location = locationManager.location {
-                mapCameraPosition = .camera(
-                    MapCamera(
-                        centerCoordinate: location.coordinate,
-                        distance: 1000,
-                        heading: 0,
-                        pitch: 60
+            // ユーザーのhome_countryがあれば、その国のランドマークを表示
+            Task {
+                if let userProfile = authManager.currentUser,
+                   let homeCountryCode = userProfile.homeCountry,
+                   let country = CountryData.country(for: homeCountryCode) {
+                    // ホーム国のランドマークに移動（3Dビュー）
+                    mapCameraPosition = .camera(
+                        MapCamera(
+                            centerCoordinate: country.coordinate,
+                            distance: 1000,
+                            heading: 0,
+                            pitch: 60
+                        )
                     )
-                )
+                    ConsoleLogger.shared.forceLog("MapContentView: Moved to home country \(country.name) at \(country.landmarkName)")
+                } else if let location = locationManager.location {
+                    // ホーム国が未設定なら現在地を使用
+                    mapCameraPosition = .camera(
+                        MapCamera(
+                            centerCoordinate: location.coordinate,
+                            distance: 1000,
+                            heading: 0,
+                            pitch: 60
+                        )
+                    )
+                } else {
+                    // 位置情報もない場合はデバイスのロケールから推測
+                    let countryCode = Locale.current.region?.identifier ?? "JP"
+                    if let country = CountryData.country(for: countryCode) {
+                        mapCameraPosition = .camera(
+                            MapCamera(
+                                centerCoordinate: country.coordinate,
+                                distance: 1000,
+                                heading: 0,
+                                pitch: 60
+                            )
+                        )
+                        ConsoleLogger.shared.forceLog("MapContentView: Moved to device locale country \(country.name)")
+                    }
+                }
             }
         }
         .onChange(of: mapManager.shouldUpdateMapPosition) { _, newPosition in

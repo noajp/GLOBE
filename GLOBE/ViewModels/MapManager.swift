@@ -24,7 +24,7 @@ class MapManager: ObservableObject {
     //###########################################################################
 
     @Published var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 35.6762, longitude: 139.6503),
+        center: LandmarkCoordinates.getCurrentLocaleCoordinate(),
         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
     )
 

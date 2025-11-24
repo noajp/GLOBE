@@ -9,6 +9,7 @@ struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
     let displayName: String?
     let bio: String?
     let avatarUrl: String?
+    let homeCountry: String?
     let postCount: Int?
     let followerCount: Int?
     let followingCount: Int?
@@ -19,6 +20,7 @@ struct UserProfile: Identifiable, Codable, Equatable, @unchecked Sendable {
         case displayName = "display_name"
         case bio
         case avatarUrl = "avatar_url"
+        case homeCountry = "home_country"
         case postCount = "post_count"
         case followerCount = "follower_count"
         case followingCount = "following_count"
@@ -41,11 +43,13 @@ struct AppUser: Codable, Equatable, @unchecked Sendable {
     let id: String
     let email: String?
     let createdAt: String?
+    let homeCountry: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case email
         case createdAt = "created_at"
+        case homeCountry = "home_country"
     }
 }
 

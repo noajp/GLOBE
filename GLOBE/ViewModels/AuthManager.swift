@@ -52,10 +52,14 @@ class AuthManager: AuthServiceProtocol {
             let session = try await (await supabase).auth.session
             let user = session.user
 
+            // プロフィール情報を取得してhome_countryを含める
+            let homeCountry = try? await fetchUserHomeCountry(userId: user.id.uuidString)
+
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
-                createdAt: user.createdAt.ISO8601Format()
+                createdAt: user.createdAt.ISO8601Format(),
+                homeCountry: homeCountry
             )
             isAuthenticated = true
             return true
@@ -140,7 +144,8 @@ class AuthManager: AuthServiceProtocol {
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
-                createdAt: user.createdAt.ISO8601Format()
+                createdAt: user.createdAt.ISO8601Format(),
+                homeCountry: nil // サインアップ直後はhome_countryなし
             )
             isAuthenticated = true
             logger.info("Development mode: Email verification skipped")
@@ -201,11 +206,15 @@ class AuthManager: AuthServiceProtocol {
             logger.info("Sign in successful for user: \(user.id.uuidString)")
             logger.info("AuthManager.signIn: success user=\(user.id.uuidString)")
             SecureLogger.shared.authEvent("sign_in_success", userID: user.id.uuidString)
-            
+
+            // プロフィール情報を取得してhome_countryを含める
+            let homeCountry = try? await fetchUserHomeCountry(userId: user.id.uuidString)
+
             currentUser = AppUser(
                 id: user.id.uuidString,
                 email: user.email,
-                createdAt: user.createdAt.ISO8601Format()
+                createdAt: user.createdAt.ISO8601Format(),
+                homeCountry: homeCountry
             )
             isAuthenticated = true
 
@@ -313,10 +322,14 @@ class AuthManager: AuthServiceProtocol {
         let user = response.user
         logger.info("Apple Sign In successful for user: \(user.id.uuidString)")
 
+        // プロフィール情報を取得してhome_countryを含める
+        let homeCountry = try? await fetchUserHomeCountry(userId: user.id.uuidString)
+
         currentUser = AppUser(
             id: user.id.uuidString,
             email: user.email,
-            createdAt: user.createdAt.ISO8601Format()
+            createdAt: user.createdAt.ISO8601Format(),
+            homeCountry: homeCountry
         )
         isAuthenticated = true
 
@@ -516,7 +529,8 @@ class AuthManager: AuthServiceProtocol {
                     let devUser = AppUser(
                         id: latestProfile.id,
                         email: "dev@localhost.test", // 開発用ダミーメール
-                        createdAt: latestProfile.created_at.ISO8601Format()
+                        createdAt: latestProfile.created_at.ISO8601Format(),
+                        homeCountry: nil // 開発モードではhome_countryなし
                     )
 
                     await MainActor.run {
@@ -559,4 +573,28 @@ class AuthManager: AuthServiceProtocol {
         logger.info("Development login skip disabled")
     }
     #endif
+
+    //###########################################################################
+    // MARK: - Helper: Fetch User Home Country
+    // Function: fetchUserHomeCountry
+    // Overview: Fetch user's home_country from profiles table
+    // Processing: Query profiles → Extract home_country → Return country code
+    //###########################################################################
+
+    private func fetchUserHomeCountry(userId: String) async throws -> String? {
+        let response = try await (await supabase)
+            .from("profiles")
+            .select("home_country")
+            .eq("id", value: userId)
+            .single()
+            .execute()
+
+        struct HomeCountryResponse: Codable {
+            let home_country: String?
+        }
+
+        let decoder = JSONDecoder()
+        let result = try? decoder.decode(HomeCountryResponse.self, from: response.data)
+        return result?.home_country
+    }
 }

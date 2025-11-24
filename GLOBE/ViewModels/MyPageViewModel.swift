@@ -153,6 +153,7 @@ final class MyPageViewModel: ObservableObject {
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: profile.avatarUrl,
+                    homeCountry: profile.homeCountry,
                     postCount: postsCount,
                     followerCount: profile.followerCount,
                     followingCount: profile.followingCount
@@ -322,6 +323,7 @@ final class MyPageViewModel: ObservableObject {
                 displayName: validatedDisplayName,
                 bio: validatedBio.isEmpty ? nil : validatedBio,
                 avatarUrl: userProfile?.avatarUrl,
+                homeCountry: userProfile?.homeCountry,
                 postCount: userProfile?.postCount,
                 followerCount: userProfile?.followerCount,
                 followingCount: userProfile?.followingCount
@@ -415,6 +417,7 @@ final class MyPageViewModel: ObservableObject {
                     displayName: profile.displayName,
                     bio: profile.bio,
                     avatarUrl: publicURL,
+                    homeCountry: profile.homeCountry,
                     postCount: profile.postCount,
                     followerCount: profile.followerCount,
                     followingCount: profile.followingCount

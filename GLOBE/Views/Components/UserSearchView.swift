@@ -222,6 +222,7 @@ struct UserSearchView: View {
                 displayName: "John Doe",
                 bio: "iOS Developer",
                 avatarUrl: nil,
+                homeCountry: "US",
                 postCount: 45,
                 followerCount: 150,
                 followingCount: 200
@@ -232,6 +233,7 @@ struct UserSearchView: View {
                 displayName: "Jane Smith",
                 bio: "Designer & Photographer",
                 avatarUrl: nil,
+                homeCountry: "GB",
                 postCount: 67,
                 followerCount: 300,
                 followingCount: 180
