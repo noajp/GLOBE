@@ -194,6 +194,7 @@ struct SignInView: View {
     }
 
     private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
+        SecureLogger.shared.info("🔵 NEW CODE: handleAppleSignIn called - Build timestamp: \(Date())")
         switch result {
         case .success(let authorization):
             guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
