@@ -220,13 +220,16 @@ struct SignInView: View {
 
                 // プロフィールが存在するかチェック
                 let profileExists = try await checkProfileExists(userId: session.user.id.uuidString)
+                SecureLogger.shared.info("Profile exists check: \(profileExists)")
 
                 if profileExists {
                     // 既存ユーザー → ログイン完了
+                    SecureLogger.shared.info("Existing user - calling checkCurrentUser()")
                     await authManager.checkCurrentUser()
-                    // onChangeでdismissが自動的に呼ばれるため、ここではdismiss()不要
+                    SecureLogger.shared.info("checkCurrentUser() completed, isAuthenticated: \(authManager.isAuthenticated)")
                 } else {
                     // 新規ユーザー → プロフィール設定画面へ
+                    SecureLogger.shared.info("New user - showing profile setup")
                     appleUserSession = session
                     showAppleProfileSetup = true
                 }
