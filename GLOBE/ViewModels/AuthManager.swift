@@ -27,6 +27,7 @@ class AuthManager: AuthServiceProtocol {
     @Published var currentUser: AppUser?
     @Published var isAuthenticated = false
     @Published var isLoading = false
+    @Published var pendingProfileSetupSession: Session?  // 新規ユーザーのプロフィール設定待ちセッション
 
     private let logger = SecureLogger.shared
 
@@ -52,17 +53,29 @@ class AuthManager: AuthServiceProtocol {
             let session = try await (await supabase).auth.session
             let user = session.user
 
-            // プロフィール情報を取得してhome_countryを含める
-            let homeCountry = try? await fetchUserHomeCountry(userId: user.id.uuidString)
+            // プロファイルが存在するかチェック
+            let profileExists = try await checkProfileExists(userId: user.id.uuidString)
 
-            currentUser = AppUser(
-                id: user.id.uuidString,
-                email: user.email,
-                createdAt: user.createdAt.ISO8601Format(),
-                homeCountry: homeCountry
-            )
-            isAuthenticated = true
-            return true
+            if profileExists {
+                // プロフィール情報を取得してhome_countryを含める
+                let homeCountry = try? await fetchUserHomeCountry(userId: user.id.uuidString)
+
+                currentUser = AppUser(
+                    id: user.id.uuidString,
+                    email: user.email,
+                    createdAt: user.createdAt.ISO8601Format(),
+                    homeCountry: homeCountry
+                )
+                isAuthenticated = true
+                return true
+            } else {
+                // セッションはあるがプロファイルがない（DBから削除された等）
+                logger.warning("Session exists but profile not found - clearing session")
+                try? await (await supabase).auth.signOut()
+                isAuthenticated = false
+                currentUser = nil
+                return false
+            }
 
         } catch {
             logger.info("No current user session found")
@@ -389,16 +402,54 @@ class AuthManager: AuthServiceProtocol {
     }
 
     // MARK: - Session Validation
-    
+
     func validateSession() async throws -> Bool {
         do {
-            _ = try await (await supabase).auth.session
-            logger.info("Session validation successful")
-            return true
+            let session = try await (await supabase).auth.session
+            let user = session.user
+
+            // プロファイルが存在するかチェック
+            let profileExists = try await checkProfileExists(userId: user.id.uuidString)
+
+            if profileExists {
+                // プロフィール情報を取得してhome_countryを含める
+                let homeCountry = try? await fetchUserHomeCountry(userId: user.id.uuidString)
+
+                currentUser = AppUser(
+                    id: user.id.uuidString,
+                    email: user.email,
+                    createdAt: user.createdAt.ISO8601Format(),
+                    homeCountry: homeCountry
+                )
+                isAuthenticated = true
+                logger.info("Session validation successful - user authenticated")
+                return true
+            } else {
+                // プロファイルが存在しない場合（DBから削除された等）
+                logger.warning("Session valid but profile not found - signing out")
+                await signOut()
+                return false
+            }
         } catch {
             logger.warning("Session validation failed: \(error.localizedDescription)")
+            currentUser = nil
+            isAuthenticated = false
             throw AuthError.unknown(error.localizedDescription)
         }
+    }
+
+    // プロファイル存在チェック
+    private func checkProfileExists(userId: String) async throws -> Bool {
+        let response = try await (await supabase)
+            .from("profiles")
+            .select("id")
+            .eq("id", value: userId)
+            .execute()
+
+        let decoder = JSONDecoder()
+        let profiles = try? decoder.decode([UserProfile].self, from: response.data)
+
+        return !(profiles?.isEmpty ?? true)
     }
     
     // MARK: - Security Methods (Simplified for GLOBE)

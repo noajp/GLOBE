@@ -171,14 +171,9 @@ struct AppleSignUpProfileSetupView: View {
                                             Text(country.emoji)
                                                 .font(.system(size: 32))
 
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(country.name)
-                                                    .font(.system(size: 17))
-                                                    .foregroundColor(MinimalDesign.Colors.text)
-                                                Text(country.landmarkName)
-                                                    .font(.system(size: 13))
-                                                    .foregroundColor(MinimalDesign.Colors.textSecondary)
-                                            }
+                                            Text(country.name)
+                                                .font(.system(size: 17))
+                                                .foregroundColor(MinimalDesign.Colors.text)
                                         }
                                     } else {
                                         Text("Select your country")
@@ -256,7 +251,8 @@ struct AppleSignUpProfileSetupView: View {
         }
         .onAppear {
             // Appleから取得した名前を初期値として設定（もしあれば）
-            if let fullName = session.user.userMetadata["full_name"] as? String {
+            if let fullNameJSON = session.user.userMetadata["full_name"],
+               case .string(let fullName) = fullNameJSON {
                 displayName = fullName
             }
 
@@ -335,7 +331,7 @@ struct AppleSignUpProfileSetupView: View {
             if let avatarImage = avatarImage,
                let imageData = avatarImage.jpegData(compressionQuality: 0.8) {
                 let fileName = "\(session.user.id.uuidString).jpg"
-                let filePath = try await supabase.storage
+                _ = try await supabase.storage
                     .from("avatars")
                     .upload(path: fileName, file: imageData, options: .init(contentType: "image/jpeg"))
 
@@ -348,31 +344,24 @@ struct AppleSignUpProfileSetupView: View {
                 SecureLogger.shared.info("Avatar uploaded successfully: \(fileName)")
             }
 
-            // profilesテーブルに保存
+            // profilesテーブルに保存（emailはauth.usersにあるので不要）
+            // DBカラム: id, userid, display_name, avatar_url, bio, home_country, created_at, updated_at
             struct ProfileInsert: Encodable {
                 let id: String
                 let userid: String
                 let display_name: String
-                let email: String
                 let avatar_url: String?
                 let bio: String?
                 let home_country: String?
-                let post_count: Int
-                let follower_count: Int
-                let following_count: Int
             }
 
             let profileData = ProfileInsert(
                 id: session.user.id.uuidString,
                 userid: cleanedUserId,
                 display_name: trimmedDisplayName,
-                email: session.user.email ?? "",
                 avatar_url: avatarUrl,
                 bio: trimmedBio.isEmpty ? nil : trimmedBio,
-                home_country: selectedCountry?.countryCode,
-                post_count: 0,
-                follower_count: 0,
-                following_count: 0
+                home_country: selectedCountry?.countryCode
             )
 
             try await supabase
@@ -384,6 +373,9 @@ struct AppleSignUpProfileSetupView: View {
 
             // AuthManagerのセッションを更新
             _ = try? await authManager.validateSession()
+
+            // pendingProfileSetupSessionをクリア
+            authManager.pendingProfileSetupSession = nil
 
             // 画面を閉じる
             dismiss()
@@ -436,21 +428,9 @@ struct CountryPickerSheet: View {
                             Text(country.emoji)
                                 .font(.system(size: 32))
 
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(country.name)
-                                    .font(.system(size: 17, weight: .medium))
-                                    .foregroundColor(MinimalDesign.Colors.text)
-
-                                HStack(spacing: 4) {
-                                    Image(systemName: "mappin.circle.fill")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(Color(red: 0.0, green: 0.55, blue: 0.75))
-
-                                    Text(country.landmarkName)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(MinimalDesign.Colors.textSecondary)
-                                }
-                            }
+                            Text(country.name)
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundColor(MinimalDesign.Colors.text)
 
                             Spacer()
                         }

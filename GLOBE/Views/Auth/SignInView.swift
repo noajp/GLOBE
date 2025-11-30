@@ -1,6 +1,6 @@
 //======================================================================
 // MARK: - SignInView.swift
-// Purpose: Sign in screen with email/password and Apple Sign In
+// Purpose: Sign in screen with Apple authentication
 // Path: GLOBE/Views/Auth/SignInView.swift
 //======================================================================
 
@@ -9,12 +9,9 @@ import AuthenticationServices
 import Supabase
 
 struct SignInView: View {
-    @State private var email = ""
-    @State private var password = ""
     @State private var showError = false
     @State private var errorMessage = ""
-    @State private var showAppleProfileSetup = false
-    @State private var appleUserSession: Session?
+    @State private var showSignUp = false
 
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthManager
@@ -46,7 +43,7 @@ struct SignInView: View {
                 // ロゴエリア
                 VStack(spacing: 12) {
                     Text("GLOBE")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .tracking(2)
 
@@ -56,111 +53,39 @@ struct SignInView: View {
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                 }
-                .padding(.bottom, 60)
-
-                // フォーム
-                VStack(spacing: 20) {
-                    // メールアドレス入力
-                    VStack(alignment: .leading, spacing: 8) {
-                        TextField("", text: $email, prompt: Text("Email").foregroundColor(.gray))
-                            .font(.system(size: 17))
-                            .foregroundColor(.white)
-                            .tint(.white)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 16)
-                            .background(.clear)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(.white.opacity(0.2), lineWidth: 1)
-                            )
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.emailAddress)
-                            .textContentType(.emailAddress)
-                    }
-
-                    // パスワード入力
-                    VStack(alignment: .leading, spacing: 8) {
-                        SecureField("", text: $password, prompt: Text("Password").foregroundColor(.gray))
-                            .font(.system(size: 17))
-                            .foregroundColor(.white)
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 16)
-                            .background(.clear)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(.white.opacity(0.2), lineWidth: 1)
-                            )
-                            .textContentType(.password)
-                    }
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 40)
-
-                // サインインボタン
-                VStack(spacing: 16) {
-                    Button(action: {
-                        Task {
-                            await signIn()
-                        }
-                    }) {
-                        if authManager.isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: customBlack))
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 52)
-                                .background(.white)
-                                .cornerRadius(26)
-
-                        } else {
-                            Text("Sign In")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundColor(customBlack)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 52)
-                                .background(.white)
-                                .cornerRadius(26)
-
-                        }
-                    }
-                    .disabled(authManager.isLoading || email.isEmpty || password.isEmpty)
-                    .opacity((authManager.isLoading || email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
-                }
-                .padding(.horizontal, 32)
-
-                // Divider
-                HStack(spacing: 16) {
-                    Rectangle()
-                        .fill(.white.opacity(0.2))
-                        .frame(height: 1)
-
-                    Text("OR")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white.opacity(0.5))
-
-                    Rectangle()
-                        .fill(.white.opacity(0.2))
-                        .frame(height: 1)
-                }
-                .padding(.horizontal, 32)
-                .padding(.vertical, 24)
-
-                // Apple Sign Up Button
-                SignInWithAppleButton(.signUp) { request in
-                    request.requestedScopes = [.fullName, .email]
-                } onCompletion: { result in
-                    Task {
-                        await handleAppleSignIn(result)
-                    }
-                }
-                .signInWithAppleButtonStyle(.white)
-                .frame(height: 52)
-                .cornerRadius(26)
-                .padding(.horizontal, 32)
 
                 Spacer()
+
+                // Apple Sign In Button
+                VStack(spacing: 24) {
+                    SignInWithAppleButton(.signIn) { request in
+                        request.requestedScopes = [.fullName, .email]
+                    } onCompletion: { result in
+                        Task {
+                            await handleAppleSignIn(result)
+                        }
+                    }
+                    .signInWithAppleButtonStyle(.white)
+                    .frame(height: 52)
+                    .cornerRadius(26)
+
+                    // Sign Up リンク
+                    HStack(spacing: 4) {
+                        Text("Don't have an account?")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.6))
+
+                        Button(action: {
+                            showSignUp = true
+                        }) {
+                            Text("Sign Up")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.bottom, 60)
             }
         }
         .alert("Error", isPresented: $showError) {
@@ -173,27 +98,13 @@ struct SignInView: View {
                 dismiss()
             }
         }
-        .navigationDestination(isPresented: $showAppleProfileSetup) {
-            if let session = appleUserSession {
-                AppleSignUpProfileSetupView(session: session)
-                    .environmentObject(authManager)
-            }
+        .fullScreenCover(isPresented: $showSignUp) {
+            SignUpFlowView()
+                .environmentObject(authManager)
         }
     }
 
-    private func signIn() async {
-        ConsoleLogger.shared.forceLog("SignInView: Starting sign in for \(email)")
-
-        do {
-            try await authManager.signIn(email: email, password: password)
-            ConsoleLogger.shared.forceLog("SignInView: Sign in SUCCESS")
-        } catch {
-            ConsoleLogger.shared.logError("SignInView sign in failed", error: error)
-            errorMessage = error.localizedDescription
-            showError = true
-        }
-    }
-
+    @MainActor
     private func handleAppleSignIn(_ result: Result<ASAuthorization, Error>) async {
         switch result {
         case .success(let authorization):
@@ -223,24 +134,29 @@ struct SignInView: View {
                 let profileExists = try await checkProfileExists(userId: session.user.id.uuidString)
 
                 if profileExists {
-                    // 既存ユーザー → ログイン完了
-                    _ = try? await authManager.validateSession()
-                    dismiss()
+                    // 既存ユーザー → AuthManagerを更新してログイン完了
+                    SecureLogger.shared.info("Existing user detected, validating session...")
+                    let isValid = try await authManager.validateSession()
+                    SecureLogger.shared.info("Session validation result: \(isValid)")
+                    // onChangeでdismiss()が呼ばれるのを待つ
                 } else {
-                    // 新規ユーザー → プロフィール設定画面へ
-                    appleUserSession = session
-                    showAppleProfileSetup = true
+                    // Sign In画面からアカウントがないユーザーがサインインしようとした場合
+                    // サインアウトしてSign Up画面へ誘導
+                    SecureLogger.shared.warning("No profile found for this account. Please sign up first.")
+                    try? await supabase.auth.signOut()
+                    errorMessage = "No account found. Please sign up first."
+                    showError = true
                 }
             } catch {
                 SecureLogger.shared.error("Apple Sign In failed: \(error.localizedDescription)")
-                errorMessage = "Apple Sign In failed. Please try again."
+                errorMessage = "Sign in failed. Please try again."
                 showError = true
             }
 
         case .failure(let error):
             SecureLogger.shared.error("Apple Sign In authorization failed: \(error.localizedDescription)")
             if (error as NSError).code != 1001 { // 1001 = user cancelled
-                errorMessage = "Apple Sign In failed. Please try again."
+                errorMessage = "Sign in failed. Please try again."
                 showError = true
             }
         }

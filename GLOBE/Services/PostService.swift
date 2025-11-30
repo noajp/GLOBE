@@ -275,7 +275,7 @@ class PostService: ObservableObject {
             }
         }
 
-        if let e = lastError {
+        if lastError != nil {
             self.error = "投稿の取得に失敗しました"
             secureLogger.error("fetchPosts failed after \(maxAttempts) attempts")
         }

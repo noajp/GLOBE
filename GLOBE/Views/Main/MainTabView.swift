@@ -1,6 +1,7 @@
 import SwiftUI
 import MapKit
 import CoreLocation
+import Supabase
 
 struct MainTabView: View {
     @EnvironmentObject var authManager: AuthManager
@@ -8,6 +9,7 @@ struct MainTabView: View {
     @EnvironmentObject var appSettings: AppSettings
     @StateObject private var mapManager = MapManager()
     @StateObject private var locationManager = MapLocationService()
+    @State private var showingProfileSetup = false
     @State private var showingCreatePost = false
     @State private var showingAuth = false
     @State private var showingProfile = false
@@ -30,22 +32,43 @@ struct MainTabView: View {
             let safeInsets = proxy.safeAreaInsets
 
             ZStack {
-                // Full screen map
-                MapContentView(
-                    mapManager: mapManager,
-                    locationManager: locationManager,
-                    postManager: postManager,
-                    authManager: authManager,
-                    showingCreatePost: $showingCreatePost,
-                    shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
-                    tappedLocation: $tappedLocation,
-                    vTipPoint: .constant(CGPoint.zero) // TEMPORARILY DISABLED
-                )
-                    .environmentObject(appSettings)
-                    .ignoresSafeArea(.all)
+                // プロフィール設定中またはプロフィール設定待ちの場合はスプラッシュ画面を表示
+                if showingProfileSetup || authManager.pendingProfileSetupSession != nil {
+                    // Splash/Loading screen during profile setup
+                    ZStack {
+                        MinimalDesign.Colors.background
+                            .ignoresSafeArea()
 
-                // Bottom UI: Search button and Tab bar
-                HStack(spacing: 12) {
+                        VStack(spacing: 20) {
+                            Text("GLOBE")
+                                .font(.system(size: 48, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                                .tracking(2)
+
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(1.2)
+                        }
+                    }
+                } else {
+                    // Full screen map
+                    MapContentView(
+                        mapManager: mapManager,
+                        locationManager: locationManager,
+                        postManager: postManager,
+                        authManager: authManager,
+                        showingCreatePost: $showingCreatePost,
+                        shouldMoveToCurrentLocation: $shouldMoveToCurrentLocation,
+                        tappedLocation: $tappedLocation,
+                        vTipPoint: .constant(CGPoint.zero) // TEMPORARILY DISABLED
+                    )
+                        .environmentObject(appSettings)
+                        .ignoresSafeArea(.all)
+                }
+
+                // Bottom UI: Search button and Tab bar (プロフィール設定中は非表示)
+                if !showingProfileSetup && authManager.pendingProfileSetupSession == nil {
+                    HStack(spacing: 12) {
                     // Search button (left side) - circular glass effect
                     GlassEffectContainer {
                         Button(action: {
@@ -113,12 +136,13 @@ struct MainTabView: View {
                             }
                         }
                     )
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .center, vertical: .bottom))
+                    .padding(.leading, max(safeInsets.leading, 0) + 20)
+                    .padding(.trailing, max(safeInsets.trailing, 0) + 20)
+                    .padding(.bottom, 0)
+                    .offset(y: showingSearch ? 200 : 0)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: .center, vertical: .bottom))
-                .padding(.leading, max(safeInsets.leading, 0) + 20)
-                .padding(.trailing, max(safeInsets.trailing, 0) + 20)
-                .padding(.bottom, 0)
-                .offset(y: showingSearch ? 200 : 0)
             }
             .ignoresSafeArea(.keyboard)
 
@@ -189,6 +213,24 @@ struct MainTabView: View {
         .fullScreenCover(isPresented: $showingAuth) {
             SignInView()
         }
+        .fullScreenCover(isPresented: $showingProfileSetup) {
+            if let session = authManager.pendingProfileSetupSession {
+                NavigationStack {
+                    AppleSignUpProfileSetupView(session: session)
+                        .environmentObject(authManager)
+                }
+            }
+        }
+        .onChange(of: authManager.pendingProfileSetupSession) { _, session in
+            // 新規ユーザーのプロフィール設定が必要な場合
+            if session != nil {
+                SecureLogger.shared.info("MainTabView: Pending profile setup session detected, showing profile setup")
+                // SignInViewが閉じた後にプロフィール設定画面を表示
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    showingProfileSetup = true
+                }
+            }
+        }
         .onChange(of: selectedUserIdForProfile) { _, newValue in
             SecureLogger.shared.info("selectedUserIdForProfile changed to: \(newValue ?? "nil")")
             if newValue != nil {
@@ -245,6 +287,14 @@ struct MainTabView: View {
                 } else {
                     // 認証済みの場合は投稿を読み込み
                     await mapManager.fetchInitialPostsIfNeeded()
+
+                    // ホームカントリーのランドマークを初期位置に設定
+                    if let homeCountryCode = authManager.currentUser?.homeCountry,
+                       let country = CountryData.country(for: homeCountryCode) {
+                        SecureLogger.shared.info("Initial location set to home country landmark: \(country.landmarkName)")
+                        mapManager.focusOnLocation(country.coordinate, zoomLevel: 0.005)
+                        hasSetInitialLocation = true
+                    }
                 }
             }
             #endif
@@ -268,6 +318,14 @@ struct MainTabView: View {
             if authed {
                 Task { @MainActor in
                     await mapManager.fetchInitialPostsIfNeeded()
+
+                    // ホームカントリーのランドマークへ移動
+                    if let homeCountryCode = authManager.currentUser?.homeCountry,
+                       let country = CountryData.country(for: homeCountryCode) {
+                        SecureLogger.shared.info("Moving to home country landmark: \(country.landmarkName) in \(country.name)")
+                        mapManager.focusOnLocation(country.coordinate, zoomLevel: 0.005)
+                        hasSetInitialLocation = true
+                    }
                 }
             }
         }

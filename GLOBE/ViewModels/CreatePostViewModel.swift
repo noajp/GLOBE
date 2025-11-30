@@ -83,7 +83,7 @@ class CreatePostViewModel: ObservableObject {
             return
         }
 
-        guard let userId = authManager.currentUser?.id else {
+        guard authManager.currentUser?.id != nil else {
             showError(message: "User not authenticated")
             completion(false)
             return
